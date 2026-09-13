@@ -15,7 +15,7 @@ export const useAuth = () => {
 /**
  * Get the dashboard path for a user based on their role and org.
  * @param {string} role - User's role (staff, manager, admin)
- * @param {string} orgSlug - Organization slug (e.g., 'nuad-thai-spa')
+ * @param {string} orgSlug - Organization slug (e.g., 'bright-smile-dental')
  * @returns {string} - Dashboard path
  */
 export const getDashboardPath = (role, orgSlug) => {

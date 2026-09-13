@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { BrowserRouter, Routes as RouterRoutes, Route, useLocation, useParams, Navigate } from "react-router-dom";
 import ScrollToTop from "components/ScrollToTop";
 import ErrorBoundary from "components/ErrorBoundary";
@@ -22,22 +22,6 @@ import PlatformLogin from 'pages/platform/PlatformLogin';
 import PlatformDashboard from 'pages/platform/PlatformDashboard';
 import PlatformOrgDetail from 'pages/platform/PlatformOrgDetail';
 import { PLATFORM_ADMIN_ENABLED } from 'lib/featureFlags';
-
-// External redirect component for root URL
-const ExternalRedirect = ({ to }) => {
-  useEffect(() => {
-    window.location.href = to;
-  }, [to]);
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-        <p className="text-text-secondary">Redirecting...</p>
-      </div>
-    </div>
-  );
-};
 
 // Wrapper component that provides tenant context
 const TenantWrapper = ({ children }) => (
@@ -114,8 +98,8 @@ const AppRoutes = () => {
       <ErrorBoundary key={location.pathname}>
       <ScrollToTop />
       <RouterRoutes>
-        {/* Root redirects to Zunkireelabs product page */}
-        <Route path="/" element={<ExternalRedirect to="https://www.zunkireelabs.com/products/ai-booking-engine/" />} />
+        {/* Root redirects to org finder */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
 
         {/* ==================== ORG-SCOPED STAFF ROUTES ==================== */}
 
@@ -201,10 +185,6 @@ const AppRoutes = () => {
         <Route path="/:orgSlug/customer-login" element={<TenantWrapper><CustomerLoginAuthentication /></TenantWrapper>} />
         <Route path="/:orgSlug/signup" element={<TenantWrapper><CustomerSignup /></TenantWrapper>} />
         <Route path="/:orgSlug/account" element={<TenantWrapper><CustomerAccount /></TenantWrapper>} />
-
-        {/* Legacy customer routes - redirect to default tenant for backwards compatibility */}
-        <Route path="/customer-booking-flow" element={<ExternalRedirect to="/nuad-thai-spa/book" />} />
-        <Route path="/booking-management-portal" element={<ExternalRedirect to="/nuad-thai-spa/book" />} />
 
         {/* ==================== CATCH-ALL ==================== */}
 

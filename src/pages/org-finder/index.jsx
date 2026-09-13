@@ -180,7 +180,7 @@ const OrgFinder = () => {
                     setOrgInput(e.target.value);
                     if (error) setError('');
                   }}
-                  placeholder="e.g., nuad-thai-spa"
+                  placeholder="e.g., bright-smile-dental"
                   disabled={isLoading}
                   className="w-full px-3.5 py-3 text-sm bg-surface border border-border rounded-[10px] text-text-primary placeholder:text-text-secondary outline-none transition-all duration-150 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:bg-background disabled:cursor-not-allowed"
                 />

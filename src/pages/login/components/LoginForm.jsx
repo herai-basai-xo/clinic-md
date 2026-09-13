@@ -164,7 +164,7 @@ const LoginForm = () => {
         // PIN login successful — session is set, fetch profile
         saveEmail(urlOrgSlug, email);
         // Reload to let AuthContext pick up the session
-        window.location.href = getDashboardPath(null, urlOrgSlug || 'nuad-thai-spa');
+        window.location.href = getDashboardPath(null, urlOrgSlug || 'bright-smile-dental');
         return;
       }
 
