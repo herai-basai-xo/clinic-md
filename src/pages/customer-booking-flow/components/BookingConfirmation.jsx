@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import Button from '../../../components/ui/Button';
 import Icon from '../../../components/AppIcon';
 import Image from '../../../components/AppImage';
-import { createBooking, fetchRooms, lookupReferrerByPhone } from '../../../services/api';
+import { createBooking, fetchChairs, lookupReferrerByPhone } from '../../../services/api';
 import { toE164 } from '../../../utils/phone';
 
 const BookingConfirmation = ({
   orgSlug,
   selectedBranch,
-  selectedService,
+  selectedTreatment,
   selectedDateTime,
   customerInfo,
   genderPreference,
@@ -24,7 +24,7 @@ const BookingConfirmation = ({
   useEffect(() => {
     async function loadAmenities() {
       if (selectedBranch?.id) {
-        const { data } = await fetchRooms(selectedBranch.id);
+        const { data } = await fetchChairs(selectedBranch.id);
         if (data) {
           const unique = [...new Set(data.flatMap(r => r.amenities || []))];
           setAmenities(unique);
@@ -107,7 +107,7 @@ const BookingConfirmation = ({
 
       const { data, error } = await createBooking({
         branchId: selectedBranch?.id,
-        serviceId: selectedService?.id,
+        treatmentId: selectedTreatment?.id,
         date: selectedDateTime?.date,
         startTime: selectedDateTime?.time,
         customerName: (customerInfo.firstName + ' ' + customerInfo.lastName).trim(),
@@ -124,7 +124,7 @@ const BookingConfirmation = ({
 
       if (error) {
         setBookingError(
-          ['ROOMS_FULL', 'BRANCH_ONLINE_CAPACITY'].includes(error.code) ? error.message : 'Something went wrong. Please try again.'
+          ['CHAIRS_FULL', 'BRANCH_ONLINE_CAPACITY'].includes(error.code) ? error.message : 'Something went wrong. Please try again.'
         );
         return;
       }
@@ -139,11 +139,11 @@ const BookingConfirmation = ({
   return (
     <div className="space-y-4">
       <div className="relative overflow-hidden rounded-spa-lg shadow-sm">
-        <Image src={selectedService?.image} alt={selectedService?.name} className="w-full h-48 object-cover" />
+        <Image src={selectedTreatment?.image} alt={selectedTreatment?.name} className="w-full h-48 object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute bottom-3 left-4">
-          <h3 className="font-heading font-bold text-xl text-white">{selectedService?.name}</h3>
-          <p className="text-xs text-white/80">{selectedService?.duration} session</p>
+          <h3 className="font-heading font-bold text-xl text-white">{selectedTreatment?.name}</h3>
+          <p className="text-xs text-white/80">{selectedTreatment?.duration} session</p>
         </div>
       </div>
 
@@ -153,7 +153,7 @@ const BookingConfirmation = ({
           <div className="space-y-3">
             <div className="flex justify-between text-sm"><span className="text-text-secondary">Branch</span><span className="font-medium">{selectedBranch?.name}</span></div>
             <div className="flex justify-between text-sm"><span className="text-text-secondary">Date \& Time</span><span className="font-medium">{formatDateTime()}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-text-secondary">Price</span><span className="text-primary font-bold">{formatPrice(selectedService?.price || 0)}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-text-secondary">Price</span><span className="text-primary font-bold">{formatPrice(selectedTreatment?.price || 0)}</span></div>
           </div>
         </div>
 

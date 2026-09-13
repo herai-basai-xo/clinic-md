@@ -7,14 +7,14 @@ import { supabase } from '../../../lib/supabase';
 // Helper: get saved emails for an org from localStorage
 function getSavedEmails(orgSlug) {
   try {
-    const key = `zenly_saved_emails_${orgSlug || 'default'}`;
+    const key = `superdental_saved_emails_${orgSlug || 'default'}`;
     return JSON.parse(localStorage.getItem(key) || '[]');
   } catch { return []; }
 }
 
 // Helper: save email for an org to localStorage
 function saveEmail(orgSlug, email) {
-  const key = `zenly_saved_emails_${orgSlug || 'default'}`;
+  const key = `superdental_saved_emails_${orgSlug || 'default'}`;
   const emails = getSavedEmails(orgSlug);
   if (!emails.includes(email)) {
     emails.unshift(email);
@@ -207,7 +207,7 @@ const LoginForm = () => {
 
   const handleRemoveSavedEmail = (e, emailToRemove) => {
     e.stopPropagation();
-    const key = `zenly_saved_emails_${urlOrgSlug || 'default'}`;
+    const key = `superdental_saved_emails_${urlOrgSlug || 'default'}`;
     const updated = savedEmails.filter(e => e !== emailToRemove);
     localStorage.setItem(key, JSON.stringify(updated));
     setSavedEmails(updated);
@@ -424,9 +424,9 @@ const LoginForm = () => {
             <span className="text-sm font-medium text-text-primary">Demo Credentials</span>
           </div>
           <div className="space-y-1.5 text-xs text-text-secondary font-mono">
-            <div><strong>Staff:</strong> staff@zenly.app / Zennly@Staff123</div>
-            <div><strong>Manager:</strong> manager@zenly.app / Zennly@Manager123</div>
-            <div><strong>Admin:</strong> admin@zenly.app / Zennly@Admin123</div>
+            <div><strong>Staff:</strong> staff@superdental.app / Superdental@Staff123</div>
+            <div><strong>Manager:</strong> manager@superdental.app / Superdental@Manager123</div>
+            <div><strong>Admin:</strong> admin@superdental.app / Superdental@Admin123</div>
           </div>
         </div>
       )}

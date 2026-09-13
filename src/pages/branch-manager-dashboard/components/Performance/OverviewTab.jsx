@@ -68,7 +68,7 @@ const OverviewTab = ({ dentistId, branchId, range }) => {
     );
   }
 
-  if (!data || (data.totalAssigned === 0 && data.servicesCompleted === 0)) {
+  if (!data || (data.totalAssigned === 0 && data.treatmentsCompleted === 0)) {
     return (
       <div className="p-12 text-center bg-surface rounded-spa-lg border border-border">
         <Icon name="LayoutGrid" size={32} className="text-text-tertiary mx-auto mb-3" />
@@ -80,7 +80,7 @@ const OverviewTab = ({ dentistId, branchId, range }) => {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon="Sparkles" iconBg="bg-primary/10" iconColor="text-primary" label="Services completed" value={data.servicesCompleted} />
+        <StatCard icon="Sparkles" iconBg="bg-primary/10" iconColor="text-primary" label="Treatments completed" value={data.treatmentsCompleted} />
         <StatCard icon="Users" iconBg="bg-success/10" iconColor="text-success" label="Customers attended" value={data.customersAttended} />
         <StatCard icon="UserCheck" iconBg="bg-accent/10" iconColor="text-accent" label="Customers assigned" value={data.customersAssigned} />
         <StatCard icon="Wallet" iconBg="bg-success/10" iconColor="text-success" label="Revenue" value={formatNPR(data.paidRevenue)} />
@@ -94,7 +94,7 @@ const OverviewTab = ({ dentistId, branchId, range }) => {
           value={`${data.utilizationRate}%`}
           highlight={data.utilizationRate >= 70 ? 'text-success' : data.utilizationRate >= 40 ? 'text-warning' : 'text-error'}
         />
-        <StatCard icon="Timer" iconBg="bg-background" iconColor="text-text-secondary" label="Avg service duration" value={`${data.avgServiceDurationMinutes} min`} />
+        <StatCard icon="Timer" iconBg="bg-background" iconColor="text-text-secondary" label="Avg treatment duration" value={`${data.avgTreatmentDurationMinutes} min`} />
       </div>
 
       {/* Assigned vs attended breakdown, per spec's "Assigned: 29 · Attended: 26 · Not attended: 3" */}

@@ -13,7 +13,7 @@ const StaffSidebar = ({ userRole: propRole, userName: propName, branchName: prop
   const { profile, signOut } = useAuth();
   const { branchName: contextBranchName, branchId, isOverall } = useBranch();
   const [pendingApprovals, setPendingApprovals] = useState(0);
-  const { staffLabelPlural, locationLabelPlural, enableRooms } = useIndustry();
+  const { staffLabelPlural, locationLabelPlural, enableChairs } = useIndustry();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [isScrolling, setIsScrolling] = useState(false);
@@ -36,8 +36,6 @@ const StaffSidebar = ({ userRole: propRole, userName: propName, branchName: prop
   }, []);
   const [expandedItems, setExpandedItems] = useState(['operations']); // Default expanded
 
-  // World Cup 2026 — show the logo-kicks-football animation through July 20, 2026 (Nepal time).
-  const showWorldCupKick = new Date() < new Date('2026-07-21T00:00:00+05:45');
   const userRole = profile?.role || propRole || 'staff';
   const userName = profile?.full_name || propName || 'Staff Member';
   const branchName = contextBranchName || profile?.branches?.name || propBranch || 'Main Branch';
@@ -241,10 +239,10 @@ const StaffSidebar = ({ userRole: propRole, userName: propName, branchName: prop
           roles: ['manager', 'admin']
         }] : []),
         {
-          id: 'service-revenue',
-          label: 'Service Revenue',
+          id: 'treatment-revenue',
+          label: 'Treatment Revenue',
           icon: 'PieChart',
-          path: `${basePath}?view=service-revenue`,
+          path: `${basePath}?view=treatment-revenue`,
           roles: ['manager', 'admin', 'admin_viewer']
         },
       ]
@@ -365,20 +363,20 @@ const StaffSidebar = ({ userRole: propRole, userName: propName, branchName: prop
       icon: 'Settings',
       roles: ['manager', 'admin', 'admin_viewer'],
       children: [
-        // Only show rooms/locations for industries that use them
-        ...(enableRooms ? [{
-          id: 'rooms',
+        // Only show chairs/locations for industries that use them
+        ...(enableChairs ? [{
+          id: 'chairs',
           label: locationLabelPlural,
           icon: 'DoorOpen',
-          path: `${basePath}?view=rooms`,
+          path: `${basePath}?view=chairs`,
           roles: ['manager', 'admin', 'admin_viewer'],
           overallHidden: true
         }] : []),
         {
-          id: 'services',
-          label: 'Services',
+          id: 'treatments',
+          label: 'Treatments',
           icon: 'Sparkles',
-          path: `${basePath}?view=services`,
+          path: `${basePath}?view=treatments`,
           roles: ['manager', 'admin', 'admin_viewer'],
           overallHidden: true
         },
@@ -487,13 +485,13 @@ const StaffSidebar = ({ userRole: propRole, userName: propName, branchName: prop
           {!isCollapsed && (
             <Link to={basePath} className="flex items-center gap-3">
               <div className="relative">
-                <div className={`w-8 h-8 bg-primary rounded-full flex items-center justify-center ${showWorldCupKick ? 'zenly-wc-bubble' : ''}`}>
+                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
                   <svg
                     width="18"
                     height="18"
                     viewBox="0 0 24 24"
                     fill="none"
-                    className={`text-white ${showWorldCupKick ? 'zenly-wc-star' : ''}`}
+                    className="text-white"
                   >
                     <path
                       d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z"
@@ -502,96 +500,9 @@ const StaffSidebar = ({ userRole: propRole, userName: propName, branchName: prop
                     <circle cx="12" cy="19" r="2" fill="currentColor" opacity="0.7"/>
                   </svg>
                 </div>
-                {showWorldCupKick && (
-                  <>
-                    {/* Athletic stick figure — head, torso, and 4 limbs each
-                        split into TWO segments (upper arm + forearm, thigh +
-                        shin) so we can bend the knee/elbow independently of
-                        the hip/shoulder. That's what makes the gait & kick
-                        read as athletic instead of as a rigid swing.        */}
-                    <svg
-                      className="zenly-wc-player"
-                      viewBox="0 0 32 32"
-                      fill="none"
-                      aria-hidden="true"
-                    >
-                      <g className="zenly-wc-figure">
-                        {/* Colors come from CSS (currentColor = Zennly green) */}
-                        <circle cx="16" cy="5.8" r="2.6" />
-                        <line x1="16" y1="8.4" x2="16" y2="18.5" strokeWidth="2.4" strokeLinecap="round" />
-                        <line x1="13.5" y1="10.5" x2="18.5" y2="10.5" strokeWidth="1.6" strokeLinecap="round" />
-                        <g className="zenly-wc-arm-l">
-                          <line x1="14" y1="10.8" x2="14" y2="14.8" strokeWidth="2" strokeLinecap="round" />
-                          <g className="zenly-wc-forearm-l">
-                            <line x1="14" y1="14.8" x2="14" y2="18.6" strokeWidth="1.8" strokeLinecap="round" />
-                          </g>
-                        </g>
-                        <g className="zenly-wc-arm-r">
-                          <line x1="18" y1="10.8" x2="18" y2="14.8" strokeWidth="2" strokeLinecap="round" />
-                          <g className="zenly-wc-forearm-r">
-                            <line x1="18" y1="14.8" x2="18" y2="18.6" strokeWidth="1.8" strokeLinecap="round" />
-                          </g>
-                        </g>
-                        <g className="zenly-wc-leg-l">
-                          <line x1="15.2" y1="18.5" x2="15.2" y2="23" strokeWidth="2.4" strokeLinecap="round" />
-                          <g className="zenly-wc-shin-l">
-                            <line x1="15.2" y1="23" x2="15.2" y2="28" strokeWidth="2.2" strokeLinecap="round" />
-                          </g>
-                        </g>
-                        <g className="zenly-wc-leg-r">
-                          <line x1="16.8" y1="18.5" x2="16.8" y2="23" strokeWidth="2.4" strokeLinecap="round" />
-                          <g className="zenly-wc-shin-r">
-                            <line x1="16.8" y1="23" x2="16.8" y2="28" strokeWidth="2.2" strokeLinecap="round" />
-                          </g>
-                        </g>
-                      </g>
-                    </svg>
-
-                    {/* Goal post — frame with net pattern */}
-                    <svg className="zenly-wc-goalpost" viewBox="0 0 24 18" aria-hidden="true">
-                      <line x1="2" y1="2" x2="2" y2="17" stroke="#1f2937" strokeWidth="1.4" strokeLinecap="round" />
-                      <line x1="22" y1="2" x2="22" y2="17" stroke="#1f2937" strokeWidth="1.4" strokeLinecap="round" />
-                      <line x1="2" y1="2" x2="22" y2="2" stroke="#1f2937" strokeWidth="1.4" strokeLinecap="round" />
-                      <line x1="6" y1="2" x2="6" y2="17" stroke="#1f2937" strokeWidth="0.4" opacity="0.55" />
-                      <line x1="10" y1="2" x2="10" y2="17" stroke="#1f2937" strokeWidth="0.4" opacity="0.55" />
-                      <line x1="14" y1="2" x2="14" y2="17" stroke="#1f2937" strokeWidth="0.4" opacity="0.55" />
-                      <line x1="18" y1="2" x2="18" y2="17" stroke="#1f2937" strokeWidth="0.4" opacity="0.55" />
-                      <line x1="2" y1="6" x2="22" y2="6" stroke="#1f2937" strokeWidth="0.4" opacity="0.55" />
-                      <line x1="2" y1="11" x2="22" y2="11" stroke="#1f2937" strokeWidth="0.4" opacity="0.55" />
-                    </svg>
-
-                    {/* Ball — SVG circle with a tiny pentagon mark so it reads as a soccer ball */}
-                    <svg
-                      className="zenly-wc-ball"
-                      viewBox="0 0 12 12"
-                      aria-hidden="true"
-                    >
-                      <circle cx="6" cy="6" r="5.4" fill="white" stroke="#1f2937" strokeWidth="0.6" />
-                      <path d="M6 3 L8.5 4.8 L7.5 7.5 L4.5 7.5 L3.5 4.8 Z" fill="#1f2937" />
-                    </svg>
-
-                    {/* Color burst — radiating accent-colored dots for the celebration */}
-                    <svg
-                      className="zenly-wc-burst"
-                      viewBox="0 0 40 40"
-                      aria-hidden="true"
-                    >
-                      <circle cx="6"  cy="14" r="1.6" fill="#DAA520" />
-                      <circle cx="34" cy="14" r="1.6" fill="#DAA520" />
-                      <circle cx="4"  cy="26" r="1.4" fill="#10B981" />
-                      <circle cx="36" cy="26" r="1.4" fill="#10B981" />
-                      <circle cx="20" cy="2"  r="1.6" fill="#DC2626" />
-                      <circle cx="10" cy="6"  r="1.2" fill="#DAA520" />
-                      <circle cx="30" cy="6"  r="1.2" fill="#DAA520" />
-                      <circle cx="20" cy="38" r="1.4" fill="#DC2626" />
-                    </svg>
-
-                    <span className="zenly-wc-goal-text" aria-hidden="true">GOAL!</span>
-                  </>
-                )}
               </div>
               <div>
-                <h1 className="text-sm font-semibold text-gray-900">Zennly</h1>
+                <h1 className="text-sm font-semibold text-gray-900">Superdental</h1>
                 <p className="text-xs text-gray-500">Staff Portal</p>
               </div>
             </Link>

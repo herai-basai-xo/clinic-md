@@ -224,7 +224,7 @@ const BookingDetailsAssignmentModal = () => {
                         Booking Management
                       </h1>
                       <p className="font-caption font-caption-normal text-sm text-text-secondary">
-                        {booking.id} — {booking.customerName} — {booking.service}
+                        {booking.id} — {booking.customerName} — {booking.treatment}
                       </p>
                     </div>
                   </div>

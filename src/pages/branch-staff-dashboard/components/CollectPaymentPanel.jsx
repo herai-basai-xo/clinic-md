@@ -221,7 +221,7 @@ const CollectPaymentPanel = ({ onSuccess }) => {
                       className="text-primary focus:ring-primary w-4 h-4 rounded"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="font-body text-sm text-text-primary">{b.serviceName}</div>
+                      <div className="font-body text-sm text-text-primary">{b.treatmentName}</div>
                       <div className="font-caption text-xs text-text-secondary">
                         #{b.bookingNumber} · {b.date}
                       </div>
@@ -242,7 +242,7 @@ const CollectPaymentPanel = ({ onSuccess }) => {
             booking_number: primaryBooking.bookingNumber,
             finalAmount: primaryBooking.finalAmount,
             amountPaid: primaryBooking.amountPaid,
-            service: primaryBooking.serviceName,
+            treatment: primaryBooking.treatmentName,
           }}
           additionalBookings={additionalBookings}
           dueHolderSuggestions={dueHolderSuggestions}

@@ -2,12 +2,12 @@ import React, { useRef } from 'react';
 import Icon from '../../../components/AppIcon';
 import useMeasuredHeightVar from 'hooks/useMeasuredHeightVar';
 
-// Same visual language as the v1 ProgressIndicator, but with the Service and Date & Time
-// steps collapsed into one ("Service & Time") since v2 books them side-by-side in one step.
+// Same visual language as the v1 ProgressIndicator, but with the Treatment and Date & Time
+// steps collapsed into one ("Treatment & Time") since v2 books them side-by-side in one step.
 const ProgressIndicatorV2 = ({ currentStep, totalSteps }) => {
   const steps = [
     { id: 1, label: 'Branch', icon: 'MapPin' },
-    { id: 2, label: 'Service & Time', icon: 'Sparkles' },
+    { id: 2, label: 'Treatment & Time', icon: 'Sparkles' },
     { id: 3, label: 'Details', icon: 'User' },
     { id: 4, label: 'Confirm', icon: 'CheckCircle' }
   ];

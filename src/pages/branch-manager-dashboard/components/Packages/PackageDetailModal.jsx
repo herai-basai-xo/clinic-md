@@ -100,10 +100,10 @@ const PackageDetailModal = ({ packageId, onClose, onChanged: _onChanged }) => {
               {/* Info grid */}
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 bg-background border border-border rounded-spa px-3 py-3">
                 <div>
-                  <p className="font-caption text-[11px] text-text-tertiary uppercase tracking-wide">Service</p>
+                  <p className="font-caption text-[11px] text-text-tertiary uppercase tracking-wide">Treatment</p>
                   <p className="font-body font-body-medium text-sm text-text-primary">
-                    {pkg.serviceName}
-                    {pkg.serviceDurationMinutes ? ` (${pkg.serviceDurationMinutes} min)` : ''}
+                    {pkg.treatmentName}
+                    {pkg.treatmentDurationMinutes ? ` (${pkg.treatmentDurationMinutes} min)` : ''}
                   </p>
                 </div>
                 <div>

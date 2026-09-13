@@ -8,7 +8,6 @@ const OrgContext = createContext(null);
 export const OrgProvider = ({ children }) => {
   const { profile, loading: authLoading } = useAuth();
   const [org, setOrg] = useState(null);
-  const [industry, setIndustry] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -22,7 +21,7 @@ export const OrgProvider = ({ children }) => {
     try {
       const { data, error: fetchError } = await supabase
         .from('organizations')
-        .select('id, name, code, slug, timezone, currency, is_active, settings, industry_type')
+        .select('id, name, code, slug, timezone, currency, is_active, settings')
         .eq('id', profile.org_id)
         .single();
 
@@ -45,35 +44,6 @@ export const OrgProvider = ({ children }) => {
     loadOrg();
   }, [authLoading, loadOrg]);
 
-  // Fetch industry data when org loads
-  useEffect(() => {
-    const fetchIndustry = async () => {
-      if (!org?.industry_type) {
-        setIndustry(null);
-        return;
-      }
-
-      try {
-        const { data, error: fetchError } = await supabase
-          .from('industries')
-          .select('*')
-          .eq('id', org.industry_type)
-          .single();
-
-        if (fetchError) {
-          console.error('[OrgContext] Error fetching industry:', fetchError.message);
-          // Don't set error - industry is optional, fall back to defaults
-        } else {
-          setIndustry(data);
-        }
-      } catch (err) {
-        console.error('[OrgContext] Unexpected error fetching industry:', err.message);
-      }
-    };
-
-    fetchIndustry();
-  }, [org?.industry_type]);
-
   const value = {
     // Existing org values
     org,
@@ -88,26 +58,21 @@ export const OrgProvider = ({ children }) => {
     loading: authLoading || loading,
     error,
 
-    // Industry data
-    industry,
-    industryType: org?.industry_type || 'spa',
+    // Dental terminology (fixed — this app is dental-only, no multi-industry abstraction)
+    staffLabel: 'Dentist',
+    staffLabelPlural: 'Dentists',
+    locationLabel: 'Chair',
+    locationLabelPlural: 'Chairs',
+    sessionLabel: 'Appointment',
+    sessionLabelPlural: 'Appointments',
 
-    // Terminology (with spa defaults)
-    staffLabel: industry?.staff_label || 'Dentist',
-    staffLabelPlural: industry?.staff_label_plural || 'Dentists',
-    locationLabel: industry?.location_label || 'Room',
-    locationLabelPlural: industry?.location_label_plural || 'Rooms',
-    sessionLabel: industry?.session_label || 'Session',
-    sessionLabelPlural: industry?.session_label_plural || 'Sessions',
+    // Feature flags (fixed on for dental)
+    enableChairs: true,
+    enableStaffGender: true,
+    enableSpecialties: true,
+    enableCustomerGender: true,
 
-    // Feature flags (default to spa behavior: all enabled)
-    enableRooms: industry?.enable_rooms !== false,
-    enableStaffGender: industry?.enable_staff_gender !== false,
-    enableSpecialties: industry?.enable_specialties !== false,
-    enableCustomerGender: industry?.enable_customer_gender !== false,
-
-    // Industry default categories
-    defaultCategories: industry?.default_categories || [],
+    defaultCategories: [],
   };
 
   return (

@@ -272,7 +272,7 @@ function getOverlapLayout(clusterSize, columnWidth) {
 // and the booking_dentists junction table (secondary/legacy source, also
 // used for shared/multi-dentist bookings via a separate path) — plus a
 // third, independent axis: whether that dentist is visible under the
-// CURRENT view filter (All Positions / attendance-absent / service-only).
+// CURRENT view filter (All Positions / attendance-absent / treatment-only).
 // Every call site that needs "which dentist does this booking belong to"
 // must go through this function. Do not re-derive this inline at a new call
 // site — extend the truth table this function encodes instead.
@@ -417,7 +417,7 @@ const OverflowPopoverRow = ({ booking, onClick, onDragChange }) => {
         {...(isDraggable ? { ...listeners, ...attributes } : {})}
       >
         <div className="text-[11px] font-medium text-text-primary truncate">{booking.customerName || 'Guest'}</div>
-        <div className="text-[10px] text-text-secondary truncate">{booking.serviceName || 'Service'}</div>
+        <div className="text-[10px] text-text-secondary truncate">{booking.treatmentName || 'Treatment'}</div>
         <div className="text-[10px] font-data text-text-secondary/80">{toTime12h(booking.startTime)} – {toTime12h(booking.endTime)}</div>
       </button>
       {showPreview && !isDragging && previewPos && (
@@ -561,7 +561,7 @@ const SortableColumnHeader = ({ id, children, minWidth }) => {
 
 const CalendarGrid = ({
   dentists,
-  rooms = [],
+  chairs = [],
   bookings,
   branchHours,
   attendanceMap,
@@ -578,7 +578,7 @@ const CalendarGrid = ({
   freezeUnassigned = true,
   onToggleFreezeUnassigned,
   onDentistReorder,
-  onRoomReorder,
+  onChairReorder,
 }) => {
   const scrollRef = useRef(null);
   const headerScrollRef = useRef(null);
@@ -714,7 +714,7 @@ const CalendarGrid = ({
 
   const closeHour = 23;  // last label 10pm (22), grid ends at 11pm
 
-  const TOP_PAD = 12;  // breathing room above the first (9am) line
+  const TOP_PAD = 12;  // breathing chair above the first (9am) line
 
   const hours = useMemo(() => {
     const result = [];
@@ -733,16 +733,16 @@ const CalendarGrid = ({
 
   // ── Build columns based on mode ──────────────────────────
   const columns = useMemo(() => {
-    if (columnMode === 'room') {
-      const cols = rooms.map(r => ({
+    if (columnMode === 'chair') {
+      const cols = chairs.map(r => ({
         id: r.id,
         name: r.name,
-        type: 'room',
+        type: 'chair',
         icon: 'DoorOpen',
         subtitle: null,
         attendance: null,
       }));
-      cols.push({ id: 'unassigned', name: 'No Room', type: 'unassigned', icon: 'AlertCircle', subtitle: null, attendance: null });
+      cols.push({ id: 'unassigned', name: 'No Chair', type: 'unassigned', icon: 'AlertCircle', subtitle: null, attendance: null });
       return cols;
     }
     // dentist mode
@@ -761,7 +761,7 @@ const CalendarGrid = ({
     }));
     cols.push({ id: 'unassigned', name: 'Unassigned', type: 'unassigned', icon: 'AlertCircle', subtitle: null, attendance: null });
     return cols;
-  }, [dentists, rooms, attendanceMap, columnMode]);
+  }, [dentists, chairs, attendanceMap, columnMode]);
 
   // ── Group bookings by day and column ─────────────────────
   const bookingsByDayAndCol = useMemo(() => {
@@ -774,8 +774,8 @@ const CalendarGrid = ({
     // Build lookup maps for complementary info
     const dentistMap = {};
     dentists.forEach(t => { dentistMap[t.id] = t.name; });
-    const roomMap = {};
-    rooms.forEach(r => { roomMap[r.id] = r.name; });
+    const chairMap = {};
+    chairs.forEach(r => { chairMap[r.id] = r.name; });
 
     bookings.forEach(b => {
       const bookingDate = b.date || (b.start_datetime ? b.start_datetime.split('T')[0] : null);
@@ -794,8 +794,8 @@ const CalendarGrid = ({
         bookingNumber: b.booking_number,
         customerName: b.customer_name,
         customerPhone: b.customer_phone || null,
-        serviceName: b.service?.name || 'Service',
-        serviceDuration: b.service?.duration_minutes || null,
+        treatmentName: b.treatment?.name || 'Treatment',
+        treatmentDuration: b.treatment?.duration_minutes || null,
         status: b.status,
         paymentStatus: b.payment_status,
         isLocked: b.is_locked || false,
@@ -804,9 +804,9 @@ const CalendarGrid = ({
         createdAt: b.created_at || null,
         date: bookingDate,
         dentistId: visibleDentistId,
-        roomId: b.room_id,
+        chairId: b.chair_id,
         dentistName,
-        roomName: b.room?.name || roomMap[b.room_id] || null,
+        chairName: b.chair?.name || chairMap[b.chair_id] || null,
         baseAmount: b.base_amount,
         discountAmount: b.discount_amount,
         finalAmount: b.final_amount,
@@ -841,8 +841,8 @@ const CalendarGrid = ({
           });
         });
       } else {
-        const colId = columnMode === 'room'
-          ? (b.room_id || 'unassigned')
+        const colId = columnMode === 'chair'
+          ? (b.chair_id || 'unassigned')
           : (visibleDentistId || 'unassigned');
         if (!map[bookingDate][colId]) map[bookingDate][colId] = [];
         map[bookingDate][colId].push(baseEntry);
@@ -850,7 +850,7 @@ const CalendarGrid = ({
     });
 
     return map;
-  }, [bookings, columns, days, columnMode, dentists, rooms]);
+  }, [bookings, columns, days, columnMode, dentists, chairs]);
 
   // Expose selected bookings to parent for multi-drag
   const getSelectedBookings = useCallback(() => {
@@ -1345,7 +1345,7 @@ const CalendarGrid = ({
   const regularColumns = columns.filter(c => c.type !== 'unassigned');
   const regularMinWidth = regularColumns.length * minColWidth;
   const canSortHeaders = (columnMode === 'dentist' && !!onDentistReorder)
-    || (columnMode === 'room' && !!onRoomReorder);
+    || (columnMode === 'chair' && !!onChairReorder);
   const regularColumnIds = useMemo(() => regularColumns.map(c => c.id), [regularColumns]);
 
   const handleHeaderDragStart = useCallback(() => {
@@ -1356,14 +1356,14 @@ const CalendarGrid = ({
   const handleHeaderDragEnd = useCallback((event) => {
     setIsHeaderDragging(false);
     const { active, over } = event;
-    const reorderFn = columnMode === 'room' ? onRoomReorder : onDentistReorder;
+    const reorderFn = columnMode === 'chair' ? onChairReorder : onDentistReorder;
     if (!over || active.id === over.id || !reorderFn) return;
     const oldIndex = regularColumns.findIndex(c => c.id === active.id);
     const newIndex = regularColumns.findIndex(c => c.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
     const reordered = arrayMove(regularColumns, oldIndex, newIndex);
     reorderFn(reordered.map(c => c.id));
-  }, [regularColumns, columnMode, onDentistReorder, onRoomReorder]);
+  }, [regularColumns, columnMode, onDentistReorder, onChairReorder]);
 
   const renderDayView = () => (
     <div className="flex flex-col h-full overflow-hidden">

@@ -198,7 +198,7 @@ const BookingLookupPanel = ({
                     </span>
                   </div>
 
-                  {/* Customer + Service */}
+                  {/* Customer + Treatment */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-0.5">
                       <span className="font-body font-body-medium text-sm text-text-primary truncate">
@@ -216,7 +216,7 @@ const BookingLookupPanel = ({
                     <div className="flex items-center space-x-2 text-xs text-text-secondary">
                       <span>{booking.id}</span>
                       <span className="text-text-tertiary">·</span>
-                      <span>{booking.service}</span>
+                      <span>{booking.treatment}</span>
                       <span className="text-text-tertiary">·</span>
                       <span>{new Date(booking.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                       {booking.customerPhone && (

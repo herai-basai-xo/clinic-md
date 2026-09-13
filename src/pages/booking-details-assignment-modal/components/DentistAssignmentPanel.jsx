@@ -38,8 +38,8 @@ const DentistAssignmentPanel = ({
       score += 30;
     }
     
-    // Service specialty match
-    if (dentist.specialties.includes(booking.service)) {
+    // Treatment specialty match
+    if (dentist.specialties.includes(booking.treatment)) {
       score += 40;
     }
     
@@ -205,7 +205,7 @@ const DentistAssignmentPanel = ({
                       <span 
                         key={specialty}
                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-caption font-caption-normal ${
-                          specialty === booking.service 
+                          specialty === booking.treatment 
                             ? 'bg-primary/10 text-primary' :'bg-accent/10 text-accent'
                         }`}
                       >

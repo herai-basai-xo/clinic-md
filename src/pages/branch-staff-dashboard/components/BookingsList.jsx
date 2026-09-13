@@ -222,11 +222,11 @@ const BookingsList = ({ bookings, dentists = [], onStatusUpdate, onAssignDentist
                     )}
                   </div>
 
-                  {/* Service & Dentist Row */}
+                  {/* Treatment & Dentist Row */}
                   <div className="flex flex-col gap-1.5 text-xs text-gray-600 mb-3">
                     <div className="flex items-center gap-1.5">
                       <Icon name="Scissors" size={14} className="text-gray-400" />
-                      <span>{booking.service}</span>
+                      <span>{booking.treatment}</span>
                       <span className="text-gray-400">·</span>
                       <span>{booking.duration}</span>
                     </div>
@@ -235,7 +235,7 @@ const BookingsList = ({ bookings, dentists = [], onStatusUpdate, onAssignDentist
                       {(booking.dentists?.length > 0 || booking.dentist) ? (
                         <span>
                           {(booking.dentists?.length > 0 ? booking.dentists : [booking.dentist]).filter(Boolean).map(t => t.name).join(', ')}
-                          {booking.dentist?.room && <span className="text-gray-400"> · Room {booking.dentist.room}</span>}
+                          {booking.dentist?.chair && <span className="text-gray-400"> · Chair {booking.dentist.chair}</span>}
                         </span>
                       ) : (
                         <span className="text-amber-600 font-medium">Unassigned</span>
@@ -284,7 +284,7 @@ const BookingsList = ({ bookings, dentists = [], onStatusUpdate, onAssignDentist
                         </div>
                       </div>
 
-                      {/* Customer & Service */}
+                      {/* Customer & Treatment */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <h3 className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
@@ -314,7 +314,7 @@ const BookingsList = ({ bookings, dentists = [], onStatusUpdate, onAssignDentist
                         <div className="flex items-center gap-4 text-xs text-gray-500">
                           <span className="flex items-center gap-1">
                             <Icon name="Scissors" size={12} />
-                            <span className="truncate max-w-[150px]">{booking.service}</span>
+                            <span className="truncate max-w-[150px]">{booking.treatment}</span>
                           </span>
                           {booking.customerPhone && (
                             <span className="flex items-center gap-1">
@@ -333,7 +333,7 @@ const BookingsList = ({ bookings, dentists = [], onStatusUpdate, onAssignDentist
                               {(booking.dentists?.length > 0 ? booking.dentists : [booking.dentist]).filter(Boolean).map(t => t.name).join(', ')}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {booking.dentist?.room ? `Room ${booking.dentist.room}` : ''}
+                              {booking.dentist?.chair ? `Chair ${booking.dentist.chair}` : ''}
                             </div>
                           </div>
                         ) : (

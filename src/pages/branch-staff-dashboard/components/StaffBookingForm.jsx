@@ -4,20 +4,20 @@ import Button from '../../../components/ui/Button';
 import CountryCodeSelect, { parsePhone } from '../../../components/ui/CountryCodeSelect';
 import { toE164, samePhone } from '../../../utils/phone';
 import CustomerAutocomplete from '../../../components/ui/CustomerAutocomplete';
-import { fetchServices, createBooking, getCustomerOutstandingBalance, fetchCustomersLightweight } from '../../../services/api';
+import { fetchTreatments, createBooking, getCustomerOutstandingBalance, fetchCustomersLightweight } from '../../../services/api';
 import { useBranch } from '../../../contexts/BranchContext';
 import { CUSTOMER_REFERRALS_ENABLED } from '../../../lib/featureFlags';
 
 const StaffBookingForm = ({ onBookingCreated }) => {
   const { branchId } = useBranch();
 
-  // Steps: service → datetime → customer → confirm
+  // Steps: treatment → datetime → customer → confirm
   const [step, setStep] = useState(1);
-  const [services, setServices] = useState([]);
-  const [loadingServices, setLoadingServices] = useState(true);
+  const [treatments, setTreatments] = useState([]);
+  const [loadingTreatments, setLoadingTreatments] = useState(true);
 
   // Booking data
-  const [selectedService, setSelectedService] = useState(null);
+  const [selectedTreatment, setSelectedTreatment] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -69,13 +69,13 @@ const StaffBookingForm = ({ onBookingCreated }) => {
   const [error, setError] = useState(null);
   const [createdBooking, setCreatedBooking] = useState(null);
 
-  // Load services
+  // Load treatments
   useEffect(() => {
     (async () => {
-      setLoadingServices(true);
-      const result = await fetchServices();
-      if (result.data) setServices(result.data);
-      setLoadingServices(false);
+      setLoadingTreatments(true);
+      const result = await fetchTreatments();
+      if (result.data) setTreatments(result.data);
+      setLoadingTreatments(false);
     })();
   }, []);
 
@@ -111,14 +111,14 @@ const StaffBookingForm = ({ onBookingCreated }) => {
   }, [])();
 
   const handleSubmit = async () => {
-    if (!selectedService || !selectedDate || !selectedTime || !customerName.trim()) return;
+    if (!selectedTreatment || !selectedDate || !selectedTime || !customerName.trim()) return;
 
     setSubmitting(true);
     setError(null);
 
     const result = await createBooking({
       branchId,
-      serviceId: selectedService.id,
+      treatmentId: selectedTreatment.id,
       date: selectedDate,
       startTime: selectedTime,
       customerName: customerName.trim(),
@@ -229,7 +229,7 @@ const StaffBookingForm = ({ onBookingCreated }) => {
 
   const resetForm = () => {
     setStep(1);
-    setSelectedService(null);
+    setSelectedTreatment(null);
     setSelectedDate('');
     setSelectedTime('');
     setCustomerName('');
@@ -247,7 +247,7 @@ const StaffBookingForm = ({ onBookingCreated }) => {
 
   const canProceed = () => {
     switch (step) {
-      case 1: return !!selectedService;
+      case 1: return !!selectedTreatment;
       case 2: return !!selectedDate && !!selectedTime;
       case 3: return !!customerName.trim();
       case 4: return true;
@@ -270,7 +270,7 @@ const StaffBookingForm = ({ onBookingCreated }) => {
             {createdBooking.booking_number}
           </p>
           <p className="text-sm text-gray-500 mb-6">
-            {selectedService?.name} • {new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at{' '}
+            {selectedTreatment?.name} • {new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at{' '}
             {timeSlots.find(s => s.time24 === selectedTime)?.time12}
           </p>
           <div className="flex items-center justify-center gap-3">
@@ -296,7 +296,7 @@ const StaffBookingForm = ({ onBookingCreated }) => {
               New Booking
             </h2>
             <p className="text-xs text-gray-500 truncate">
-              Step {step}/4 — {['Service', 'Date & Time', 'Customer', 'Review'][step - 1]}
+              Step {step}/4 — {['Treatment', 'Date & Time', 'Customer', 'Review'][step - 1]}
             </p>
           </div>
         </div>
@@ -316,24 +316,24 @@ const StaffBookingForm = ({ onBookingCreated }) => {
       {/* Step Content */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
 
-        {/* STEP 1: Service */}
+        {/* STEP 1: Treatment */}
         {step === 1 && (
           <div>
             <h3 className="text-base font-medium text-gray-900 mb-4">
-              Select Service
+              Select Treatment
             </h3>
-            {loadingServices ? (
+            {loadingTreatments ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {services.map(svc => (
+                {treatments.map(svc => (
                   <button
                     key={svc.id}
-                    onClick={() => setSelectedService(svc)}
+                    onClick={() => setSelectedTreatment(svc)}
                     className={`text-left p-4 rounded-lg border transition-colors ${
-                      selectedService?.id === svc.id
+                      selectedTreatment?.id === svc.id
                         ? 'border-primary bg-blue-50'
                         : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                     }`}
@@ -342,7 +342,7 @@ const StaffBookingForm = ({ onBookingCreated }) => {
                       <span className="text-sm font-medium text-gray-900">
                         {svc.name}
                       </span>
-                      {selectedService?.id === svc.id && (
+                      {selectedTreatment?.id === svc.id && (
                         <Icon name="CheckCircle" size={16} className="text-primary flex-shrink-0" />
                       )}
                     </div>
@@ -591,12 +591,12 @@ const StaffBookingForm = ({ onBookingCreated }) => {
 
             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Service</span>
-                <span className="text-sm font-medium text-gray-900">{selectedService?.name}</span>
+                <span className="text-sm text-gray-500">Treatment</span>
+                <span className="text-sm font-medium text-gray-900">{selectedTreatment?.name}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Duration</span>
-                <span className="text-sm text-gray-900">{selectedService?.duration_minutes} min</span>
+                <span className="text-sm text-gray-900">{selectedTreatment?.duration_minutes} min</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Date</span>
@@ -635,7 +635,7 @@ const StaffBookingForm = ({ onBookingCreated }) => {
               <div className="border-t border-gray-200 pt-3 flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-900">Total</span>
                 <span className="text-lg font-semibold text-primary">
-                  NPR {Number(selectedService?.price_npr).toLocaleString('en-IN')}
+                  NPR {Number(selectedTreatment?.price_npr).toLocaleString('en-IN')}
                 </span>
               </div>
             </div>

@@ -10,7 +10,7 @@ const BookingsViewPanel = ({ branchId }) => {
   const { profile } = useAuth();
   const [filters, setFilters] = useState({
     dateRange: 'today',
-    serviceType: 'all',
+    treatmentType: 'all',
     status: 'all',
     search: ''
   });
@@ -64,7 +64,7 @@ const BookingsViewPanel = ({ branchId }) => {
         name: t.name,
         gender: t.gender,
         specialties: t.specialties || [],
-        room: null,
+        chair: null,
         status: 'available',
         currentBooking: null,
       })));
@@ -88,17 +88,17 @@ const BookingsViewPanel = ({ branchId }) => {
       );
     }
 
-    if (filters.serviceType !== 'all') {
-      const serviceMap = {
+    if (filters.treatmentType !== 'all') {
+      const treatmentMap = {
         massage: ['Deep Tissue Massage', 'Swedish Massage', 'Sports Massage'],
         facial: ['Facial Treatment', 'Anti-Aging Facial'],
         body: ['Body Wrap', 'Body Scrub'],
         aromatherapy: ['Aromatherapy Massage', 'Aromatherapy'],
         reflexology: ['Reflexology', 'Foot Reflexology']
       };
-      if (serviceMap[filters.serviceType]) {
+      if (treatmentMap[filters.treatmentType]) {
         filtered = filtered.filter(b =>
-          serviceMap[filters.serviceType].some(s => b.service.includes(s))
+          treatmentMap[filters.treatmentType].some(s => b.treatment.includes(s))
         );
       }
     }

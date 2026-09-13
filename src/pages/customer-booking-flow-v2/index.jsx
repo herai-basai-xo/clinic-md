@@ -5,7 +5,7 @@ import CustomerHeader from '../../components/ui/CustomerHeader';
 import Button from '../../components/ui/Button';
 import Icon from '../../components/AppIcon';
 import ProgressIndicatorV2 from './components/ProgressIndicatorV2';
-import ServiceBookingPanel from './components/ServiceBookingPanel';
+import TreatmentBookingPanel from './components/TreatmentBookingPanel';
 import BranchSelection from '../customer-booking-flow/components/BranchSelection';
 import CustomerForm from '../customer-booking-flow/components/CustomerForm';
 import BookingConfirmation from '../customer-booking-flow/components/BookingConfirmation';
@@ -15,10 +15,10 @@ import { useCustomerAuth } from '../../contexts/CustomerAuthContext';
 import { splitE164 } from '../../utils/phone';
 
 // v2 of the customer booking flow: identical business logic and steps to
-// pages/customer-booking-flow, except Service Selection + Date & Time are collapsed into a
-// single side-by-side step (ServiceBookingPanel) instead of two sequential pages. Reuses the
+// pages/customer-booking-flow, except Treatment Selection + Date & Time are collapsed into a
+// single side-by-side step (TreatmentBookingPanel) instead of two sequential pages. Reuses the
 // v1 BranchSelection / CustomerForm / BookingConfirmation / BookingSuccess components and the
-// v1 ServiceSelection / DateTimeSelection components unchanged — no parallel booking system.
+// v1 TreatmentSelection / DateTimeSelection components unchanged — no parallel booking system.
 const CustomerBookingFlowV2 = () => {
   const navigate = useNavigate();
   const { orgSlug } = useParams();
@@ -27,9 +27,9 @@ const CustomerBookingFlowV2 = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   // Step 2's floating "Previous" button only appears once the customer has
-  // scrolled past the top of the service list (at the top it would just
+  // scrolled past the top of the treatment list (at the top it would just
   // duplicate a control that's already in reach) AND the real Previous button
-  // — rendered in its normal spot right after the service grid, see prevBtnRef
+  // — rendered in its normal spot right after the treatment grid, see prevBtnRef
   // — has scrolled out of view. That way it never doubles up with, or floats
   // on top of, the real one once the customer reaches the bottom of the page.
   const [showFloatingPrev, setShowFloatingPrev] = useState(false);
@@ -44,7 +44,7 @@ const CustomerBookingFlowV2 = () => {
 
   // Booking state
   const [selectedBranch, setSelectedBranch] = useState(null);
-  const [selectedService, setSelectedService] = useState(null);
+  const [selectedTreatment, setSelectedTreatment] = useState(null);
   const [selectedDateTime, setSelectedDateTime] = useState({ date: '', time: '' });
   const [genderPreference, setGenderPreference] = useState('no-preference');
   const [customerInfo, setCustomerInfo] = useState({
@@ -86,7 +86,7 @@ const CustomerBookingFlowV2 = () => {
   }, [customerProfile]);
 
   const totalSteps = 5;
-  const stepNames = ['branch_selection', 'service_datetime_selection', 'customer_details', 'booking_confirmation', 'booking_success'];
+  const stepNames = ['branch_selection', 'treatment_datetime_selection', 'customer_details', 'booking_confirmation', 'booking_success'];
   const stepEnteredAt = useRef(Date.now());
 
   useEffect(() => {
@@ -105,13 +105,13 @@ const CustomerBookingFlowV2 = () => {
     const bookingState = {
       currentStep,
       selectedBranch,
-      selectedService,
+      selectedTreatment,
       selectedDateTime,
       genderPreference,
       customerInfo
     };
     localStorage.setItem('bookingFlowV2', JSON.stringify(bookingState));
-  }, [currentStep, selectedBranch, selectedService, selectedDateTime, genderPreference, customerInfo]);
+  }, [currentStep, selectedBranch, selectedTreatment, selectedDateTime, genderPreference, customerInfo]);
 
   useEffect(() => {
     const savedState = localStorage.getItem('bookingFlowV2');
@@ -121,7 +121,7 @@ const CustomerBookingFlowV2 = () => {
         if (parsed.currentStep && parsed.currentStep < 5) { // Don't restore success step
           setCurrentStep(parsed.currentStep);
           setSelectedBranch(parsed.selectedBranch);
-          setSelectedService(parsed.selectedService);
+          setSelectedTreatment(parsed.selectedTreatment);
           setSelectedDateTime(parsed.selectedDateTime || { date: '', time: '' });
           setGenderPreference(parsed.genderPreference || 'no-preference');
           // A draft's saved phone may be a bare national number or (from an older
@@ -158,7 +158,7 @@ const CustomerBookingFlowV2 = () => {
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
-    // The real button's position shifts once the step's data (services, slots)
+    // The real button's position shifts once the step's data (treatments, slots)
     // finishes an async load, which fires neither a scroll nor a resize event —
     // watch the page's own height so a late-loading list doesn't leave the
     // floating button's visibility stuck on a stale pre-load position.
@@ -169,7 +169,7 @@ const CustomerBookingFlowV2 = () => {
       window.removeEventListener('resize', onScroll);
       resizeObserver.disconnect();
     };
-  }, [currentStep, selectedService]);
+  }, [currentStep, selectedTreatment]);
 
   useEffect(() => {
     if (currentStep !== 1) {
@@ -207,7 +207,7 @@ const CustomerBookingFlowV2 = () => {
           step_name: stepNames[currentStep - 1],
           org_slug: orgSlug,
           branch_id: selectedBranch?.id,
-          service_id: selectedService?.id,
+          treatment_id: selectedTreatment?.id,
           time_on_step_ms: Date.now() - stepEnteredAt.current,
           flow_variant: 'v2',
         });
@@ -229,7 +229,7 @@ const CustomerBookingFlowV2 = () => {
   const canProceed = () => {
     switch (currentStep) {
       case 1: return selectedBranch !== null;
-      case 2: return selectedService !== null && !!selectedDateTime.date && !!selectedDateTime.time;
+      case 2: return selectedTreatment !== null && !!selectedDateTime.date && !!selectedDateTime.time;
       case 3: return isCustomerInfoValid();
       case 4: return customerInfo.agreeToTerms;
       default: return false;
@@ -250,12 +250,12 @@ const CustomerBookingFlowV2 = () => {
 
   const handleBranchSelect = (branch) => {
     setSelectedBranch(branch);
-    setSelectedService(null); // Reset service when branch changes
+    setSelectedTreatment(null); // Reset treatment when branch changes
   };
 
-  const handleServiceSelect = (service) => {
-    setSelectedService(service);
-    setSelectedDateTime({ date: '', time: '' }); // Duration differs per service — a stale slot may no longer fit
+  const handleTreatmentSelect = (treatment) => {
+    setSelectedTreatment(treatment);
+    setSelectedDateTime({ date: '', time: '' }); // Duration differs per treatment — a stale slot may no longer fit
   };
 
   const handleDateTimeSelect = (dateTime) => {
@@ -275,7 +275,7 @@ const CustomerBookingFlowV2 = () => {
     const finalBookingData = {
       ...confirmationData,
       selectedBranch,
-      selectedService,
+      selectedTreatment,
       selectedDateTime,
       genderPreference,
       customerInfo,
@@ -291,9 +291,9 @@ const CustomerBookingFlowV2 = () => {
       org_slug: orgSlug,
       branch_id: selectedBranch?.id,
       branch_name: selectedBranch?.name,
-      service_id: selectedService?.id,
-      service_name: selectedService?.name,
-      service_price_npr: selectedService?.price_npr,
+      treatment_id: selectedTreatment?.id,
+      treatment_name: selectedTreatment?.name,
+      treatment_price_npr: selectedTreatment?.price_npr,
       customer_gender: customerInfo.gender || null,
       flow_variant: 'v2',
     });
@@ -301,14 +301,14 @@ const CustomerBookingFlowV2 = () => {
 
   const handleEditBooking = () => {
     // BookingConfirmation only ever calls onEditBooking(1) ("Edit Booking" -> back to
-    // service selection); v2's equivalent is the combined service+time step.
+    // treatment selection); v2's equivalent is the combined treatment+time step.
     setCurrentStep(2);
   };
 
   const getStepTitle = () => {
     switch (currentStep) {
       case 1: return 'Select Branch';
-      case 2: return 'Choose Service & Time';
+      case 2: return 'Choose Treatment & Time';
       case 3: return 'Your Information';
       case 4: return 'Confirm Booking';
       case 5: return 'Booking Confirmed';
@@ -328,10 +328,10 @@ const CustomerBookingFlowV2 = () => {
 
       case 2:
         return (
-          <ServiceBookingPanel
+          <TreatmentBookingPanel
             selectedBranch={selectedBranch}
-            selectedService={selectedService}
-            onServiceSelect={handleServiceSelect}
+            selectedTreatment={selectedTreatment}
+            onTreatmentSelect={handleTreatmentSelect}
             selectedDateTime={selectedDateTime}
             onDateTimeSelect={handleDateTimeSelect}
             genderPreference={genderPreference}
@@ -347,7 +347,7 @@ const CustomerBookingFlowV2 = () => {
             customerInfo={customerInfo}
             onCustomerInfoChange={handleCustomerInfoChange}
             selectedBranch={selectedBranch}
-            selectedService={selectedService}
+            selectedTreatment={selectedTreatment}
             selectedDateTime={selectedDateTime}
             genderPreference={genderPreference}
             orgSlug={orgSlug}
@@ -359,7 +359,7 @@ const CustomerBookingFlowV2 = () => {
           <BookingConfirmation
             orgSlug={orgSlug}
             selectedBranch={selectedBranch}
-            selectedService={selectedService}
+            selectedTreatment={selectedTreatment}
             selectedDateTime={selectedDateTime}
             customerInfo={customerInfo}
             genderPreference={genderPreference}
@@ -396,7 +396,7 @@ const CustomerBookingFlowV2 = () => {
             href="https://www.zunkireelabs.com/products/ai-booking-engine/"
             className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-spa font-body font-body-medium text-sm hover:bg-primary/90"
           >
-            Learn More About Zennly
+            Learn More About Superdental
           </a>
         </div>
       </div>
@@ -418,7 +418,7 @@ const CustomerBookingFlowV2 = () => {
   // `mx-auto max-w-4xl` already produces (viewport width minus 56rem, halved) — so the box
   // grows to the right only. Never switch to `mx-auto` here: auto margins recompute on both
   // sides when width changes, which is what caused the grid to recenter/shift before.
-  const wideOpen = currentStep === 2 && selectedService !== null;
+  const wideOpen = currentStep === 2 && selectedTreatment !== null;
 
   return (
     <div className="min-h-screen bg-background" style={{ paddingTop: 'var(--customer-header-h, 64px)' }}>
@@ -511,7 +511,7 @@ const CustomerBookingFlowV2 = () => {
         )}
 
         {/* Step 2's own back control — lives in its normal spot right after the
-            service grid. The service grid is long, so a floating copy (below)
+            treatment grid. The treatment grid is long, so a floating copy (below)
             keeps it reachable while scrolling; it hides once this real one
             scrolls into view, so at the bottom of the page it's exactly here —
             never stacked on top of the footer. */}
@@ -529,7 +529,7 @@ const CustomerBookingFlowV2 = () => {
         )}
 
         {currentStep === 2 && showFloatingPrev && (
-          <div className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 lg:bottom-6 lg:left-[max(1rem,calc((100vw-56rem)/2-8.5rem))] z-dropdown ${selectedService ? 'hidden lg:block' : ''}`}>
+          <div className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 lg:bottom-6 lg:left-[max(1rem,calc((100vw-56rem)/2-8.5rem))] z-dropdown ${selectedTreatment ? 'hidden lg:block' : ''}`}>
             <Button
               variant="outline"
               onClick={handlePrevious}
@@ -580,7 +580,7 @@ const CustomerBookingFlowV2 = () => {
                 </svg>
               </div>
               <span className="font-heading font-heading-semibold text-lg text-text-primary">
-                Zennly
+                Superdental
               </span>
             </div>
             <p className="font-body font-body-normal text-sm text-text-secondary mb-4">
@@ -592,7 +592,7 @@ const CustomerBookingFlowV2 = () => {
               <button className="hover:text-primary spa-transition-fast">Contact Us</button>
             </div>
             <p className="font-caption font-caption-normal text-xs text-text-secondary mt-4 inline-flex items-center justify-center flex-wrap gap-1">
-              <span>© {new Date().getFullYear()} Zennly. All rights reserved. A product from</span>
+              <span>© {new Date().getFullYear()} Superdental. All rights reserved. A product from</span>
               <a
                 href="https://zunkireelabs.com"
                 target="_blank"

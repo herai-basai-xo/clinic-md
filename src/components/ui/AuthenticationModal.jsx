@@ -124,7 +124,7 @@ const AuthenticationModal = ({ isOpen = true, onClose }) => {
                   Staff Login
                 </h2>
                 <p className="font-caption font-caption-normal text-sm text-text-secondary">
-                  Access your Zennly dashboard
+                  Access your Superdental dashboard
                 </p>
               </div>
             </div>

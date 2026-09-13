@@ -41,7 +41,7 @@ const BranchStaffDashboard = () => {
 
   const [filters, setFilters] = useState({
     dateRange: 'today',
-    serviceType: 'all',
+    treatmentType: 'all',
     status: 'all',
     search: ''
   });
@@ -160,9 +160,9 @@ const BranchStaffDashboard = () => {
           name: t.name,
           gender: t.gender,
           specialties: t.specialties || [],
-          room: null,
+          chair: null,
           status: activeBooking ? 'busy' : upcomingBooking ? 'upcoming' : 'available',
-          currentBooking: activeBooking ? activeBooking.service : null,
+          currentBooking: activeBooking ? activeBooking.treatment : null,
         };
       });
       setDentists(mapped);
@@ -251,8 +251,8 @@ const BranchStaffDashboard = () => {
       );
     }
 
-    if (filters.serviceType !== 'all') {
-      const serviceMap = {
+    if (filters.treatmentType !== 'all') {
+      const treatmentMap = {
         massage: ['Deep Tissue Massage', 'Swedish Massage', 'Sports Massage'],
         facial: ['Facial Treatment', 'Anti-Aging Facial'],
         body: ['Body Wrap', 'Body Scrub'],
@@ -260,10 +260,10 @@ const BranchStaffDashboard = () => {
         reflexology: ['Reflexology', 'Foot Reflexology']
       };
 
-      if (serviceMap[filters.serviceType]) {
+      if (treatmentMap[filters.treatmentType]) {
         filtered = filtered.filter(booking =>
-          serviceMap[filters.serviceType].some(service =>
-            booking.service.includes(service)
+          treatmentMap[filters.treatmentType].some(treatment =>
+            booking.treatment.includes(treatment)
           )
         );
       }

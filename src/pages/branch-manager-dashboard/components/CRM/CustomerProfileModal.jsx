@@ -152,10 +152,10 @@ const CustomerProfileModal = ({ customerId, onClose }) => {
 
               {/* Extra stats row */}
               <div className="flex items-center space-x-4 px-1">
-                {data.stats.mostBookedService && (
+                {data.stats.mostBookedTreatment && (
                   <span className="inline-flex items-center space-x-1 text-xs font-caption text-text-secondary">
                     <Icon name="Heart" size={12} className="text-primary" />
-                    <span>Favourite: <span className="font-caption-medium text-text-primary">{data.stats.mostBookedService}</span></span>
+                    <span>Favourite: <span className="font-caption-medium text-text-primary">{data.stats.mostBookedTreatment}</span></span>
                   </span>
                 )}
                 {data.stats.totalDiscount > 0 && (
@@ -201,7 +201,7 @@ const CustomerProfileModal = ({ customerId, onClose }) => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2 mb-1">
                             <span className="font-body font-body-medium text-sm text-text-primary truncate">
-                              {b.serviceName}
+                              {b.treatmentName}
                             </span>
                             {b.isLocked && (
                               <Icon name="Lock" size={12} className="text-text-tertiary flex-shrink-0" />

@@ -103,7 +103,7 @@ const DiscountsPanel = ({ branchId }) => {
         esc(formatDate(d.date)),
         esc(d.customerName),
         esc(d.bookingNumber),
-        esc(d.serviceName),
+        esc(d.treatmentName),
         d.discountPercent,
         d.discountAmount,
         esc(d.discountReason || ''),
@@ -233,7 +233,7 @@ const DiscountsPanel = ({ branchId }) => {
 
                 {/* Package */}
                 <div className="min-w-0">
-                  <p className="font-body text-sm text-text-secondary truncate">{d.serviceName}</p>
+                  <p className="font-body text-sm text-text-secondary truncate">{d.treatmentName}</p>
                 </div>
 
                 {/* Discount */}

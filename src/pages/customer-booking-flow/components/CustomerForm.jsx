@@ -5,7 +5,7 @@ import CountryCodeSelect from '../../../components/ui/CountryCodeSelect';
 import Icon from '../../../components/AppIcon';
 import { checkExistingCustomerByPhone, findCustomerMatch } from '../../../services/api';
 
-const CustomerForm = ({ customerInfo, onCustomerInfoChange, selectedBranch, selectedService, selectedDateTime, genderPreference, orgSlug }) => {
+const CustomerForm = ({ customerInfo, onCustomerInfoChange, selectedBranch, selectedTreatment, selectedDateTime, genderPreference, orgSlug }) => {
   const [errors, setErrors] = useState({});
   const [isValidating, setIsValidating] = useState(false);
   // Purely informational — createBooking()'s isNewCustomer check (unchanged) is what
@@ -264,9 +264,9 @@ const CustomerForm = ({ customerInfo, onCustomerInfoChange, selectedBranch, sele
               </p>
             </div>
             <div>
-              <span className="font-body font-body-medium text-sm text-text-secondary">Service:</span>
+              <span className="font-body font-body-medium text-sm text-text-secondary">Treatment:</span>
               <p className="font-body font-body-normal text-sm text-text-primary">
-                {selectedService?.name}
+                {selectedTreatment?.name}
               </p>
             </div>
           </div>
@@ -280,7 +280,7 @@ const CustomerForm = ({ customerInfo, onCustomerInfoChange, selectedBranch, sele
             <div>
               <span className="font-body font-body-medium text-sm text-text-secondary">Price:</span>
               <p className="font-heading font-heading-semibold text-lg text-primary">
-                {formatPrice(selectedService?.price || 0)}
+                {formatPrice(selectedTreatment?.price || 0)}
               </p>
             </div>
           </div>

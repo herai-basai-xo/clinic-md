@@ -132,7 +132,7 @@ const CategoryManagementPanel = () => {
     const result = await deleteCategory({ categoryId: confirmDelete.id });
 
     if (result.error) {
-      if (result.error.code === 'HAS_SERVICES') {
+      if (result.error.code === 'HAS_TREATMENTS') {
         setError(result.error.message);
       } else {
         setError(result.error.message || 'Delete failed.');
@@ -161,7 +161,7 @@ const CategoryManagementPanel = () => {
         <div>
           <h3 className="font-heading font-heading-semibold text-lg text-text-primary">Category Management</h3>
           <p className="font-body text-sm text-text-secondary">
-            {categories.length} categor{categories.length !== 1 ? 'ies' : 'y'} configured — used to organize services
+            {categories.length} categor{categories.length !== 1 ? 'ies' : 'y'} configured — used to organize treatments
           </p>
         </div>
         <Button variant="primary" size="sm" iconName="Plus" iconSize={16} onClick={handleOpenCreate}>
@@ -211,7 +211,7 @@ const CategoryManagementPanel = () => {
             <tr className="bg-background border-b border-border">
               <th className="text-left px-4 py-3 font-body font-body-medium text-sm text-text-secondary">Category Name</th>
               <th className="text-left px-4 py-3 font-body font-body-medium text-sm text-text-secondary hidden md:table-cell">Description</th>
-              <th className="text-left px-4 py-3 font-body font-body-medium text-sm text-text-secondary">Services</th>
+              <th className="text-left px-4 py-3 font-body font-body-medium text-sm text-text-secondary">Treatments</th>
               <th className="text-left px-4 py-3 font-body font-body-medium text-sm text-text-secondary">Status</th>
               <th className="text-right px-4 py-3 font-body font-body-medium text-sm text-text-secondary">Actions</th>
             </tr>
@@ -232,7 +232,7 @@ const CategoryManagementPanel = () => {
                   <td className="px-4 py-3 font-body text-sm text-text-secondary hidden md:table-cell max-w-[250px] truncate">
                     {c.description || '—'}
                   </td>
-                  <td className="px-4 py-3 font-data text-sm text-text-primary">{c.service_count}</td>
+                  <td className="px-4 py-3 font-data text-sm text-text-primary">{c.treatment_count}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-caption ${
                       c.is_active
@@ -255,9 +255,9 @@ const CategoryManagementPanel = () => {
                         onClick={() => setConfirmDelete(c)}
                         className="p-1.5 rounded hover:bg-error/10 spa-transition-fast text-text-secondary hover:text-error"
                         title="Delete"
-                        disabled={c.service_count > 0}
+                        disabled={c.treatment_count > 0}
                       >
-                        <Icon name="Trash2" size={16} className={c.service_count > 0 ? 'opacity-30' : ''} />
+                        <Icon name="Trash2" size={16} className={c.treatment_count > 0 ? 'opacity-30' : ''} />
                       </button>
                       <button
                         onClick={() => handleToggle(c)}
@@ -324,7 +324,7 @@ const CategoryManagementPanel = () => {
                 <div className="p-3 bg-accent/5 border border-accent/20 rounded-spa">
                   <p className="font-caption text-xs text-accent flex items-center gap-1.5">
                     <Icon name="Info" size={14} />
-                    Renaming a category will update all services using it.
+                    Renaming a category will update all treatments using it.
                   </p>
                 </div>
               )}
@@ -351,7 +351,7 @@ const CategoryManagementPanel = () => {
               <div>
                 <h3 className="font-heading font-heading-semibold text-text-primary">Deactivate Category?</h3>
                 <p className="font-body text-sm text-text-secondary">
-                  "{confirmToggle.name}" will be hidden from service dropdowns.
+                  "{confirmToggle.name}" will be hidden from treatment dropdowns.
                 </p>
               </div>
             </div>
@@ -378,9 +378,9 @@ const CategoryManagementPanel = () => {
                 </p>
               </div>
             </div>
-            {confirmDelete.service_count > 0 && (
+            {confirmDelete.treatment_count > 0 && (
               <p className="font-body text-xs text-error bg-error/10 rounded-spa p-2">
-                This category has {confirmDelete.service_count} service(s) and cannot be deleted. Reassign services first or deactivate the category.
+                This category has {confirmDelete.treatment_count} treatment(s) and cannot be deleted. Reassign treatments first or deactivate the category.
               </p>
             )}
             <div className="flex justify-end gap-2">
@@ -390,7 +390,7 @@ const CategoryManagementPanel = () => {
                 size="sm"
                 onClick={handleDelete}
                 loading={deleting}
-                disabled={confirmDelete.service_count > 0}
+                disabled={confirmDelete.treatment_count > 0}
               >
                 Delete
               </Button>

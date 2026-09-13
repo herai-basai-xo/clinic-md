@@ -145,7 +145,7 @@ const PackageOverviewPanel = () => {
               <thead>
                 <tr className="bg-background border-b border-border">
                   <th className="text-left px-4 py-2.5 font-body font-body-medium text-xs text-text-secondary">Name</th>
-                  <th className="text-left px-4 py-2.5 font-body font-body-medium text-xs text-text-secondary">Service</th>
+                  <th className="text-left px-4 py-2.5 font-body font-body-medium text-xs text-text-secondary">Treatment</th>
                   <th className="text-right px-4 py-2.5 font-body font-body-medium text-xs text-text-secondary">Sessions</th>
                   <th className="text-right px-4 py-2.5 font-body font-body-medium text-xs text-text-secondary">Price</th>
                 </tr>
@@ -158,8 +158,8 @@ const PackageOverviewPanel = () => {
                     </td>
                     <td className="px-4 py-3">
                       <span className="font-body font-body-normal text-sm text-text-secondary">
-                        {t.service?.name || '—'}
-                        {t.service?.duration_minutes ? ` (${t.service.duration_minutes} min)` : ''}
+                        {t.treatment?.name || '—'}
+                        {t.treatment?.duration_minutes ? ` (${t.treatment.duration_minutes} min)` : ''}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">

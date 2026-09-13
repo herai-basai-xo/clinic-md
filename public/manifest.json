@@ -1,6 +1,6 @@
 {
-    "short_name": "Zennly",
-    "name": "Zennly - AI Booking Engine",
+    "short_name": "Superdental",
+    "name": "Superdental - AI Booking Engine",
     "icons": [
       {
         "src": "favicon.svg",
@@ -15,6 +15,6 @@
     ],
     "start_url": ".",
     "display": "standalone",
-    "theme_color": "#2D5A27",
+    "theme_color": "#0F6E8C",
     "background_color": "#ffffff"
   }

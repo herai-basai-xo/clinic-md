@@ -4,12 +4,12 @@ import Icon from '../../../components/AppIcon';
 import { fetchBookings } from '../../../services/api';
 import { transformBookings } from '../../../services/bookingTransformers';
 
-const SERVICE_COLORS = ['#2D5A27', '#8B4513', '#DAA520', '#059669', '#D97706'];
+const TREATMENT_COLORS = ['#0F6E8C', '#2B4C6F', '#3FB8AF', '#059669', '#D97706'];
 
 const RevenueAnalyticsChart = ({ branchId, period }) => {
   const [activeTab, setActiveTab] = useState('revenue');
   const [revenueData, setRevenueData] = useState([]);
-  const [serviceData, setServiceData] = useState([]);
+  const [treatmentData, setTreatmentData] = useState([]);
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [avgPerBooking, setAvgPerBooking] = useState(0);
   const [paidCount, setPaidCount] = useState(0);
@@ -59,19 +59,19 @@ const RevenueAnalyticsChart = ({ branchId, period }) => {
     setTotalRevenue(total);
     setAvgPerBooking(paidBookings.length > 0 ? Math.round(total / paidBookings.length) : 0);
 
-    // --- Service Popularity: count all bookings per service, top 5 ---
-    const serviceMap = {};
+    // --- Treatment Popularity: count all bookings per treatment, top 5 ---
+    const treatmentMap = {};
     for (const b of bookings) {
-      const svc = b.service || 'Unknown';
-      if (!serviceMap[svc]) {
-        serviceMap[svc] = { count: 0, revenue: 0 };
+      const svc = b.treatment || 'Unknown';
+      if (!treatmentMap[svc]) {
+        treatmentMap[svc] = { count: 0, revenue: 0 };
       }
-      serviceMap[svc].count += 1;
-      serviceMap[svc].revenue += b.finalAmount;
+      treatmentMap[svc].count += 1;
+      treatmentMap[svc].revenue += b.finalAmount;
     }
 
     const totalBookings = bookings.length;
-    const svcArr = Object.entries(serviceMap)
+    const svcArr = Object.entries(treatmentMap)
       .map(([name, { count, revenue }]) => ({
         name,
         value: totalBookings > 0 ? Math.round((count / totalBookings) * 100) : 0,
@@ -80,9 +80,9 @@ const RevenueAnalyticsChart = ({ branchId, period }) => {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5)
-      .map((item, idx) => ({ ...item, color: SERVICE_COLORS[idx % SERVICE_COLORS.length] }));
+      .map((item, idx) => ({ ...item, color: TREATMENT_COLORS[idx % TREATMENT_COLORS.length] }));
 
-    setServiceData(svcArr);
+    setTreatmentData(svcArr);
     setLoading(false);
   }, [branchId, period?.from, period?.to]);
 
@@ -90,7 +90,7 @@ const RevenueAnalyticsChart = ({ branchId, period }) => {
 
   const tabs = [
     { id: 'revenue', label: 'Revenue Trend', icon: 'TrendingUp' },
-    { id: 'services', label: 'Service Popularity', icon: 'PieChart' },
+    { id: 'treatments', label: 'Treatment Popularity', icon: 'PieChart' },
   ];
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -191,10 +191,10 @@ const RevenueAnalyticsChart = ({ branchId, period }) => {
           </div>
         );
 
-      case 'services':
+      case 'treatments':
         return (
           <div className="space-y-3 sm:space-y-4">
-            {serviceData.length === 0 ? (
+            {treatmentData.length === 0 ? (
               <div className="h-48 sm:h-64 flex items-center justify-center">
                 <p className="text-xs sm:text-sm text-gray-400">No bookings yet today</p>
               </div>
@@ -204,7 +204,7 @@ const RevenueAnalyticsChart = ({ branchId, period }) => {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={serviceData}
+                        data={treatmentData}
                         cx="50%"
                         cy="50%"
                         innerRadius={45}
@@ -212,7 +212,7 @@ const RevenueAnalyticsChart = ({ branchId, period }) => {
                         paddingAngle={5}
                         dataKey="value"
                       >
-                        {serviceData.map((entry, index) => (
+                        {treatmentData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
@@ -221,20 +221,20 @@ const RevenueAnalyticsChart = ({ branchId, period }) => {
                   </ResponsiveContainer>
                 </div>
                 <div className="space-y-1.5 sm:space-y-2">
-                  {serviceData.map((service, index) => (
+                  {treatmentData.map((treatment, index) => (
                     <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg gap-2">
                       <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
                         <div
                           className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: service.color }}
+                          style={{ backgroundColor: treatment.color }}
                         />
                         <span className="text-xs sm:text-sm font-medium text-gray-900 truncate">
-                          {service.name}
+                          {treatment.name}
                         </span>
                       </div>
                       <div className="text-right flex-shrink-0">
                         <div className="text-xs sm:text-sm font-medium text-gray-900">
-                          {service.value}% <span className="text-gray-500">({service.count})</span>
+                          {treatment.value}% <span className="text-gray-500">({treatment.count})</span>
                         </div>
                       </div>
                     </div>

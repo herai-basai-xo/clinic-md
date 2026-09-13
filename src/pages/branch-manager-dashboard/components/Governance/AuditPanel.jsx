@@ -9,8 +9,8 @@ const TABLE_OPTIONS = [
   { value: 'bookings', label: 'Bookings' },
   { value: 'payments', label: 'Payments' },
   { value: 'daily_reports', label: 'Daily Reports' },
-  { value: 'services', label: 'Services' },
-  { value: 'rooms', label: 'Rooms' },
+  { value: 'treatments', label: 'Treatments' },
+  { value: 'chairs', label: 'Chairs' },
   { value: 'dentists', label: 'Dentists' },
 ];
 

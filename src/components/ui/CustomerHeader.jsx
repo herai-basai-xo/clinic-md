@@ -17,14 +17,14 @@ const CustomerHeader = () => {
   useMeasuredHeightVar(headerRef, '--customer-header-h');
 
   // Try to get tenant context, but don't fail if not available
-  let tenantData = { orgName: 'Zennly', isCleaning: false, isSalon: false };
+  let tenantData = { orgName: 'Superdental' };
   try {
     tenantData = useTenant();
   } catch {
     // TenantContext not available, use defaults
   }
 
-  const { orgName, isCleaning, isSalon } = tenantData;
+  const { orgName } = tenantData;
 
   // Try to get customer auth context, but don't fail if not available
   let customerAuth = { customer: null, customerProfile: null };
@@ -43,12 +43,7 @@ const CustomerHeader = () => {
 
   const isBookingFlow = location.pathname === bookingPath || location.pathname === `/${orgSlug}`;
 
-  // Industry-specific tagline
-  const getTagline = () => {
-    if (isCleaning) return 'Professional Cleaning';
-    if (isSalon) return 'Beauty & Style';
-    return 'Wellness & Relaxation';
-  };
+  const getTagline = () => 'Dental Care & Wellness';
 
   return (
     <header ref={headerRef} className="fixed top-0 left-0 right-0 z-customer-header bg-surface border-b border-border">
@@ -73,7 +68,7 @@ const CustomerHeader = () => {
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-heading font-heading-semibold text-base sm:text-lg text-text-primary truncate">
-                {orgName || 'Zennly'}
+                {orgName || 'Superdental'}
               </span>
               <span className="block font-caption font-caption-normal text-[10px] sm:text-xs text-text-secondary -mt-0.5 sm:-mt-1 truncate">
                 {getTagline()}
@@ -89,7 +84,7 @@ const CustomerHeader = () => {
                 isBookingFlow ? 'text-primary' : 'text-text-secondary'
               }`}
             >
-              Book Service
+              Book Treatment
             </Link>
           </nav>
 

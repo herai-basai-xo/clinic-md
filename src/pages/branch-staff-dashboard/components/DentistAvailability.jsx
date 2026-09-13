@@ -71,7 +71,7 @@ const DentistAvailability = ({ dentists, pendingBookings = [], onAssignDentist }
                   {booking.customerName}
                 </div>
                 <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                  <div>{booking.service}</div>
+                  <div>{booking.treatment}</div>
                   <div className="flex items-center gap-1.5">
                     <Icon name="Clock" size={10} className="shrink-0" />
                     <span>{formatTime(booking.time)}</span>
@@ -173,7 +173,7 @@ const DentistAvailability = ({ dentists, pendingBookings = [], onAssignDentist }
                       </div>
                       <div className="text-xs text-gray-500">
                         {dentist.gender}
-                        {dentist.room && ` · Room ${dentist.room}`}
+                        {dentist.chair && ` · Chair ${dentist.chair}`}
                       </div>
                     </div>
                   </div>

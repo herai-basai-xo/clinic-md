@@ -62,7 +62,7 @@ const BookingHistory = ({ bookings }) => {
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-2">
                       <h3 className="font-heading font-heading-medium text-base text-text-primary">
-                        {booking.service}
+                        {booking.treatment}
                       </h3>
                       <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-caption font-caption-normal border ${getStatusColor(booking.status)} capitalize`}>
                         <Icon name={getStatusIcon(booking.status)} size={12} className="mr-1" />
@@ -100,7 +100,7 @@ const BookingHistory = ({ bookings }) => {
                   <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <h4 className="font-heading font-heading-medium text-sm text-text-primary">
-                        Service Details
+                        Treatment Details
                       </h4>
                       <div className="space-y-1 text-sm">
                         <div className="flex justify-between">
@@ -168,7 +168,7 @@ const BookingHistory = ({ bookings }) => {
                         </div>
                         {!booking.rating && (
                           <button className="px-3 py-1 text-xs font-caption font-caption-normal text-primary border border-primary rounded-spa hover:bg-primary/5 spa-transition-fast">
-                            Rate Service
+                            Rate Treatment
                           </button>
                         )}
                       </div>

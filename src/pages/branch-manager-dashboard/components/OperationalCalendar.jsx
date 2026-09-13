@@ -168,8 +168,8 @@ const OperationalCalendar = ({ branchId }) => {
     showToast(`Status updated to ${newStatus}`);
   };
 
-  const handleAssignDentist = async (bookingId, dentistIds, notes, roomId) => {
-    const result = await assignDentist({ bookingId, dentistIds, roomId });
+  const handleAssignDentist = async (bookingId, dentistIds, notes, chairId) => {
+    const result = await assignDentist({ bookingId, dentistIds, chairId });
     if (result.error) {
       showToast(result.error.message || 'Failed to assign dentist.', 'error');
       return;
@@ -250,7 +250,7 @@ const OperationalCalendar = ({ branchId }) => {
         const base = {
           start,
           end,
-          title: `${b.customer_name} — ${b.service?.name || 'Service'}`,
+          title: `${b.customer_name} — ${b.treatment?.name || 'Treatment'}`,
           backgroundColor: statusColor.bg,
           textColor: statusColor.text,
           borderColor: b.payment_status === 'unpaid' ? UNPAID_BORDER : statusColor.bg,
@@ -258,7 +258,7 @@ const OperationalCalendar = ({ branchId }) => {
             bookingId: b.id,
             bookingNumber: b.booking_number,
             customerName: b.customer_name,
-            serviceName: b.service?.name,
+            treatmentName: b.treatment?.name,
             status: b.status,
             paymentStatus: b.payment_status,
             isLocked: b.is_locked || false,
@@ -292,7 +292,7 @@ const OperationalCalendar = ({ branchId }) => {
     return (
       <div className="group/evt relative px-1.5 py-0.5 text-xs leading-tight overflow-visible">
         <div className="font-semibold truncate">{props.customerName}</div>
-        <div className="truncate opacity-90">{props.serviceName}</div>
+        <div className="truncate opacity-90">{props.treatmentName}</div>
         <div className="flex items-center gap-1 mt-0.5 flex-wrap">
           {isUnpaid && (
             <span className="inline-flex items-center gap-0.5">
@@ -311,7 +311,7 @@ const OperationalCalendar = ({ branchId }) => {
         <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-[9999] opacity-0 group-hover/evt:opacity-100 transition-opacity duration-100 w-48">
           <div className="bg-gray-900 text-white rounded-md px-3 py-2 text-[11px] leading-relaxed shadow-lg">
             <div className="font-semibold mb-0.5">{props.customerName}</div>
-            <div className="opacity-80">{props.serviceName}</div>
+            <div className="opacity-80">{props.treatmentName}</div>
             {props.startTime && props.endTime && (
               <div className="opacity-80 mt-0.5">{props.startTime} – {props.endTime}</div>
             )}

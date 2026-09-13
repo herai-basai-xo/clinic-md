@@ -9,7 +9,7 @@ import MembershipWalletCard from './MembershipWalletCard';
 import { fetchRelatedUnpaidBookings, fetchBookingCreator, fetchDiscountApprovers, fetchDueHolderNames, getCustomerOutstandingBalance, fetchMembershipForBooking, fetchCustomerReferralForBooking, resolveCustomerReferralReward } from '../../services/api';
 import { excludeRelatedFromPreviousDue } from '../../services/bookingTransformers';
 import { useBranch } from '../../contexts/BranchContext';
-import { getExtendOptions } from '../../utils/serviceVariants';
+import { getExtendOptions } from '../../utils/treatmentVariants';
 
 function getNepalNow() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' }));
@@ -59,8 +59,8 @@ const BookingActionModal = ({
   onClose,
   booking = null,
   dentists = [],
-  rooms = [],
-  services = [],
+  chairs = [],
+  treatments = [],
   onAssignDentist,
   onUpdateStatus,
   onRecordPayment,
@@ -76,7 +76,7 @@ const BookingActionModal = ({
   const [activeTab, setActiveTab] = useState('details');
   const [selectedDentists, setSelectedDentists] = useState([]);
   const [dentistSearch, setDentistSearch] = useState('');
-  const [selectedRoom, setSelectedRoom] = useState('');
+  const [selectedChair, setSelectedChair] = useState('');
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -99,12 +99,12 @@ const BookingActionModal = ({
   // Approver routing when a discount exceeds the user's limit
   const [approvers, setApprovers] = useState([]);
   const [selectedApprover, setSelectedApprover] = useState('');
-  // Per-row discount override: { [bookingId]: '10' } — lets each selected service get its
+  // Per-row discount override: { [bookingId]: '10' } — lets each selected treatment get its
   // own rate instead of the shared discountValue prorated/applied across the whole selection.
   const [rowDiscountOverrides, setRowDiscountOverrides] = useState({});
 
-  // Add another service / Rebook state
-  const [newBookingMode, setNewBookingMode] = useState(null); // 'add-service' | 'rebook' | null
+  // Add another treatment / Rebook state
+  const [newBookingMode, setNewBookingMode] = useState(null); // 'add-treatment' | 'rebook' | null
   const [newBookingForm, setNewBookingForm] = useState({});
   const [newBookingError, setNewBookingError] = useState(null);
   const [newBookingSubmitting, setNewBookingSubmitting] = useState(false);
@@ -122,7 +122,7 @@ const BookingActionModal = ({
   const [selectedDiscountIds, setSelectedDiscountIds] = useState(new Set()); // includes current booking ID by default
 
   // Previous due: this customer's outstanding balance from earlier visits (any date),
-  // separate from `relatedBookings` (same-day services, used by the Discount tab).
+  // separate from `relatedBookings` (same-day treatments, used by the Discount tab).
   // Pre-selected by default so it's bundled into payment automatically.
   const [previousDueBookings, setPreviousDueBookings] = useState([]);
   const [selectedPreviousDueIds, setSelectedPreviousDueIds] = useState(new Set());
@@ -142,14 +142,14 @@ const BookingActionModal = ({
     return () => { cancelled = true; };
   }, [showPaymentModal, branchId]);
 
-  // Pre-select current dentists/room when booking changes or assign tab opens
+  // Pre-select current dentists/chair when booking changes or assign tab opens
   useEffect(() => {
     if (booking) {
       const ids = booking.dentists?.length > 0
         ? booking.dentists.map(t => t.id)
         : (booking.dentist?.id ? [booking.dentist.id] : []);
       setSelectedDentists(ids);
-      setSelectedRoom(booking.roomId || '');
+      setSelectedChair(booking.chairId || '');
     }
   }, [booking?.bookingId]);
 
@@ -190,7 +190,7 @@ const BookingActionModal = ({
         setRowDiscountOverrides({});
 
         if (activeTab === 'payment') {
-          // Exclude any booking already shown under "Related Services" — a real
+          // Exclude any booking already shown under "Related Treatments" — a real
           // booking_group_id sibling that's unpaid always also matches
           // getCustomerOutstandingBalance's phone-wide criteria, so without this it would be
           // double-counted in the Grand Total (see BK-20260908-0011/-0012 incident).
@@ -300,26 +300,26 @@ const BookingActionModal = ({
     return transitions[currentStatus] || [];
   };
 
-  // Service preview when editing
-  const selectedService = useMemo(() => {
-    if (!isEditing || !editForm.serviceId || !services?.length) return null;
-    return services.find(s => s.id === editForm.serviceId);
-  }, [isEditing, editForm.serviceId, services]);
+  // Treatment preview when editing
+  const selectedTreatment = useMemo(() => {
+    if (!isEditing || !editForm.treatmentId || !treatments?.length) return null;
+    return treatments.find(s => s.id === editForm.treatmentId);
+  }, [isEditing, editForm.treatmentId, treatments]);
 
-  // Extend-duration options (same service, category, longer duration)
+  // Extend-duration options (same treatment, category, longer duration)
   const [showExtendPanel, setShowExtendPanel] = useState(false);
   const extendPanelRef = useRef(null);
   const [extendError, setExtendError] = useState(null);
   const [extendSubmitting, setExtendSubmitting] = useState(false);
 
-  const currentServiceObj = useMemo(() => {
-    if (!booking?.serviceId || !services?.length) return null;
-    return services.find(s => s.id === booking.serviceId) || null;
-  }, [booking?.serviceId, services]);
+  const currentTreatmentObj = useMemo(() => {
+    if (!booking?.treatmentId || !treatments?.length) return null;
+    return treatments.find(s => s.id === booking.treatmentId) || null;
+  }, [booking?.treatmentId, treatments]);
 
   const extendOptions = useMemo(
-    () => getExtendOptions(currentServiceObj, services),
-    [currentServiceObj, services]
+    () => getExtendOptions(currentTreatmentObj, treatments),
+    [currentTreatmentObj, treatments]
   );
 
   // Auto-scroll to the extend panel once it renders, so the option list is
@@ -330,7 +330,7 @@ const BookingActionModal = ({
     }
   }, [showExtendPanel]);
 
-  // Same auto-scroll for the Add another service / Rebook panel.
+  // Same auto-scroll for the Add another treatment / Rebook panel.
   const newBookingPanelRef = useRef(null);
   useEffect(() => {
     if (newBookingMode && newBookingPanelRef.current) {
@@ -338,14 +338,14 @@ const BookingActionModal = ({
     }
   }, [newBookingMode]);
 
-  const handleExtendService = async (option) => {
+  const handleExtendTreatment = async (option) => {
     if (!booking || !onEditBooking) return;
     setExtendError(null);
     setExtendSubmitting(true);
     try {
-      const result = await onEditBooking(booking.bookingId, { serviceId: option.id });
+      const result = await onEditBooking(booking.bookingId, { treatmentId: option.id });
       if (result?.error) {
-        setExtendError(result.error.message || 'Failed to extend service.');
+        setExtendError(result.error.message || 'Failed to extend treatment.');
       } else {
         setShowExtendPanel(false);
       }
@@ -360,7 +360,7 @@ const BookingActionModal = ({
     setEditForm({
       customerName: booking.customerName || '',
       customerPhone: booking.customerPhone || '',
-      serviceId: booking.serviceId || '',
+      treatmentId: booking.treatmentId || '',
       date: booking.date || '',
       startTime: booking.startTime ? booking.startTime.slice(0, 5) : booking.time || '',
       specialRequests: booking.specialRequests || '',
@@ -389,7 +389,7 @@ const BookingActionModal = ({
       const result = await onEditBooking(booking.bookingId, {
         customerName: editForm.customerName.trim(),
         customerPhone: editForm.customerPhone.trim() || null,
-        serviceId: editForm.serviceId || undefined,
+        treatmentId: editForm.treatmentId || undefined,
         date: editForm.date || undefined,
         startTime: editForm.startTime ? editForm.startTime + ':00' : undefined,
         specialRequests: editForm.specialRequests.trim() || null,
@@ -431,11 +431,11 @@ const BookingActionModal = ({
   const openNewBookingForm = (mode) => {
     const today = new Date().toISOString().slice(0, 10);
     setNewBookingForm({
-      serviceId: mode === 'rebook' ? (booking.serviceId || '') : '',
+      treatmentId: mode === 'rebook' ? (booking.treatmentId || '') : '',
       date: mode === 'rebook' ? '' : (booking.date || today),
       startTime: '',
       dentistId: '',
-      roomId: '',
+      chairId: '',
     });
     setNewBookingError(null);
     setNewBookingSubmitting(false);
@@ -444,8 +444,8 @@ const BookingActionModal = ({
 
   const handleNewBookingSubmit = async () => {
     if (!booking || !onCreateBooking) return;
-    if (!newBookingForm.serviceId) {
-      setNewBookingError('Please select a service.');
+    if (!newBookingForm.treatmentId) {
+      setNewBookingError('Please select a treatment.');
       return;
     }
     if (!newBookingForm.date) {
@@ -462,13 +462,13 @@ const BookingActionModal = ({
 
     try {
       const result = await onCreateBooking({
-        serviceId: newBookingForm.serviceId,
+        treatmentId: newBookingForm.treatmentId,
         customerName: booking.customerName,
         customerPhone: booking.customerPhone || null,
         bookingDate: newBookingForm.date,
         bookingTime: newBookingForm.startTime,
         dentistId: newBookingForm.dentistId || null,
-        roomId: newBookingForm.roomId || null,
+        chairId: newBookingForm.chairId || null,
       });
 
       if (result) {
@@ -491,7 +491,7 @@ const BookingActionModal = ({
     setActionError(null);
     try {
       if (onAssignDentist) {
-        await onAssignDentist(booking.bookingId, selectedDentists, notes, selectedRoom || null);
+        await onAssignDentist(booking.bookingId, selectedDentists, notes, selectedChair || null);
       }
       onClose();
     } catch (error) {
@@ -547,29 +547,29 @@ const BookingActionModal = ({
   const isTerminal = ['completed', 'cancelled', 'no show'].includes(booking.status);
   const isLocked = booking.isLocked || false;
   const isSettled = booking.paymentStatus === 'paid';
-  const isServiceStarted = booking.status === 'in-progress';
+  const isTreatmentStarted = booking.status === 'in-progress';
   // Clicking Start locks everything except Discount/Payment (still needed to
   // settle the bill); being paid locks Discount/Payment too (via canDiscount/
   // canPay below). Day-close and terminal status always lock everything.
-  const isMutationBlocked = isTerminal || isLocked || isServiceStarted || isSettled;
-  // Assignment (dentist/room) locks once the service has started (or is
+  const isMutationBlocked = isTerminal || isLocked || isTreatmentStarted || isSettled;
+  // Assignment (dentist/chair) locks once the treatment has started (or is
   // terminal/day-closed) — NOT merely because it's been paid. A booking can be
-  // paid before it starts (pay-after-service isn't mandatory) and reassignment
-  // should still be possible right up until the service actually begins.
-  const isAssignmentBlocked = isTerminal || isLocked || isServiceStarted;
+  // paid before it starts (pay-after-treatment isn't mandatory) and reassignment
+  // should still be possible right up until the treatment actually begins.
+  const isAssignmentBlocked = isTerminal || isLocked || isTreatmentStarted;
   // "Rebook" reads as booking-again-after on terminal states; on active bookings "Reschedule" is clearer
   const rebookLabel = isTerminal ? 'Rebook' : 'Reschedule';
 
-  // Self-service rooms (Jacuzzi/Sauna/Steam) don't need a dentist to start — driven by
-  // rooms.requires_dentist, not a hardcoded room/branch list.
-  const selectedRoomObj = rooms.find(r => r.id === selectedRoom);
-  const isDentistOptional = selectedRoomObj?.requires_dentist === false;
+  // Self-service chairs (Jacuzzi/Sauna/Steam) don't need a dentist to start — driven by
+  // chairs.requires_dentist, not a hardcoded chair/branch list.
+  const selectedChairObj = chairs.find(r => r.id === selectedChair);
+  const isDentistOptional = selectedChairObj?.requires_dentist === false;
 
   const nextStatuses = getNextStatuses(booking.status);
-  // Payment is allowed on Completed bookings (pay-after-service is standard cash-spa flow).
+  // Payment is allowed on Completed bookings (pay-after-treatment is standard cash-spa flow).
   // Only day-lock and already-paid block it — not terminal status.
   const canPay = ['confirmed', 'in-progress', 'completed'].includes(booking.status) && booking.paymentStatus !== 'paid' && !isLocked;
-  // Allow discounts on completed-but-unpaid bookings (standard cash-spa flow: service done → apply discount → pay).
+  // Allow discounts on completed-but-unpaid bookings (standard cash-spa flow: treatment done → apply discount → pay).
   // Once the booking is fully paid, the price is locked — the discount can no longer move retroactively
   // against money already collected. 'partial' stays discountable so a discount can still be applied
   // against the still-owed remainder (e.g. after extending a booking that already had a payment).
@@ -630,12 +630,12 @@ const BookingActionModal = ({
     setDiscountSuccess(false);
 
     if (checkedRowIds.length === 0) {
-      setDiscountError('Select at least one service.');
+      setDiscountError('Select at least one treatment.');
       return;
     }
     const rowPlans = checkedRowIds.map(id => ({ id, ...resolveRowDiscount(id) }));
     if (rowPlans.some(r => !(r.value > 0))) {
-      setDiscountError('Enter a discount value for every selected service.');
+      setDiscountError('Enter a discount value for every selected treatment.');
       return;
     }
     if (!discountReason.trim()) {
@@ -785,13 +785,13 @@ const BookingActionModal = ({
                     : booking.status === 'completed'
                       ? booking.paymentStatus === 'paid'
                         ? { bg: 'bg-success/5', border: 'border-success/20', iconColor: 'text-success', textColor: 'text-success', icon: 'ShieldCheck', label: 'Completed — Settled' }
-                        : { bg: 'bg-warning/5', border: 'border-warning/20', iconColor: 'text-warning', textColor: 'text-warning', icon: 'Clock', label: 'Service Completed — Payment Pending' }
+                        : { bg: 'bg-warning/5', border: 'border-warning/20', iconColor: 'text-warning', textColor: 'text-warning', icon: 'Clock', label: 'Treatment Completed — Payment Pending' }
                       : isTerminal
                         ? { bg: 'bg-gray-50', border: 'border-gray-200', iconColor: 'text-gray-500', textColor: 'text-gray-600', icon: 'ShieldCheck', label: booking.status === 'cancelled' ? 'Cancelled — Immutable' : 'No Show — Immutable' }
                         : isSettled
                           ? { bg: 'bg-success/5', border: 'border-success/20', iconColor: 'text-success', textColor: 'text-success', icon: 'CheckCircle', label: 'Paid — Settled' }
-                          : isServiceStarted
-                            ? { bg: 'bg-gray-50', border: 'border-gray-200', iconColor: 'text-gray-500', textColor: 'text-gray-600', icon: 'Lock', label: 'Service Started — Locked (Discount/Payment still open)' }
+                          : isTreatmentStarted
+                            ? { bg: 'bg-gray-50', border: 'border-gray-200', iconColor: 'text-gray-500', textColor: 'text-gray-600', icon: 'Lock', label: 'Treatment Started — Locked (Discount/Payment still open)' }
                             : { bg: 'bg-gray-50', border: 'border-gray-200', iconColor: 'text-gray-500', textColor: 'text-gray-600', icon: 'Lock', label: 'Booking Locked' };
                   return (
                     <div className={`flex items-center space-x-2 px-3 py-2.5 rounded-spa ${banner.bg} border ${banner.border}`}>
@@ -835,7 +835,7 @@ const BookingActionModal = ({
                   )}
                 </div>
 
-                {/* Customer & Service Information - Responsive grid */}
+                {/* Customer & Treatment Information - Responsive grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   <div className="space-y-3 sm:space-y-4">
                     <div className="flex items-center justify-between">
@@ -895,29 +895,29 @@ const BookingActionModal = ({
 
                   <div className="space-y-3 sm:space-y-4">
                     <h3 className="font-heading font-heading-medium text-sm sm:text-base text-text-primary">
-                      Service Details
+                      Treatment Details
                     </h3>
                     <div className="space-y-2.5 sm:space-y-3">
                       <div>
-                        <label className="font-body font-body-medium text-xs sm:text-sm text-text-secondary">Service</label>
-                        {isEditing && services?.length > 0 ? (
+                        <label className="font-body font-body-medium text-xs sm:text-sm text-text-secondary">Treatment</label>
+                        {isEditing && treatments?.length > 0 ? (
                           <>
                             <CustomSelect
-                              value={editForm.serviceId}
-                              onChange={(val) => setEditForm(f => ({ ...f, serviceId: val }))}
-                              options={services.map(s => ({ value: s.id, label: s.name }))}
-                              placeholder="Select service"
+                              value={editForm.treatmentId}
+                              onChange={(val) => setEditForm(f => ({ ...f, treatmentId: val }))}
+                              options={treatments.map(s => ({ value: s.id, label: s.name }))}
+                              placeholder="Select treatment"
                               searchable
                               size="sm"
                             />
-                            {selectedService && (
+                            {selectedTreatment && (
                               <p className="font-caption text-xs text-text-secondary mt-1">
-                                {selectedService.duration_minutes} min — NPR {selectedService.price_npr?.toLocaleString('en-IN')}
+                                {selectedTreatment.duration_minutes} min — NPR {selectedTreatment.price_npr?.toLocaleString('en-IN')}
                               </p>
                             )}
                           </>
                         ) : (
-                          <p className="font-body font-body-normal text-sm text-text-primary">{booking.service}</p>
+                          <p className="font-body font-body-normal text-sm text-text-primary">{booking.treatment}</p>
                         )}
                       </div>
                       {!isEditing && (
@@ -1147,7 +1147,7 @@ const BookingActionModal = ({
                   </h3>
                   {isDentistOptional && (
                     <p className="font-caption font-caption-normal text-xs text-text-secondary">
-                      Optional for {selectedRoomObj?.name} — self-service room, no dentist required.
+                      Optional for {selectedChairObj?.name} — self-service chair, no dentist required.
                     </p>
                   )}
                   {dentists.length === 0 ? (
@@ -1228,57 +1228,57 @@ const BookingActionModal = ({
                   )}
                 </div>
 
-                {/* Section 2: Room */}
-                {rooms.length > 0 && (
+                {/* Section 2: Chair */}
+                {chairs.length > 0 && (
                   <div className="space-y-3">
                     <h3 className="font-heading font-heading-medium text-sm sm:text-base text-text-primary">
-                      Room
+                      Chair
                     </h3>
                     <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                      {/* Unassign room option */}
+                      {/* Unassign chair option */}
                       <label
                         className={`flex items-center space-x-3 sm:space-x-4 p-3 rounded-spa border-2 spa-transition-fast min-h-[44px] ${
                           isAssignmentBlocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
                         } ${
-                          selectedRoom === ''
+                          selectedChair === ''
                             ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
                         }`}
                       >
                         <input
                           type="radio"
-                          name="room"
+                          name="chair"
                           value=""
-                          checked={selectedRoom === ''}
+                          checked={selectedChair === ''}
                           disabled={isAssignmentBlocked}
-                          onChange={() => setSelectedRoom('')}
+                          onChange={() => setSelectedChair('')}
                           className="text-primary focus:ring-primary w-4 h-4 disabled:cursor-not-allowed"
                         />
-                        <span className="font-body font-body-normal text-sm text-text-secondary italic">No room assigned</span>
+                        <span className="font-body font-body-normal text-sm text-text-secondary italic">No chair assigned</span>
                       </label>
-                      {rooms.map((room) => (
+                      {chairs.map((chair) => (
                         <label
-                          key={room.id}
+                          key={chair.id}
                           className={`flex items-center space-x-3 sm:space-x-4 p-3 rounded-spa border-2 spa-transition-fast min-h-[44px] ${
                             isAssignmentBlocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
                           } ${
-                            selectedRoom === room.id
+                            selectedChair === chair.id
                               ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
                           }`}
                         >
                           <input
                             type="radio"
-                            name="room"
-                            value={room.id}
-                            checked={selectedRoom === room.id}
+                            name="chair"
+                            value={chair.id}
+                            checked={selectedChair === chair.id}
                             disabled={isAssignmentBlocked}
-                            onChange={(e) => setSelectedRoom(e.target.value)}
+                            onChange={(e) => setSelectedChair(e.target.value)}
                             className="text-primary focus:ring-primary w-4 h-4 disabled:cursor-not-allowed"
                           />
                           <div className="flex items-center gap-2">
                             <Icon name="DoorOpen" size={14} className="text-text-secondary" />
                             <span className="font-body font-body-medium text-sm text-text-primary">
-                              {room.name}
-                              {booking?.roomId === room.id && (
+                              {chair.name}
+                              {booking?.chairId === chair.id && (
                                 <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-primary/10 text-primary">Allocated</span>
                               )}
                             </span>
@@ -1352,7 +1352,7 @@ const BookingActionModal = ({
                         const showDiscount = primaryLive || hasExistingDiscount;
 
                         // Per-row override input, reused for the primary booking and every related row —
-                        // lets each checked service get its own rate instead of the shared value above.
+                        // lets each checked treatment get its own rate instead of the shared value above.
                         const renderOverrideInput = (id) => (
                           <div className="pl-5 mt-1 flex items-center gap-1.5">
                             <input
@@ -1366,14 +1366,14 @@ const BookingActionModal = ({
                               className="w-20 px-2 py-1 border border-border rounded-spa bg-surface text-text-primary text-xs focus:ring-2 focus:ring-primary focus:border-primary spa-transition-fast"
                             />
                             <span className="font-caption text-[10px] text-text-secondary">
-                              {discountType === 'percentage' ? '% for just this service' : 'NPR for just this service'}
+                              {discountType === 'percentage' ? '% for just this treatment' : 'NPR for just this treatment'}
                             </span>
                           </div>
                         );
 
                         return (
                           <>
-                            {/* Current booking — checkbox + override only when multiple services */}
+                            {/* Current booking — checkbox + override only when multiple treatments */}
                             {multiRow ? (
                               <div className="mb-1">
                                 <label className="flex items-start gap-2 cursor-pointer">
@@ -1392,11 +1392,11 @@ const BookingActionModal = ({
                                     className="text-primary focus:ring-primary w-3.5 h-3.5 rounded mt-0.5"
                                   />
                                   <div className="flex-1 min-w-0">
-                                    <span className="font-body font-body-medium text-xs text-text-primary">{booking.service}</span>
+                                    <span className="font-body font-body-medium text-xs text-text-primary">{booking.treatment}</span>
                                     <div className="font-caption text-[10px] text-text-secondary flex flex-wrap gap-x-2">
                                       {booking.time && <span>{to12h(booking.startTime || booking.time)}{booking.startTime && booking.startTime !== booking.time ? '' : ''}</span>}
                                       {booking.dentist?.name && <span>· {booking.dentist.name}</span>}
-                                      {booking.roomName && <span>· {booking.roomName}</span>}
+                                      {booking.chairName && <span>· {booking.chairName}</span>}
                                     </div>
                                   </div>
                                 </label>
@@ -1469,13 +1469,13 @@ const BookingActionModal = ({
                                         />
                                         <div className="flex-1 min-w-0">
                                           <div className="flex items-center justify-between">
-                                            <span className="font-body text-xs text-text-primary font-medium">{rb.service?.name || 'Service'}</span>
+                                            <span className="font-body text-xs text-text-primary font-medium">{rb.treatment?.name || 'Treatment'}</span>
                                             <span className="font-caption text-[10px] text-text-secondary">{rb.booking_number}</span>
                                           </div>
                                           <div className="font-caption text-[10px] text-text-secondary flex flex-wrap gap-x-2">
                                             {rb.start_time && <span>{to12h(rb.start_time)}{rb.end_time ? ` – ${to12h(rb.end_time)}` : ''}</span>}
                                             {rb.dentist?.name && <span>· {rb.dentist.name}</span>}
-                                            {rb.room?.name && <span>· {rb.room.name}</span>}
+                                            {rb.chair?.name && <span>· {rb.chair.name}</span>}
                                           </div>
                                         </div>
                                       </label>
@@ -1596,7 +1596,7 @@ const BookingActionModal = ({
                       <label className="font-body font-body-medium text-xs sm:text-sm text-text-primary">
                         {discountType === 'percentage' ? 'Discount Percentage' : 'Discount Amount (NPR)'}
                         {relatedBookings.length > 0 && (
-                          <span className="font-body font-body-normal text-text-secondary"> (shared default — override any service above for its own rate)</span>
+                          <span className="font-body font-body-normal text-text-secondary"> (shared default — override any treatment above for its own rate)</span>
                         )}
                       </label>
                       <input
@@ -1662,7 +1662,7 @@ const BookingActionModal = ({
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-text-secondary">Package</span>
-                            <span className="font-body-medium text-text-primary text-right">{booking.service || '—'}</span>
+                            <span className="font-body-medium text-text-primary text-right">{booking.treatment || '—'}</span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-text-secondary">Discount</span>
@@ -1738,7 +1738,7 @@ const BookingActionModal = ({
                     >
                       {discountExceedsLimit
                         ? 'Send Discount Request'
-                        : (checkedRowIds.length > 1 ? `Apply Discount to ${checkedRowIds.length} Services` : 'Apply Discount')}
+                        : (checkedRowIds.length > 1 ? `Apply Discount to ${checkedRowIds.length} Treatments` : 'Apply Discount')}
                     </Button>
                   </>
                 )}
@@ -1749,7 +1749,7 @@ const BookingActionModal = ({
             {activeTab === 'payment' && (() => {
               const selectedPreviousDue = previousDueBookings.filter(pb => selectedPreviousDueIds.has(pb.bookingId));
               const previousDueTotal = selectedPreviousDue.reduce((sum, pb) => sum + Number(pb.amountDue || 0), 0);
-              // Related same-session services (discounted together via the Discount tab)
+              // Related same-session treatments (discounted together via the Discount tab)
               // are bundled into payment automatically — no opt-in checkboxes, since they
               // were already grouped as one action.
               const relatedRemaining = (rb) => Math.max(Number(rb.base_amount || 0) - Number(rb.discount_amount || 0), 0);
@@ -1773,7 +1773,7 @@ const BookingActionModal = ({
                   {(previousDueBookings.length > 0 || relatedBookings.length > 0) && (
                     <div className="flex items-center gap-2 mb-1">
                       <Icon name="CheckSquare" size={14} className="text-primary" />
-                      <span className="font-body font-body-medium text-xs text-text-primary">{booking.service}</span>
+                      <span className="font-body font-body-medium text-xs text-text-primary">{booking.treatment}</span>
                     </div>
                   )}
                   <div className="flex items-center justify-between">
@@ -1804,19 +1804,19 @@ const BookingActionModal = ({
                   )}
                 </div>
 
-                {/* Related services — same-session bookings discounted together on the
+                {/* Related treatments — same-session bookings discounted together on the
                     Discount tab. Bundled into payment by default, no opt-in needed. */}
                 {relatedBookings.length > 0 && (
                   <div className="space-y-2">
                     <label className="font-body font-body-medium text-xs text-text-secondary uppercase flex items-center gap-1.5">
                       <Icon name="Layers" size={13} />
-                      Related services ({relatedBookings.length})
+                      Related treatments ({relatedBookings.length})
                     </label>
                     <div className="border border-border rounded-spa divide-y divide-border overflow-hidden">
                       {relatedBookings.map(rb => (
                         <div key={rb.id} className="flex items-center gap-3 px-3 py-2.5">
                           <div className="flex-1 min-w-0">
-                            <div className="font-body text-sm text-text-primary">{rb.service?.name || 'Service'}</div>
+                            <div className="font-body text-sm text-text-primary">{rb.treatment?.name || 'Treatment'}</div>
                             <div className="font-caption text-xs text-text-secondary">
                               #{rb.booking_number} · {to12h(rb.start_time)}
                               {Number(rb.discount_amount) > 0 && ` · discount -NPR ${Number(rb.discount_amount).toLocaleString('en-IN')}`}
@@ -1866,7 +1866,7 @@ const BookingActionModal = ({
                               className="text-primary focus:ring-primary w-4 h-4 rounded"
                             />
                             <div className="flex-1 min-w-0">
-                              <div className="font-body text-sm text-text-primary">{pb.serviceName}</div>
+                              <div className="font-body text-sm text-text-primary">{pb.treatmentName}</div>
                               <div className="font-caption text-xs text-text-secondary">
                                 #{pb.bookingNumber} · {pb.date}
                               </div>
@@ -1884,7 +1884,7 @@ const BookingActionModal = ({
                   <div className="bg-primary/5 border border-primary/20 rounded-spa p-3">
                     <div className="flex items-center justify-between">
                       <span className="font-body font-body-medium text-sm text-text-primary">
-                        Grand Total ({1 + selectedCount} services)
+                        Grand Total ({1 + selectedCount} treatments)
                       </span>
                       <span className="font-data font-data-medium text-base text-primary">
                         NPR {combinedTotal.toLocaleString('en-IN')}
@@ -1909,7 +1909,7 @@ const BookingActionModal = ({
                     iconPosition="left"
                     className="w-full sm:w-auto min-h-[44px]"
                   >
-                    {selectedCount > 0 ? `Pay ${1 + selectedCount} Services` : 'Record Payment'}
+                    {selectedCount > 0 ? `Pay ${1 + selectedCount} Treatments` : 'Record Payment'}
                   </Button>
                 )}
                 {booking.paymentStatus === 'paid' && (
@@ -1922,14 +1922,14 @@ const BookingActionModal = ({
               );
             })()}
 
-            {/* Extend Service — longer-duration variant panel */}
+            {/* Extend Treatment — longer-duration variant panel */}
             {showExtendPanel && (
               <div ref={extendPanelRef} className="space-y-4 scroll-mt-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Icon name="Clock" size={18} className="text-primary" />
                     <h3 className="font-heading font-heading-medium text-sm sm:text-base text-text-primary">
-                      Extend Service
+                      Extend Treatment
                     </h3>
                   </div>
                   <button
@@ -1951,7 +1951,7 @@ const BookingActionModal = ({
                   {extendOptions.map(option => (
                     <button
                       key={option.id}
-                      onClick={() => handleExtendService(option)}
+                      onClick={() => handleExtendTreatment(option)}
                       disabled={extendSubmitting}
                       className="w-full flex items-center justify-between px-3 py-2.5 rounded-spa border border-border hover:border-primary/50 hover:bg-primary/5 spa-transition-fast text-left disabled:opacity-50"
                     >
@@ -1965,14 +1965,14 @@ const BookingActionModal = ({
               </div>
             )}
 
-            {/* Add Another Service / Rebook Form */}
+            {/* Add Another Treatment / Rebook Form */}
             {!showExtendPanel && newBookingMode && (
               <div ref={newBookingPanelRef} className="space-y-4 scroll-mt-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Icon name={newBookingMode === 'rebook' ? 'CalendarClock' : 'PlusCircle'} size={18} className="text-primary" />
                     <h3 className="font-heading font-heading-medium text-sm sm:text-base text-text-primary">
-                      {newBookingMode === 'rebook' ? `${rebookLabel} Service` : 'Add Another Service'}
+                      {newBookingMode === 'rebook' ? `${rebookLabel} Treatment` : 'Add Another Treatment'}
                     </h3>
                   </div>
                   <button
@@ -1990,7 +1990,7 @@ const BookingActionModal = ({
                   </p>
                   {newBookingMode === 'rebook' && (
                     <p className="font-body text-xs text-text-secondary mt-1">
-                      Same service: <span className="font-semibold text-text-primary">{booking.service}</span>
+                      Same treatment: <span className="font-semibold text-text-primary">{booking.treatment}</span>
                     </p>
                   )}
                 </div>
@@ -2003,15 +2003,15 @@ const BookingActionModal = ({
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Service — editable only for "add another service" */}
-                  {newBookingMode === 'add-service' && (
+                  {/* Treatment — editable only for "add another treatment" */}
+                  {newBookingMode === 'add-treatment' && (
                     <div className="sm:col-span-2">
-                      <label className="block font-body font-body-medium text-xs text-text-secondary mb-1">Service *</label>
+                      <label className="block font-body font-body-medium text-xs text-text-secondary mb-1">Treatment *</label>
                       <CustomSelect
-                        value={newBookingForm.serviceId}
-                        onChange={(val) => setNewBookingForm(f => ({ ...f, serviceId: val }))}
-                        options={services.map(s => ({ value: s.id, label: `${s.name} — ${s.duration_minutes}min — NPR ${s.price_npr}` }))}
-                        placeholder="Select service..."
+                        value={newBookingForm.treatmentId}
+                        onChange={(val) => setNewBookingForm(f => ({ ...f, treatmentId: val }))}
+                        options={treatments.map(s => ({ value: s.id, label: `${s.name} — ${s.duration_minutes}min — NPR ${s.price_npr}` }))}
+                        placeholder="Select treatment..."
                         searchable
                         size="sm"
                       />
@@ -2055,13 +2055,13 @@ const BookingActionModal = ({
                     />
                   </div>
 
-                  {/* Room */}
+                  {/* Chair */}
                   <div>
-                    <label className="block font-body font-body-medium text-xs text-text-secondary mb-1">Room</label>
+                    <label className="block font-body font-body-medium text-xs text-text-secondary mb-1">Chair</label>
                     <CustomSelect
-                      value={newBookingForm.roomId}
-                      onChange={(val) => setNewBookingForm(f => ({ ...f, roomId: val }))}
-                      options={[{ value: '', label: 'Any available' }, ...rooms.map(r => ({ value: r.id, label: r.name }))]}
+                      value={newBookingForm.chairId}
+                      onChange={(val) => setNewBookingForm(f => ({ ...f, chairId: val }))}
+                      options={[{ value: '', label: 'Any available' }, ...chairs.map(r => ({ value: r.id, label: r.name }))]}
                       placeholder="Any available"
                       size="sm"
                     />
@@ -2087,14 +2087,14 @@ const BookingActionModal = ({
 
           {/* Footer - Responsive with safe area padding for iOS */}
           <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 p-4 pb-6 sm:p-6 border-t border-border flex-shrink-0">
-            {/* Left side — Add another service / Rebook */}
+            {/* Left side — Add another treatment / Rebook */}
             {!isEditing && !newBookingMode && !showExtendPanel && onCreateBooking ? (
               <div className="flex items-stretch gap-2">
                 <button
-                  onClick={() => openNewBookingForm('add-service')}
+                  onClick={() => openNewBookingForm('add-treatment')}
                   className="flex items-center justify-center text-center px-3 py-1.5 text-xs font-body font-body-medium text-primary border border-primary/30 rounded-spa hover:bg-primary/5 spa-transition-fast min-h-[36px]"
                 >
-                  Add another service
+                  Add another treatment
                 </button>
                 <button
                   onClick={() => onRebookStart?.(booking)}
@@ -2107,7 +2107,7 @@ const BookingActionModal = ({
                     onClick={() => setShowExtendPanel(true)}
                     className="flex items-center justify-center text-center px-3 py-1.5 text-xs font-body font-body-medium text-primary border border-primary/30 rounded-spa hover:bg-primary/5 spa-transition-fast min-h-[36px]"
                   >
-                    Extend Service
+                    Extend Treatment
                   </button>
                 )}
               </div>
@@ -2177,7 +2177,7 @@ const BookingActionModal = ({
             id: booking.id,
             bookingId: booking.bookingId,
             booking_number: booking.id,
-            service: booking.service,
+            treatment: booking.treatment,
             base_amount: booking.baseAmount,
             discount_amount: booking.discountAmount,
             final_amount: booking.finalAmount,
@@ -2187,7 +2187,7 @@ const BookingActionModal = ({
           additionalBookings={[
             ...relatedBookings.map(rb => ({
               bookingId: rb.id,
-              service: rb.service?.name,
+              treatment: rb.treatment?.name,
               base_amount: rb.base_amount,
               discount_amount: rb.discount_amount,
               final_amount: rb.final_amount,

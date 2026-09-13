@@ -37,7 +37,7 @@ const toBookingRows = (bookings) =>
     .filter((b) => b.nonWalletAmount > 0)
     .map((b) => ({
       key: `booking-${b.booking_id}`, type: 'Booking', date: b.date,
-      branch_name: b.branch_name, description: b.service_name, amount: b.nonWalletAmount,
+      branch_name: b.branch_name, description: b.treatment_name, amount: b.nonWalletAmount,
     }));
 
 const toMembershipRows = (membershipDeposits) =>

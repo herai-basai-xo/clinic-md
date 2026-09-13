@@ -70,7 +70,7 @@ const CalendarBookingCard = ({ booking, style, onClick, columnMode = 'dentist', 
   const isUnpaid = booking.paymentStatus === 'unpaid';
   const isPaid = booking.paymentStatus === 'paid';
   const isDraggable = canDragBooking(booking);
-  // status check catches a service started before its scheduled slot, which
+  // status check catches a treatment started before its scheduled slot, which
   // isTimeLocked (wall-clock vs. scheduled start) would otherwise miss.
   const isLocked = booking.isLocked || booking.status === 'In-Progress' || isTimeLocked(booking);
 
@@ -241,16 +241,16 @@ const CalendarBookingCard = ({ booking, style, onClick, columnMode = 'dentist', 
           {booking.customerName}
         </div>
         <div className="font-body text-[11px] text-text-secondary leading-tight truncate flex-shrink-0">
-          {booking.serviceName}
+          {booking.treatmentName}
         </div>
-        {columnMode === 'room' && booking.dentistName && (
+        {columnMode === 'chair' && booking.dentistName && (
           <div className="font-caption text-[10px] text-primary/70 leading-tight truncate flex-shrink-0">
             {booking.dentistName}
           </div>
         )}
-        {columnMode === 'dentist' && booking.roomName && (
+        {columnMode === 'dentist' && booking.chairName && (
           <div className="font-caption text-[10px] text-secondary/70 leading-tight truncate flex-shrink-0">
-            {booking.roomName}
+            {booking.chairName}
           </div>
         )}
         {durationMins && (
@@ -303,7 +303,7 @@ const CalendarBookingCard = ({ booking, style, onClick, columnMode = 'dentist', 
   );
 };
 
-// Rich hover-preview card (status, service, date/duration, dentist/room,
+// Rich hover-preview card (status, treatment, date/duration, dentist/chair,
 // amount, notes) shown via portal on hover — shared by CalendarBookingCard
 // itself and by OverflowPopoverRow (the "+N" hidden-bookings list) so both
 // give the same detail preview instead of just a native title tooltip.
@@ -363,17 +363,17 @@ export const BookingHoverPreview = ({ booking, position, draggable }) => {
 
         {/* Booking details table */}
         <div className="px-3 py-2 space-y-1.5 border-b border-border">
-          <DetailRow label="Service" value={booking.serviceName} />
+          <DetailRow label="Treatment" value={booking.treatmentName} />
           <DetailRow
             label="Date"
             value={`${formatDateLabel(booking.date)}, ${timeLabel}`}
           />
           <DetailRow
             label="Duration"
-            value={durationMins ? `${durationMins} mins` : (booking.serviceDuration ? `${booking.serviceDuration} mins` : null)}
+            value={durationMins ? `${durationMins} mins` : (booking.treatmentDuration ? `${booking.treatmentDuration} mins` : null)}
           />
           <DetailRow label="Dentist" value={booking.dentistName || '—'} />
-          <DetailRow label="Room" value={booking.roomName || '—'} />
+          <DetailRow label="Chair" value={booking.chairName || '—'} />
           <DetailRow label="Created by" value={booking.createdByName || 'Online booking'} />
         </div>
 

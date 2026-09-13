@@ -5,22 +5,22 @@ import Input from '../../../../components/ui/Input';
 import FilterBar from '../../../../components/ui/FilterBar';
 import CustomSelect from '../../../../components/ui/CustomSelect';
 import {
-  fetchServicesForManagement,
+  fetchTreatmentsForManagement,
   fetchActiveCategories,
-  createService,
-  updateServicePricing,
-  toggleServiceActive,
-  deleteService,
-  uploadServiceImage,
+  createTreatment,
+  updateTreatmentPricing,
+  toggleTreatmentActive,
+  deleteTreatment,
+  uploadTreatmentImage,
 } from '../../../../services/api';
 
-const ServiceManagementPanel = () => {
-  const [services, setServices] = useState([]);
+const TreatmentManagementPanel = () => {
+  const [treatments, setTreatments] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [editingService, setEditingService] = useState(null);
+  const [editingTreatment, setEditingTreatment] = useState(null);
   const [formData, setFormData] = useState({ name: '', priceNpr: '', durationMinutes: '', description: '', imageUrl: '', category: 'Spa' });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -36,24 +36,24 @@ const ServiceManagementPanel = () => {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  // Filtered services
-  const filteredServices = services.filter((service) => {
+  // Filtered treatments
+  const filteredTreatments = treatments.filter((treatment) => {
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      if (!service.name.toLowerCase().includes(query)) {
+      if (!treatment.name.toLowerCase().includes(query)) {
         return false;
       }
     }
     // Category filter
-    if (categoryFilter !== 'all' && service.category !== categoryFilter) {
+    if (categoryFilter !== 'all' && treatment.category !== categoryFilter) {
       return false;
     }
     // Status filter
-    if (statusFilter === 'active' && !service.is_active) {
+    if (statusFilter === 'active' && !treatment.is_active) {
       return false;
     }
-    if (statusFilter === 'inactive' && service.is_active) {
+    if (statusFilter === 'inactive' && treatment.is_active) {
       return false;
     }
     return true;
@@ -66,25 +66,25 @@ const ServiceManagementPanel = () => {
     }
   }, []);
 
-  const loadServices = useCallback(async () => {
+  const loadTreatments = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await fetchServicesForManagement();
+    const result = await fetchTreatmentsForManagement();
     if (result.error) {
-      setError(result.error.message || 'Failed to load services.');
+      setError(result.error.message || 'Failed to load treatments.');
     } else {
-      setServices(result.data || []);
+      setTreatments(result.data || []);
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
     loadCategories();
-    loadServices();
-  }, [loadCategories, loadServices]);
+    loadTreatments();
+  }, [loadCategories, loadTreatments]);
 
   const handleOpenCreate = () => {
-    setEditingService(null);
+    setEditingTreatment(null);
     setFormData({ name: '', priceNpr: '', durationMinutes: '', description: '', imageUrl: '', category: categories[0]?.name || 'Spa' });
     setImageFile(null);
     setImagePreview(null);
@@ -92,18 +92,18 @@ const ServiceManagementPanel = () => {
     setShowModal(true);
   };
 
-  const handleOpenEdit = (service) => {
-    setEditingService(service);
+  const handleOpenEdit = (treatment) => {
+    setEditingTreatment(treatment);
     setFormData({
-      name: service.name,
-      priceNpr: String(service.price_npr),
-      durationMinutes: String(service.duration_minutes),
-      description: service.description || '',
-      imageUrl: service.image_url || '',
-      category: service.category || 'Spa',
+      name: treatment.name,
+      priceNpr: String(treatment.price_npr),
+      durationMinutes: String(treatment.duration_minutes),
+      description: treatment.description || '',
+      imageUrl: treatment.image_url || '',
+      category: treatment.category || 'Spa',
     });
     setImageFile(null);
-    setImagePreview(service.image_url || null);
+    setImagePreview(treatment.image_url || null);
     setFormError(null);
     setShowModal(true);
   };
@@ -138,8 +138,8 @@ const ServiceManagementPanel = () => {
     const price = Number(formData.priceNpr);
     const duration = Number(formData.durationMinutes);
 
-    if (!editingService && !formData.name.trim()) {
-      setFormError('Service name is required.');
+    if (!editingTreatment && !formData.name.trim()) {
+      setFormError('Treatment name is required.');
       return;
     }
     if (!price || price <= 0) {
@@ -158,7 +158,7 @@ const ServiceManagementPanel = () => {
     let finalImageUrl = formData.imageUrl.trim() || null;
     if (imageFile) {
       setUploading(true);
-      const uploadResult = await uploadServiceImage(imageFile);
+      const uploadResult = await uploadTreatmentImage(imageFile);
       setUploading(false);
 
       if (uploadResult.error) {
@@ -170,9 +170,9 @@ const ServiceManagementPanel = () => {
     }
 
     let result;
-    if (editingService) {
-      result = await updateServicePricing({
-        serviceId: editingService.id,
+    if (editingTreatment) {
+      result = await updateTreatmentPricing({
+        treatmentId: editingTreatment.id,
         priceNpr: price,
         durationMinutes: duration,
         description: formData.description.trim() || null,
@@ -180,7 +180,7 @@ const ServiceManagementPanel = () => {
         category: formData.category,
       });
     } else {
-      result = await createService({
+      result = await createTreatment({
         name: formData.name.trim(),
         priceNpr: price,
         durationMinutes: duration,
@@ -194,26 +194,26 @@ const ServiceManagementPanel = () => {
       setFormError(result.error.message || 'Save failed.');
     } else {
       setShowModal(false);
-      await loadServices();
+      await loadTreatments();
     }
     setSaving(false);
   };
 
-  const handleToggle = async (service) => {
-    if (service.is_active) {
-      setConfirmToggle(service);
+  const handleToggle = async (treatment) => {
+    if (treatment.is_active) {
+      setConfirmToggle(treatment);
       return;
     }
-    await executeToggle(service, true);
+    await executeToggle(treatment, true);
   };
 
-  const executeToggle = async (service, newState) => {
+  const executeToggle = async (treatment, newState) => {
     setError(null);
-    const result = await toggleServiceActive({ serviceId: service.id, isActive: newState });
+    const result = await toggleTreatmentActive({ treatmentId: treatment.id, isActive: newState });
     if (result.error) {
       setError(result.error.message || 'Toggle failed.');
     } else {
-      await loadServices();
+      await loadTreatments();
     }
     setConfirmToggle(null);
   };
@@ -223,7 +223,7 @@ const ServiceManagementPanel = () => {
     setDeleting(true);
     setError(null);
 
-    const result = await deleteService({ serviceId: confirmDelete.id });
+    const result = await deleteTreatment({ treatmentId: confirmDelete.id });
 
     if (result.error) {
       if (result.error.code === 'HAS_BOOKINGS') {
@@ -232,7 +232,7 @@ const ServiceManagementPanel = () => {
         setError(result.error.message || 'Delete failed.');
       }
     } else {
-      await loadServices();
+      await loadTreatments();
     }
 
     setConfirmDelete(null);
@@ -245,7 +245,7 @@ const ServiceManagementPanel = () => {
     return (
       <div className="text-center py-12">
         <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-3" />
-        <p className="font-body text-sm text-text-secondary">Loading services...</p>
+        <p className="font-body text-sm text-text-secondary">Loading treatments...</p>
       </div>
     );
   }
@@ -255,13 +255,13 @@ const ServiceManagementPanel = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-heading font-heading-semibold text-lg text-text-primary">Service Management</h3>
+          <h3 className="font-heading font-heading-semibold text-lg text-text-primary">Treatment Management</h3>
           <p className="font-body text-sm text-text-secondary">
-            {services.length} service{services.length !== 1 ? 's' : ''} configured — price changes affect future bookings only
+            {treatments.length} treatment{treatments.length !== 1 ? 's' : ''} configured — price changes affect future bookings only
           </p>
         </div>
         <Button variant="primary" size="sm" iconName="Plus" iconSize={16} onClick={handleOpenCreate}>
-          Add Service
+          Add Treatment
         </Button>
       </div>
 
@@ -279,7 +279,7 @@ const ServiceManagementPanel = () => {
         search={{
           value: searchQuery,
           onChange: setSearchQuery,
-          placeholder: 'Search by service name...',
+          placeholder: 'Search by treatment name...',
         }}
         filters={[
           {
@@ -300,7 +300,7 @@ const ServiceManagementPanel = () => {
             ],
           },
         ]}
-        resultCount={{ filtered: filteredServices.length, total: services.length }}
+        resultCount={{ filtered: filteredTreatments.length, total: treatments.length }}
         hasActiveFilters={searchQuery || categoryFilter !== 'all' || statusFilter !== 'all'}
         onClear={() => {
           setSearchQuery('');
@@ -314,7 +314,7 @@ const ServiceManagementPanel = () => {
         <table className="w-full">
           <thead>
             <tr className="bg-background border-b border-border">
-              <th className="text-left px-4 py-3 font-body font-body-medium text-sm text-text-secondary">Service Name</th>
+              <th className="text-left px-4 py-3 font-body font-body-medium text-sm text-text-secondary">Treatment Name</th>
               <th className="text-left px-4 py-3 font-body font-body-medium text-sm text-text-secondary hidden lg:table-cell">Category</th>
               <th className="text-left px-4 py-3 font-body font-body-medium text-sm text-text-secondary">Duration</th>
               <th className="text-left px-4 py-3 font-body font-body-medium text-sm text-text-secondary">Price</th>
@@ -324,16 +324,16 @@ const ServiceManagementPanel = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredServices.length === 0 ? (
+            {filteredTreatments.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-text-secondary font-body text-sm">
-                  {services.length === 0
-                    ? 'No services found. Click "Add Service" to create one.'
-                    : 'No services match your filters.'}
+                  {treatments.length === 0
+                    ? 'No treatments found. Click "Add Treatment" to create one.'
+                    : 'No treatments match your filters.'}
                 </td>
               </tr>
             ) : (
-              filteredServices.map((s) => (
+              filteredTreatments.map((s) => (
                 <tr key={s.id} className="border-b border-border last:border-b-0 hover:bg-background/50 spa-transition-fast">
                   <td className="px-4 py-3 font-body font-body-medium text-sm text-text-primary">{s.name}</td>
                   <td className="px-4 py-3 font-body text-sm text-text-secondary hidden lg:table-cell">{s.category || 'Spa'}</td>
@@ -393,7 +393,7 @@ const ServiceManagementPanel = () => {
           <div className="bg-surface rounded-spa-lg spa-shadow-modal w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-heading font-heading-semibold text-lg text-text-primary">
-                {editingService ? 'Edit Service' : 'Add Service'}
+                {editingTreatment ? 'Edit Treatment' : 'Add Treatment'}
               </h3>
               <button onClick={() => setShowModal(false)} className="p-1 rounded hover:bg-background">
                 <Icon name="X" size={20} className="text-text-secondary" />
@@ -408,12 +408,12 @@ const ServiceManagementPanel = () => {
             )}
 
             <div className="space-y-3">
-              {/* Service name — editable for create, read-only for edit */}
+              {/* Treatment name — editable for create, read-only for edit */}
               <div className="space-y-1">
-                <label className="block font-body font-body-medium text-sm text-text-primary">Service Name</label>
-                {editingService ? (
+                <label className="block font-body font-body-medium text-sm text-text-primary">Treatment Name</label>
+                {editingTreatment ? (
                   <div className="px-3 py-2 bg-background rounded-spa border border-border font-body text-sm text-text-secondary">
-                    {editingService.name}
+                    {editingTreatment.name}
                   </div>
                 ) : (
                   <Input
@@ -463,16 +463,16 @@ const ServiceManagementPanel = () => {
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Service description..."
+                  placeholder="Treatment description..."
                   rows={3}
                   className="w-full rounded-spa border border-border bg-background px-3 py-2 font-body text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary spa-transition-fast resize-none"
                 />
               </div>
 
-              {/* Service Image for customer portal */}
+              {/* Treatment Image for customer portal */}
               <div className="space-y-2">
                 <label className="block font-body font-body-medium text-sm text-text-primary">
-                  Service Image <span className="text-text-tertiary font-normal">(for customer portal)</span>
+                  Treatment Image <span className="text-text-tertiary font-normal">(for customer portal)</span>
                 </label>
 
                 {imagePreview ? (
@@ -531,9 +531,9 @@ const ServiceManagementPanel = () => {
               <div className="p-3 bg-accent/5 border border-accent/20 rounded-spa">
                 <p className="font-caption text-xs text-accent flex items-center gap-1.5">
                   <Icon name="Info" size={14} />
-                  {editingService
+                  {editingTreatment
                     ? 'Price and duration changes only affect future bookings. Historical bookings are protected by snapshot fields.'
-                    : 'New services will be immediately available for booking across all branches.'}
+                    : 'New treatments will be immediately available for booking across all branches.'}
                 </p>
               </div>
             </div>
@@ -541,7 +541,7 @@ const ServiceManagementPanel = () => {
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" size="sm" onClick={() => setShowModal(false)}>Cancel</Button>
               <Button variant="primary" size="sm" onClick={handleSave} loading={saving}>
-                {editingService ? 'Save Changes' : 'Create Service'}
+                {editingTreatment ? 'Save Changes' : 'Create Treatment'}
               </Button>
             </div>
           </div>
@@ -557,7 +557,7 @@ const ServiceManagementPanel = () => {
                 <Icon name="AlertTriangle" size={20} className="text-warning" />
               </div>
               <div>
-                <h3 className="font-heading font-heading-semibold text-text-primary">Deactivate Service?</h3>
+                <h3 className="font-heading font-heading-semibold text-text-primary">Deactivate Treatment?</h3>
                 <p className="font-body text-sm text-text-secondary">
                   "{confirmToggle.name}" will be hidden from new bookings but remain in historical records.
                 </p>
@@ -580,14 +580,14 @@ const ServiceManagementPanel = () => {
                 <Icon name="Trash2" size={20} className="text-error" />
               </div>
               <div>
-                <h3 className="font-heading font-heading-semibold text-text-primary">Delete Service?</h3>
+                <h3 className="font-heading font-heading-semibold text-text-primary">Delete Treatment?</h3>
                 <p className="font-body text-sm text-text-secondary">
                   "{confirmDelete.name}" will be permanently deleted. This action cannot be undone.
                 </p>
               </div>
             </div>
             <p className="font-body text-xs text-text-tertiary bg-background rounded-spa p-2">
-              Note: Services with booking history cannot be deleted. Use deactivation instead to hide them from new bookings.
+              Note: Treatments with booking history cannot be deleted. Use deactivation instead to hide them from new bookings.
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(null)} disabled={deleting}>Cancel</Button>
@@ -600,4 +600,4 @@ const ServiceManagementPanel = () => {
   );
 };
 
-export default ServiceManagementPanel;
+export default TreatmentManagementPanel;

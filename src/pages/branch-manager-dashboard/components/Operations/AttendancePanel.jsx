@@ -88,7 +88,7 @@ const STATUS_FILTER_OPTIONS = [
 
 const STAFF_TYPE_OPTIONS = [
   { value: 'all', label: 'All Staff' },
-  { value: 'service', label: 'Service Staff' },
+  { value: 'treatment', label: 'Treatment Staff' },
   { value: 'support', label: 'Support Staff' },
   { value: 'transferred', label: 'Transferred' },
 ];
@@ -185,7 +185,7 @@ const AttendancePanel = ({ branchId }) => {
       const currentStatus = edits[t.dentistId]?.status ?? (t.status || '');
       const matchesStatus = statusFilter === 'all' || currentStatus === statusFilter;
       const matchesType = staffTypeFilter === 'all'
-        || (staffTypeFilter === 'service' ? t.isServiceStaff : !t.isServiceStaff);
+        || (staffTypeFilter === 'treatment' ? t.isTreatmentStaff : !t.isTreatmentStaff);
       return matchesSearch && matchesStatus && matchesType;
     });
   }, [dentists, edits, searchQuery, statusFilter, staffTypeFilter, isIncomingTransferOverdue]);

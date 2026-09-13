@@ -6,7 +6,7 @@ import Button from '../../components/ui/Button';
 import Icon from '../../components/AppIcon';
 import ProgressIndicator from './components/ProgressIndicator';
 import BranchSelection from './components/BranchSelection';
-import ServiceSelection from './components/ServiceSelection';
+import TreatmentSelection from './components/TreatmentSelection';
 import DateTimeSelection from './components/DateTimeSelection';
 import CustomerForm from './components/CustomerForm';
 import BookingConfirmation from './components/BookingConfirmation';
@@ -25,7 +25,7 @@ const CustomerBookingFlow = () => {
 
   // Booking state
   const [selectedBranch, setSelectedBranch] = useState(null);
-  const [selectedService, setSelectedService] = useState(null);
+  const [selectedTreatment, setSelectedTreatment] = useState(null);
   const [selectedDateTime, setSelectedDateTime] = useState({ date: '', time: '' });
   const [genderPreference, setGenderPreference] = useState('no-preference');
   const [customerInfo, setCustomerInfo] = useState({
@@ -68,7 +68,7 @@ const CustomerBookingFlow = () => {
   }, [customerProfile]);
 
   const totalSteps = 6;
-  const stepNames = ['branch_selection', 'service_selection', 'datetime_selection', 'customer_details', 'booking_confirmation', 'booking_success'];
+  const stepNames = ['branch_selection', 'treatment_selection', 'datetime_selection', 'customer_details', 'booking_confirmation', 'booking_success'];
   const stepEnteredAt = useRef(Date.now());
 
   // Track step views and time-on-step
@@ -88,13 +88,13 @@ const CustomerBookingFlow = () => {
     const bookingState = {
       currentStep,
       selectedBranch,
-      selectedService,
+      selectedTreatment,
       selectedDateTime,
       genderPreference,
       customerInfo
     };
     localStorage.setItem('bookingFlow', JSON.stringify(bookingState));
-  }, [currentStep, selectedBranch, selectedService, selectedDateTime, genderPreference, customerInfo]);
+  }, [currentStep, selectedBranch, selectedTreatment, selectedDateTime, genderPreference, customerInfo]);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -105,7 +105,7 @@ const CustomerBookingFlow = () => {
         if (parsed.currentStep && parsed.currentStep < 6) { // Don't restore success step
           setCurrentStep(parsed.currentStep);
           setSelectedBranch(parsed.selectedBranch);
-          setSelectedService(parsed.selectedService);
+          setSelectedTreatment(parsed.selectedTreatment);
           setSelectedDateTime(parsed.selectedDateTime || { date: '', time: '' });
           setGenderPreference(parsed.genderPreference || 'no-preference');
           // Merge into prev rather than replacing outright — if the
@@ -141,7 +141,7 @@ const CustomerBookingFlow = () => {
           step_name: stepNames[currentStep - 1],
           org_slug: orgSlug,
           branch_id: selectedBranch?.id,
-          service_id: selectedService?.id,
+          treatment_id: selectedTreatment?.id,
           time_on_step_ms: Date.now() - stepEnteredAt.current,
         });
         setCurrentStep(currentStep + 1);
@@ -169,9 +169,9 @@ const CustomerBookingFlow = () => {
     switch (step) {
       case 1: return true;
       case 2: return selectedBranch !== null;
-      case 3: return selectedBranch !== null && selectedService !== null;
-      case 4: return selectedBranch !== null && selectedService !== null && selectedDateTime.date && selectedDateTime.time;
-      case 5: return selectedBranch !== null && selectedService !== null && selectedDateTime.date && selectedDateTime.time && isCustomerInfoValid();
+      case 3: return selectedBranch !== null && selectedTreatment !== null;
+      case 4: return selectedBranch !== null && selectedTreatment !== null && selectedDateTime.date && selectedDateTime.time;
+      case 5: return selectedBranch !== null && selectedTreatment !== null && selectedDateTime.date && selectedDateTime.time && isCustomerInfoValid();
       default: return false;
     }
   };
@@ -179,7 +179,7 @@ const CustomerBookingFlow = () => {
   const canProceed = () => {
     switch (currentStep) {
       case 1: return selectedBranch !== null;
-      case 2: return selectedService !== null;
+      case 2: return selectedTreatment !== null;
       case 3: return selectedDateTime.date && selectedDateTime.time;
       case 4: return isCustomerInfoValid();
       case 5: return customerInfo.agreeToTerms;
@@ -205,13 +205,13 @@ const CustomerBookingFlow = () => {
   const handleBranchSelect = (branch) => {
     setSelectedBranch(branch);
     if (branch?.id !== selectedBranch?.id) {
-      setSelectedService(null); // Reset service only when branch actually changes
+      setSelectedTreatment(null); // Reset treatment only when branch actually changes
     }
   };
 
-  const handleServiceSelect = (service) => {
-    setSelectedService(service);
-    setSelectedDateTime({ date: '', time: '' }); // Duration differs per service — a stale slot may no longer fit
+  const handleTreatmentSelect = (treatment) => {
+    setSelectedTreatment(treatment);
+    setSelectedDateTime({ date: '', time: '' }); // Duration differs per treatment — a stale slot may no longer fit
   };
 
   const handleDateTimeSelect = (dateTime) => {
@@ -231,7 +231,7 @@ const CustomerBookingFlow = () => {
     const finalBookingData = {
       ...confirmationData,
       selectedBranch,
-      selectedService,
+      selectedTreatment,
       selectedDateTime,
       genderPreference,
       customerInfo,
@@ -247,9 +247,9 @@ const CustomerBookingFlow = () => {
       org_slug: orgSlug,
       branch_id: selectedBranch?.id,
       branch_name: selectedBranch?.name,
-      service_id: selectedService?.id,
-      service_name: selectedService?.name,
-      service_price_npr: selectedService?.price_npr,
+      treatment_id: selectedTreatment?.id,
+      treatment_name: selectedTreatment?.name,
+      treatment_price_npr: selectedTreatment?.price_npr,
       customer_gender: customerInfo.gender || null,
     });
   };
@@ -261,7 +261,7 @@ const CustomerBookingFlow = () => {
   const getStepTitle = () => {
     switch (currentStep) {
       case 1: return 'Select Branch';
-      case 2: return 'Choose Service';
+      case 2: return 'Choose Treatment';
       case 3: return 'Pick Date & Time';
       case 4: return 'Your Information';
       case 5: return 'Confirm Booking';
@@ -272,7 +272,7 @@ const CustomerBookingFlow = () => {
 
   const getNextButtonText = () => {
     switch (currentStep) {
-      case 1: return 'Continue to Services';
+      case 1: return 'Continue to Treatments';
       case 2: return 'Select Date & Time';
       case 3: return 'Enter Details';
       case 4: return 'Review Booking';
@@ -293,9 +293,9 @@ const CustomerBookingFlow = () => {
       
       case 2:
         return (
-          <ServiceSelection
-            selectedService={selectedService}
-            onServiceSelect={handleServiceSelect}
+          <TreatmentSelection
+            selectedTreatment={selectedTreatment}
+            onTreatmentSelect={handleTreatmentSelect}
             selectedBranch={selectedBranch}
           />
         );
@@ -305,7 +305,7 @@ const CustomerBookingFlow = () => {
           <DateTimeSelection
             selectedDateTime={selectedDateTime}
             onDateTimeSelect={handleDateTimeSelect}
-            selectedService={selectedService}
+            selectedTreatment={selectedTreatment}
             selectedBranch={selectedBranch}
             genderPreference={genderPreference}
             onGenderPreferenceChange={handleGenderPreferenceChange}
@@ -318,7 +318,7 @@ const CustomerBookingFlow = () => {
             customerInfo={customerInfo}
             onCustomerInfoChange={handleCustomerInfoChange}
             selectedBranch={selectedBranch}
-            selectedService={selectedService}
+            selectedTreatment={selectedTreatment}
             selectedDateTime={selectedDateTime}
             genderPreference={genderPreference}
             orgSlug={orgSlug}
@@ -330,7 +330,7 @@ const CustomerBookingFlow = () => {
           <BookingConfirmation
             orgSlug={orgSlug}
             selectedBranch={selectedBranch}
-            selectedService={selectedService}
+            selectedTreatment={selectedTreatment}
             selectedDateTime={selectedDateTime}
             customerInfo={customerInfo}
             genderPreference={genderPreference}
@@ -368,7 +368,7 @@ const CustomerBookingFlow = () => {
             href="https://www.zunkireelabs.com/products/ai-booking-engine/"
             className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-spa font-body font-body-medium text-sm hover:bg-primary/90"
           >
-            Learn More About Zennly
+            Learn More About Superdental
           </a>
         </div>
       </div>
@@ -408,7 +408,7 @@ const CustomerBookingFlow = () => {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 py-4 lg:py-6">
-        {/* Step Header — Step 2 renders its own header inside ServiceSelection */}
+        {/* Step Header — Step 2 renders its own header inside TreatmentSelection */}
         {currentStep !== 2 && (
           <div className="text-center mb-4">
             <div className="flex items-center justify-center space-x-2 mb-2">
@@ -543,7 +543,7 @@ const CustomerBookingFlow = () => {
                 </svg>
               </div>
               <span className="font-heading font-heading-semibold text-lg text-text-primary">
-                Zennly
+                Superdental
               </span>
             </div>
             <p className="font-body font-body-normal text-sm text-text-secondary mb-4">
@@ -555,7 +555,7 @@ const CustomerBookingFlow = () => {
               <button className="hover:text-primary spa-transition-fast">Contact Us</button>
             </div>
             <p className="font-caption font-caption-normal text-xs text-text-secondary mt-4 inline-flex items-center justify-center flex-wrap gap-1">
-              <span>© {new Date().getFullYear()} Zennly. All rights reserved. A product from</span>
+              <span>© {new Date().getFullYear()} Superdental. All rights reserved. A product from</span>
               <a
                 href="https://zunkireelabs.com"
                 target="_blank"

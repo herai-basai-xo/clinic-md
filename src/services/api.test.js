@@ -56,7 +56,7 @@ describe('getCalendarBookings transferredIn column for an already-returned visit
         effective_date: '2026-09-09',
         start_time: '16:45:00',
         fromBranch: { name: 'Thamel' },
-        dentist: { id: 't-visitor-1', name: 'Srijana Baram', gender: 'female', specialties: [], position: 'dentist', is_service_staff: true, display_order: 3 },
+        dentist: { id: 't-visitor-1', name: 'Srijana Baram', gender: 'female', specialties: [], position: 'dentist', is_treatment_staff: true, display_order: 3 },
       },
     ];
     const transferredInDentists = inRows

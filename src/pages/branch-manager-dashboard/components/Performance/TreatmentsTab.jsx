@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Icon from '../../../../components/AppIcon';
-import { getDentistServiceBreakdown } from '../../../../services/api';
+import { getDentistTreatmentBreakdown } from '../../../../services/api';
 
 function formatNPR(amount) {
   return `NPR ${Number(amount || 0).toLocaleString('en-IN')}`;
 }
 
-const ServicesTab = ({ dentistId, branchId, range }) => {
+const TreatmentsTab = ({ dentistId, branchId, range }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -16,10 +16,10 @@ const ServicesTab = ({ dentistId, branchId, range }) => {
     setLoading(true);
     setError(null);
 
-    const result = await getDentistServiceBreakdown({ branchId, dentistId, ...range });
+    const result = await getDentistTreatmentBreakdown({ branchId, dentistId, ...range });
 
     if (result.error) {
-      setError(result.error.message || 'Failed to load service breakdown.');
+      setError(result.error.message || 'Failed to load treatment breakdown.');
       setLoading(false);
       return;
     }
@@ -50,13 +50,13 @@ const ServicesTab = ({ dentistId, branchId, range }) => {
     );
   }
 
-  const services = data?.services || [];
+  const treatments = data?.treatments || [];
 
-  if (services.length === 0) {
+  if (treatments.length === 0) {
     return (
       <div className="p-12 text-center bg-surface rounded-spa-lg border border-border">
         <Icon name="Sparkles" size={32} className="text-text-tertiary mx-auto mb-3" />
-        <p className="font-body text-sm text-text-tertiary">No completed services for this period.</p>
+        <p className="font-body text-sm text-text-tertiary">No completed treatments for this period.</p>
       </div>
     );
   }
@@ -67,7 +67,7 @@ const ServicesTab = ({ dentistId, branchId, range }) => {
         <table className="w-full min-w-[600px]">
           <thead>
             <tr className="bg-background/50 border-b border-border">
-              <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Service</th>
+              <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Treatment</th>
               <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Completed</th>
               <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Cancelled</th>
               <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Missed</th>
@@ -76,10 +76,10 @@ const ServicesTab = ({ dentistId, branchId, range }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {services.map((s) => (
-              <tr key={s.serviceName} className="hover:bg-background/30 spa-transition-fast">
+            {treatments.map((s) => (
+              <tr key={s.treatmentName} className="hover:bg-background/30 spa-transition-fast">
                 <td className="px-4 py-3">
-                  <span className="font-body font-body-medium text-sm text-text-primary truncate block max-w-[220px]">{s.serviceName}</span>
+                  <span className="font-body font-body-medium text-sm text-text-primary truncate block max-w-[220px]">{s.treatmentName}</span>
                 </td>
                 <td className="px-4 py-3 text-center">
                   <span className="font-data font-data-normal text-sm text-success">{s.completed}</span>
@@ -104,10 +104,10 @@ const ServicesTab = ({ dentistId, branchId, range }) => {
 
       {/* Mobile card stack */}
       <div className="md:hidden divide-y divide-border">
-        {services.map((s) => (
-          <div key={s.serviceName} className="p-4 space-y-2">
+        {treatments.map((s) => (
+          <div key={s.treatmentName} className="p-4 space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-body font-body-medium text-sm text-text-primary truncate min-w-0">{s.serviceName}</span>
+              <span className="font-body font-body-medium text-sm text-text-primary truncate min-w-0">{s.treatmentName}</span>
               <span className="font-data font-data-normal text-sm text-text-primary flex-shrink-0">{formatNPR(s.revenue)}</span>
             </div>
             <div className="flex items-center gap-3 text-xs text-text-tertiary">
@@ -123,4 +123,4 @@ const ServicesTab = ({ dentistId, branchId, range }) => {
   );
 };
 
-export default ServicesTab;
+export default TreatmentsTab;

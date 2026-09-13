@@ -14,7 +14,7 @@ on:
         default: "Production issue"
 
 env:
-  IMAGE: ghcr.io/zunkireelabs/book-spa
+  IMAGE: ghcr.io/zunkireelabs/book-dental
 
 jobs:
   rollback:
@@ -38,7 +38,7 @@ jobs:
           envs: GHCR_USER,GHCR_TOKEN,TARGET_SHA,REASON,IMAGE
           script: |
             set -e
-            cd /home/zunkireelabs/devprojects/nuad-thai-web-app-prod
+            cd /home/zunkireelabs/devprojects/book-dental-app-prod
             echo "Rolling back to $TARGET_SHA"
             echo "Reason: $REASON"
             echo "NOTE: this rolls back CODE ONLY — the database is never touched."
@@ -57,7 +57,7 @@ jobs:
             echo "Waiting for container to be healthy..."
             sleep 10
             for i in $(seq 1 12); do
-              STATUS=$(docker inspect --format='{{.State.Health.Status}}' nuad-thai-prod 2>/dev/null || echo "unknown")
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' book-dental-app-prod 2>/dev/null || echo "unknown")
               if [ "$STATUS" = "healthy" ]; then
                 echo "Rollback successful! Container is healthy."
                 exit 0
@@ -66,7 +66,7 @@ jobs:
               sleep 10
             done
             echo "Rollback failed — container did not become healthy"
-            docker logs nuad-thai-prod --tail 50
+            docker logs book-dental-app-prod --tail 50
             exit 1
 
       - name: Verify Health

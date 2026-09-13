@@ -97,7 +97,7 @@ const UtilizationPanel = ({ branchId, period }) => {
 
   if (!data) return null;
 
-  const { roomUtilization, dentistUtilization, hourlyDistribution, summary } = data;
+  const { chairUtilization, dentistUtilization, hourlyDistribution, summary } = data;
 
   // Compute hourly chart data — only operating hours
   const openHour = Math.floor(data.operatingMinutes > 0 ? parseInt(data.operatingHours.split('–')[0]) : 9);
@@ -110,7 +110,7 @@ const UtilizationPanel = ({ branchId, period }) => {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* Room Utilization */}
+      {/* Chair Utilization */}
       <div className="bg-white rounded-lg border border-gray-200 p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
@@ -118,21 +118,21 @@ const UtilizationPanel = ({ branchId, period }) => {
               <Icon name="DoorOpen" size={16} className="text-blue-600" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-gray-900">Room Utilization</h3>
+              <h3 className="text-sm font-medium text-gray-900">Chair Utilization</h3>
               <p className="text-[11px] text-gray-400">
-                {summary.roomCount} active rooms
+                {summary.chairCount} active chairs
               </p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-lg font-semibold text-gray-900">{summary.avgRoomUtilization}%</p>
+            <p className="text-lg font-semibold text-gray-900">{summary.avgChairUtilization}%</p>
             <p className="text-[11px] text-gray-400">avg</p>
           </div>
         </div>
 
         <div className="space-y-3 max-h-[400px] overflow-y-auto">
-          {roomUtilization.length > 0 ? (
-            roomUtilization.map(r => (
+          {chairUtilization.length > 0 ? (
+            chairUtilization.map(r => (
               <BarRow
                 key={r.id}
                 label={r.name}
@@ -143,7 +143,7 @@ const UtilizationPanel = ({ branchId, period }) => {
               />
             ))
           ) : (
-            <p className="text-xs text-gray-400 text-center py-4">No active rooms</p>
+            <p className="text-xs text-gray-400 text-center py-4">No active chairs</p>
           )}
         </div>
       </div>

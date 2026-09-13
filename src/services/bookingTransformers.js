@@ -46,7 +46,7 @@ export function toDbStatus(uiStatus) {
  * result shape, keyed by `.id`) — both key names refer to the same underlying bookings.id UUID.
  *
  * Why this exists: BookingActionModal.jsx's Payment tab independently fetches "Related
- * Services" (matched by customer name + exact date) and "Previous Due" (matched by phone,
+ * Treatments" (matched by customer name + exact date) and "Previous Due" (matched by phone,
  * across all dates). A real booking_group_id sibling that's unpaid always satisfies BOTH
  * queries' criteria, so without this dedup it gets listed — and summed into the Grand Total —
  * twice.
@@ -66,7 +66,7 @@ export function transformBooking(dbBooking) {
         id: dbBooking.dentist.id,
         name: dbBooking.dentist.name,
         gender: dbBooking.dentist.gender,
-        room: dbBooking.room?.name || null,
+        chair: dbBooking.chair?.name || null,
       }
     : null;
 
@@ -104,9 +104,9 @@ export function transformBooking(dbBooking) {
     customerName: dbBooking.customer_name,
     customerEmail: dbBooking.customer_email || null,
     customerPhone: dbBooking.customer_phone || null,
-    service: dbBooking.service?.name || 'Unknown Service',
-    duration: dbBooking.service
-      ? `${dbBooking.service.duration_minutes} min`
+    treatment: dbBooking.treatment?.name || 'Unknown Treatment',
+    duration: dbBooking.treatment
+      ? `${dbBooking.treatment.duration_minutes} min`
       : '',
     time: dbBooking.start_time ? dbBooking.start_time.slice(0, 5) : '',
     date: dbBooking.date,
@@ -120,9 +120,9 @@ export function transformBooking(dbBooking) {
     dueHolderName: dbBooking.due_holder_name || null,
     dentist,
     dentists,
-    serviceId: dbBooking.service_id || null,
-    roomId: dbBooking.room_id || null,
-    roomName: dbBooking.room?.name || null,
+    treatmentId: dbBooking.treatment_id || null,
+    chairId: dbBooking.chair_id || null,
+    chairName: dbBooking.chair?.name || null,
     branchId: dbBooking.branch_id || null,
     branchName: dbBooking.branch?.name || null,
     startTime: dbBooking.start_time || null,

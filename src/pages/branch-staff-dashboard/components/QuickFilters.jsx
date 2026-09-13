@@ -4,7 +4,7 @@ import FilterBar from '../../../components/ui/FilterBar';
 const QuickFilters = ({ onFiltersChange, bookingCounts }) => {
   const [filters, setFilters] = useState({
     dateRange: 'today',
-    serviceType: 'all',
+    treatmentType: 'all',
     status: 'all',
     search: ''
   });
@@ -16,8 +16,8 @@ const QuickFilters = ({ onFiltersChange, bookingCounts }) => {
     { value: 'month', label: 'This Month' }
   ];
 
-  const serviceTypeOptions = [
-    { value: 'all', label: 'All Services' },
+  const treatmentTypeOptions = [
+    { value: 'all', label: 'All Treatments' },
     { value: 'massage', label: 'Massage Therapy' },
     { value: 'facial', label: 'Facial Treatment' },
     { value: 'body', label: 'Body Treatment' },
@@ -44,7 +44,7 @@ const QuickFilters = ({ onFiltersChange, bookingCounts }) => {
   const clearFilters = () => {
     const defaultFilters = {
       dateRange: 'today',
-      serviceType: 'all',
+      treatmentType: 'all',
       status: 'all',
       search: ''
     };
@@ -52,7 +52,7 @@ const QuickFilters = ({ onFiltersChange, bookingCounts }) => {
     onFiltersChange(defaultFilters);
   };
 
-  const hasActiveFilters = filters.search || filters.dateRange !== 'today' || filters.serviceType !== 'all' || filters.status !== 'all';
+  const hasActiveFilters = filters.search || filters.dateRange !== 'today' || filters.treatmentType !== 'all' || filters.status !== 'all';
 
   return (
     <FilterBar
@@ -68,9 +68,9 @@ const QuickFilters = ({ onFiltersChange, bookingCounts }) => {
           options: dateRangeOptions,
         },
         {
-          value: filters.serviceType,
-          onChange: (value) => handleFilterChange('serviceType', value),
-          options: serviceTypeOptions,
+          value: filters.treatmentType,
+          onChange: (value) => handleFilterChange('treatmentType', value),
+          options: treatmentTypeOptions,
         },
         {
           value: filters.status,

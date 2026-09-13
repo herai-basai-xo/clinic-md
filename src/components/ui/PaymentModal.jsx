@@ -253,7 +253,7 @@ const PaymentModal = ({
   };
 
   // --- session packages (migration-141) ---
-  // Prepaid session bundles for a specific service — "Redeem 1 Session" always
+  // Prepaid session bundles for a specific treatment — "Redeem 1 Session" always
   // settles this booking's ENTIRE own remaining balance (never a partial or a
   // bundled additional booking): the session's value was already collected when
   // the package was purchased, so recordPayment computes the redemption's
@@ -274,7 +274,7 @@ const PaymentModal = ({
       const { data } = await getActivePackagesForCustomer(
         bookingRow.customer_id,
         bookingRow.customer_phone,
-        bookingRow.service_id
+        bookingRow.treatment_id
       );
       if (!cancelled) setCustomerPackages(data || []);
     })();
@@ -512,7 +512,7 @@ const PaymentModal = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-body font-body-normal text-sm text-text-secondary truncate pr-2">
-                  {booking.service?.name || booking.service || 'This booking'}
+                  {booking.treatment?.name || booking.treatment || 'This booking'}
                 </span>
                 <span className="font-body font-body-medium text-sm text-text-primary flex-shrink-0">
                   {formatNPR(remaining)}

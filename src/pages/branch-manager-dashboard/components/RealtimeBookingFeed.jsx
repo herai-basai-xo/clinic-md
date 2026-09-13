@@ -255,7 +255,7 @@ const RealtimeBookingFeed = ({
                     )}
                   </div>
                   <p className="text-sm text-gray-500 mb-1">
-                    {booking.service} {'\u00B7'} {booking.duration}
+                    {booking.treatment} {'\u00B7'} {booking.duration}
                   </p>
                   <div className="flex items-center space-x-4 text-xs text-gray-500">
                     <span className="flex items-center space-x-1">

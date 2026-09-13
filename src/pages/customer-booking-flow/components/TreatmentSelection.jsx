@@ -2,32 +2,32 @@ import React, { useState, useEffect } from 'react';
 import Icon from '../../../components/AppIcon';
 import Image from '../../../components/AppImage';
 import { useTenant } from '../../../contexts/TenantContext';
-import { fetchServicesByOrgId } from '../../../services/api';
-import { enrichServices } from '../../../services/serviceEnrichment';
+import { fetchTreatmentsByOrgId } from '../../../services/api';
+import { enrichTreatments } from '../../../services/treatmentEnrichment';
 
-const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) => {
+const TreatmentSelection = ({ selectedTreatment, onTreatmentSelect, selectedBranch }) => {
   const { orgId, loading: tenantLoading } = useTenant();
-  const [services, setServices] = useState([]);
+  const [treatments, setTreatments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-  const hasUncategorized = services.some(s => !s.category);
-  const categories = ['All', ...new Set(services.map(s => s.category).filter(Boolean)), ...(hasUncategorized ? ['Others'] : [])];
+  const hasUncategorized = treatments.some(s => !s.category);
+  const categories = ['All', ...new Set(treatments.map(s => s.category).filter(Boolean)), ...(hasUncategorized ? ['Others'] : [])];
 
-  const filteredServices = services.filter(service => {
-    const matchesSearch = service.name.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredTreatments = treatments.filter(treatment => {
+    const matchesSearch = treatment.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory =
       selectedCategory === 'All' ||
-      (selectedCategory === 'Others' ? !service.category : service.category === selectedCategory);
+      (selectedCategory === 'Others' ? !treatment.category : treatment.category === selectedCategory);
     return matchesSearch && matchesCategory;
   });
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadServices() {
+    async function loadTreatments() {
       if (tenantLoading) {
         return;
       }
@@ -42,27 +42,27 @@ const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) 
       setError(null);
 
       try {
-        const { data, error: fetchError } = await fetchServicesByOrgId(orgId, selectedBranch?.id);
+        const { data, error: fetchError } = await fetchTreatmentsByOrgId(orgId, selectedBranch?.id);
         if (cancelled) return;
 
         if (fetchError) {
-          console.error('[ServiceSelection] Fetch error:', fetchError);
-          setError('Failed to load services. Please try again.');
+          console.error('[TreatmentSelection] Fetch error:', fetchError);
+          setError('Failed to load treatments. Please try again.');
           setLoading(false);
           return;
         }
 
-        setServices(enrichServices(data || []));
+        setTreatments(enrichTreatments(data || []));
         setLoading(false);
       } catch (err) {
         if (cancelled) return;
-        console.error('[ServiceSelection] Unexpected error:', err);
+        console.error('[TreatmentSelection] Unexpected error:', err);
         setError('An unexpected error occurred.');
         setLoading(false);
       }
     }
 
-    loadServices();
+    loadTreatments();
     return () => { cancelled = true; };
   }, [orgId, tenantLoading, selectedBranch?.id]);
 
@@ -74,7 +74,7 @@ const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) 
     }).format(price);
   };
 
-  const showStickyBlock = !loading && !error && services.length > 0;
+  const showStickyBlock = !loading && !error && treatments.length > 0;
 
   return (
     <div className="space-y-4">
@@ -83,7 +83,7 @@ const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) 
           <div className="flex items-center justify-center space-x-2 mb-2">
             <Icon name="Sparkles" size={20} className="text-primary" />
             <h1 className="font-heading font-heading-semibold text-2xl text-text-primary">
-              Choose Service
+              Choose Treatment
             </h1>
           </div>
           <p className="font-body font-body-normal text-text-secondary">
@@ -95,7 +95,7 @@ const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) 
       {loading && (
         <div className="flex items-center justify-center py-12">
           <Icon name="Loader2" size={24} className="text-primary animate-spin" />
-          <span className="ml-3 font-body font-body-normal text-text-secondary">Loading services...</span>
+          <span className="ml-3 font-body font-body-normal text-text-secondary">Loading treatments...</span>
         </div>
       )}
 
@@ -106,10 +106,10 @@ const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) 
         </div>
       )}
 
-      {!loading && !error && services.length === 0 && (
+      {!loading && !error && treatments.length === 0 && (
         <div className="text-center py-12">
           <Icon name="Calendar" size={32} className="text-text-secondary mx-auto mb-3" />
-          <p className="font-body font-body-normal text-text-secondary">No services available at this time.</p>
+          <p className="font-body font-body-normal text-text-secondary">No treatments available at this time.</p>
         </div>
       )}
 
@@ -123,7 +123,7 @@ const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) 
               <div className="flex items-center justify-center space-x-2 mb-1">
                 <Icon name="Sparkles" size={20} className="text-primary" />
                 <h1 className="font-heading font-heading-semibold text-2xl text-text-primary">
-                  Choose Service
+                  Choose Treatment
                 </h1>
               </div>
               <p className="font-body font-body-normal text-text-secondary">
@@ -136,7 +136,7 @@ const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) 
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search services..."
+                placeholder="Search treatments..."
                 className="w-full pl-10 pr-10 py-2.5 rounded-spa-lg border border-border bg-surface font-body font-body-normal text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
               {searchQuery && (
@@ -167,51 +167,51 @@ const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) 
         </>
       )}
 
-      {!loading && !error && services.length > 0 && filteredServices.length === 0 && (
+      {!loading && !error && treatments.length > 0 && filteredTreatments.length === 0 && (
         <div className="text-center py-12">
           <Icon name="SearchX" size={32} className="text-text-secondary mx-auto mb-3" />
-          <p className="font-body font-body-normal text-text-secondary">No services found matching your search.</p>
+          <p className="font-body font-body-normal text-text-secondary">No treatments found matching your search.</p>
         </div>
       )}
 
-      {!loading && !error && filteredServices.length > 0 && (
+      {!loading && !error && filteredTreatments.length > 0 && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredServices.map((service) => (
+        {filteredTreatments.map((treatment) => (
             <div
-              key={service.id}
-              onClick={() => onServiceSelect(service)}
+              key={treatment.id}
+              onClick={() => onTreatmentSelect(treatment)}
               className={`group bg-surface rounded-spa-lg border-2 spa-transition-fast cursor-pointer hover:spa-shadow-elevated hover:-translate-y-0.5 ${
-                selectedService?.id === service.id
+                selectedTreatment?.id === treatment.id
                   ? 'border-primary bg-primary/5 spa-shadow-elevated -translate-y-1'
                   : 'border-border hover:border-primary/50'
               }`}
             >
               <div className="relative overflow-hidden rounded-t-spa-lg">
                 <Image
-                  src={service.image}
-                  alt={service.name}
+                  src={treatment.image}
+                  alt={treatment.name}
                   className="w-full h-48 object-cover"
                 />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 group-hover:bg-black/30 group-hover:opacity-100 spa-transition-fast pointer-events-none">
                   <span className="px-4 py-1.5 rounded-full bg-surface text-text-primary font-body font-body-medium text-sm shadow-spa-elevated">
-                    Select Service
+                    Select Treatment
                   </span>
                 </div>
                 <div className="absolute top-4 left-4 flex flex-col space-y-2">
-                  {service.popularity && (
+                  {treatment.popularity && (
                     <span className="inline-flex items-center px-2 py-1 rounded text-xs font-caption font-caption-normal bg-accent text-accent-foreground">
-                      {service.popularity}
+                      {treatment.popularity}
                     </span>
                   )}
-                  {service.specialty && (
+                  {treatment.specialty && (
                     <span className="inline-flex items-center px-2 py-1 rounded text-xs font-caption font-caption-normal bg-primary text-primary-foreground">
-                      {service.specialty}
+                      {treatment.specialty}
                     </span>
                   )}
                 </div>
                 <div className="absolute top-4 right-4 bg-surface/90 backdrop-blur-sm rounded-spa px-3 py-1">
                   <span className="font-heading font-heading-semibold text-lg text-text-primary">
-                    {formatPrice(service.price)}
+                    {formatPrice(treatment.price)}
                   </span>
                 </div>
               </div>
@@ -220,30 +220,30 @@ const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) 
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-heading font-heading-medium text-lg text-text-primary mb-1">
-                      {service.name}
+                      {treatment.name}
                     </h3>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-text-secondary mb-2">
                       <div className="flex items-center space-x-1">
                         <Icon name="Clock" size={14} />
                         <span className="font-body font-body-normal text-sm">
-                          {service.duration}
+                          {treatment.duration}
                         </span>
                       </div>
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-caption font-caption-normal bg-background text-text-secondary">
-                        {service.category}
+                        {treatment.category}
                       </span>
                     </div>
                   </div>
-                  {selectedService?.id === service.id && (
+                  {selectedTreatment?.id === treatment.id && (
                     <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
                       <Icon name="Check" size={14} className="text-primary-foreground" />
                     </div>
                   )}
                 </div>
 
-                {service.description && (
+                {treatment.description && (
                   <p className="font-body font-body-normal text-sm text-text-secondary mb-3 line-clamp-3">
-                    {service.description}
+                    {treatment.description}
                   </p>
                 )}
 
@@ -252,7 +252,7 @@ const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) 
                     Benefits
                   </h4>
                   <div className="flex flex-wrap gap-1">
-                    {service.benefits.map((benefit) => (
+                    {treatment.benefits.map((benefit) => (
                       <span
                         key={benefit}
                         className="inline-flex items-center px-2 py-0.5 rounded text-xs font-caption font-caption-normal bg-success/10 text-success"
@@ -272,4 +272,4 @@ const ServiceSelection = ({ selectedService, onServiceSelect, selectedBranch }) 
 };
 
 
-export default ServiceSelection;
+export default TreatmentSelection;

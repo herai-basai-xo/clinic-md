@@ -91,7 +91,7 @@ const CompensationPanel = ({ branchId }) => {
     <div className="space-y-4">
       <div>
         <h4 className="font-heading font-heading-semibold text-base text-text-primary">Staff Compensation</h4>
-        <p className="font-body text-sm text-text-secondary">Set each staff member's monthly base salary and service commission rate.</p>
+        <p className="font-body text-sm text-text-secondary">Set each staff member's monthly base salary and treatment commission rate.</p>
       </div>
 
       {error && (
@@ -274,7 +274,7 @@ const RunPayrollPanel = ({ branchId }) => {
     const header = [
       'Staff', 'Month', 'Salary', 'Days In Month',
       'Present', 'Absent', 'Half Days', 'Leave', 'Unpaid Leave (over cap)',
-      'Attendance Deduction', 'Service Revenue', 'Service Commission',
+      'Attendance Deduction', 'Treatment Revenue', 'Treatment Commission',
       'Referral Commission', 'Net Pay',
     ];
     let csv = header.join(',') + '\n';
@@ -284,7 +284,7 @@ const RunPayrollPanel = ({ branchId }) => {
         esc(i.dentistName), esc(month),
         esc(i.monthlySalary), esc(i.daysInMonth),
         esc(i.presentDays), esc(i.absentDays), esc(i.halfDays), esc(i.leaveDays), esc(i.unpaidLeaveDays),
-        esc(i.attendanceDeduction), esc(i.serviceRevenue), esc(i.serviceCommission),
+        esc(i.attendanceDeduction), esc(i.treatmentRevenue), esc(i.treatmentCommission),
         esc(i.referralCommission), esc(i.netPay),
       ].join(',') + '\n';
     });
@@ -456,10 +456,10 @@ const RunPayrollPanel = ({ branchId }) => {
                       {item.attendanceDeduction > 0 ? `−${formatNPR(item.attendanceDeduction)}` : '—'}
                     </td>
                     <td className="px-3 py-3 text-right font-data text-text-secondary whitespace-nowrap">
-                      {item.serviceRevenue > 0 ? formatNPR(item.serviceRevenue) : '—'}
+                      {item.treatmentRevenue > 0 ? formatNPR(item.treatmentRevenue) : '—'}
                     </td>
                     <td className="px-3 py-3 text-right font-data text-success whitespace-nowrap">
-                      {item.serviceCommission > 0 ? `+${formatNPR(item.serviceCommission)}` : '—'}
+                      {item.treatmentCommission > 0 ? `+${formatNPR(item.treatmentCommission)}` : '—'}
                     </td>
                     <td className="px-3 py-3 text-right font-data text-success whitespace-nowrap">
                       {item.referralCommission > 0 ? `+${formatNPR(item.referralCommission)}` : '—'}

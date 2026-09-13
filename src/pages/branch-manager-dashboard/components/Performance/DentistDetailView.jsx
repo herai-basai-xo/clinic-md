@@ -4,7 +4,7 @@ import FilterBar from '../../../../components/ui/FilterBar';
 import { getPeriodRange, getTodayISO } from '../../../../utils/periodPresets';
 import OverviewTab from './OverviewTab';
 import CustomersTab from './CustomersTab';
-import ServicesTab from './ServicesTab';
+import TreatmentsTab from './TreatmentsTab';
 import AttendanceTab from './AttendanceTab';
 
 // Subset of the shared PERIOD_PRESETS, relabeled to match this view's spec (Today/Week/Month/
@@ -19,7 +19,7 @@ const DETAIL_PERIOD_PRESETS = [
 const TABS = [
   { key: 'overview', label: 'Overview', icon: 'LayoutGrid' },
   { key: 'customers', label: 'Customers', icon: 'Users' },
-  { key: 'services', label: 'Services', icon: 'Sparkles' },
+  { key: 'treatments', label: 'Treatments', icon: 'Sparkles' },
   { key: 'attendance', label: 'Attendance', icon: 'Clock' },
 ];
 
@@ -129,7 +129,7 @@ const DentistDetailView = ({ dentistId, dentistName, branchId, onBack }) => {
       <div>
         {activeTab === 'overview' && <OverviewTab dentistId={dentistId} branchId={branchId} range={range} />}
         {activeTab === 'customers' && <CustomersTab dentistId={dentistId} branchId={branchId} range={range} />}
-        {activeTab === 'services' && <ServicesTab dentistId={dentistId} branchId={branchId} range={range} />}
+        {activeTab === 'treatments' && <TreatmentsTab dentistId={dentistId} branchId={branchId} range={range} />}
         {activeTab === 'attendance' && <AttendanceTab dentistId={dentistId} branchId={branchId} range={range} />}
       </div>
     </div>

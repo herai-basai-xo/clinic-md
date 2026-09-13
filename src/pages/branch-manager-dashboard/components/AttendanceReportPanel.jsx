@@ -7,7 +7,7 @@ import { fetchAttendanceReport } from '../../../services/api';
 
 const STAFF_TYPE_OPTIONS = [
   { value: 'all', label: 'All staff' },
-  { value: 'service', label: 'Service' },
+  { value: 'treatment', label: 'Treatment' },
   { value: 'support', label: 'Support' },
 ];
 
@@ -173,7 +173,7 @@ const AttendanceGrid = ({ rankedStaff, data }) => {
                         {s.dentistName}
                       </p>
                       <p className="font-caption text-[10px] text-text-tertiary">
-                        {s.isServiceStaff ? 'Service' : 'Support'}
+                        {s.isTreatmentStaff ? 'Treatment' : 'Support'}
                       </p>
                     </td>
 
@@ -273,7 +273,7 @@ const AttendanceReportPanel = ({ branchId }) => {
     if (!data) return;
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const staff = (data.perStaff || []).filter((s) =>
-      staffType === 'all' ? true : staffType === 'service' ? s.isServiceStaff : !s.isServiceStaff
+      staffType === 'all' ? true : staffType === 'treatment' ? s.isTreatmentStaff : !s.isTreatmentStaff
     );
     const t = staff.reduce(
       (acc, s) => {
@@ -284,7 +284,7 @@ const AttendanceReportPanel = ({ branchId }) => {
       { present: 0, absent: 0, leave: 0, halfDay: 0, marked: 0 }
     );
     t.attendanceRate = t.marked > 0 ? Math.round((t.present / t.marked) * 100) : 0;
-    const staffTypeLabel = staffType === 'all' ? 'All' : staffType === 'service' ? 'Service' : 'Support';
+    const staffTypeLabel = staffType === 'all' ? 'All' : staffType === 'treatment' ? 'Treatment' : 'Support';
     const rows = [];
 
     rows.push('ATTENDANCE REPORT');
@@ -310,7 +310,7 @@ const AttendanceReportPanel = ({ branchId }) => {
     for (const s of sorted) {
       rows.push([
         esc(s.dentistName),
-        s.isServiceStaff ? 'Service staff' : 'Support staff',
+        s.isTreatmentStaff ? 'Treatment staff' : 'Support staff',
         s.present,
         s.absent,
         s.leave,
@@ -357,7 +357,7 @@ const AttendanceReportPanel = ({ branchId }) => {
 
   const allStaff = data?.perStaff || [];
   const perStaff = allStaff.filter((s) =>
-    staffType === 'all' ? true : staffType === 'service' ? s.isServiceStaff : !s.isServiceStaff
+    staffType === 'all' ? true : staffType === 'treatment' ? s.isTreatmentStaff : !s.isTreatmentStaff
   );
   const totals = perStaff.reduce(
     (acc, s) => {
@@ -514,7 +514,7 @@ const AttendanceReportPanel = ({ branchId }) => {
                 >
                   <div className="min-w-0 col-span-2 lg:col-span-1">
                     <p className="font-body font-body-medium text-sm text-text-primary truncate">{s.dentistName}</p>
-                    <p className="font-caption text-[11px] text-text-tertiary">{s.isServiceStaff ? 'Service staff' : 'Support staff'}</p>
+                    <p className="font-caption text-[11px] text-text-tertiary">{s.isTreatmentStaff ? 'Treatment staff' : 'Support staff'}</p>
                   </div>
                   <div className="lg:text-center">
                     <span className="lg:hidden font-caption text-[11px] text-text-tertiary uppercase mr-1">Present:</span>

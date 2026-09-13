@@ -133,7 +133,7 @@ const OutstandingReportPanel = ({ branchId }) => {
         (r.customerName || '').toLowerCase().includes(q) ||
         (r.customerPhone || '').toLowerCase().includes(q) ||
         (r.bookingNumber || '').toLowerCase().includes(q) ||
-        (r.serviceName || '').toLowerCase().includes(q) ||
+        (r.treatmentName || '').toLowerCase().includes(q) ||
         r.responsible.toLowerCase().includes(q)
       );
     }
@@ -228,7 +228,7 @@ const OutstandingReportPanel = ({ branchId }) => {
   const handleExportCSV = () => {
     if (!filtered.length) return;
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const header = ['Customer', 'Phone', 'Responsible Person', 'Booking #', 'Date', 'Service', 'Final', 'Paid', 'Outstanding', 'Status'];
+    const header = ['Customer', 'Phone', 'Responsible Person', 'Booking #', 'Date', 'Treatment', 'Final', 'Paid', 'Outstanding', 'Status'];
     let csv = header.join(',') + '\n';
     filtered.forEach((r) => {
       csv += [
@@ -237,7 +237,7 @@ const OutstandingReportPanel = ({ branchId }) => {
         esc(r.responsible),
         esc(r.bookingNumber),
         esc(formatDateOnly(r.date)),
-        esc(r.serviceName),
+        esc(r.treatmentName),
         esc(r.finalAmount),
         esc(r.amountPaid),
         esc(r.amountDue),
@@ -406,7 +406,7 @@ const OutstandingReportPanel = ({ branchId }) => {
                       <div className="font-body font-body-medium text-sm text-text-primary">{r.customerName}</div>
                       <div className="font-caption text-xs text-text-tertiary">{r.customerPhone || '—'}</div>
                       <div className="font-body text-xs text-text-secondary">
-                        #{r.bookingNumber} · {r.serviceName} · {formatDateOnly(r.date)}
+                        #{r.bookingNumber} · {r.treatmentName} · {formatDateOnly(r.date)}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -512,7 +512,7 @@ const OutstandingReportPanel = ({ branchId }) => {
             booking_number: payingRow.bookingNumber,
             finalAmount: payingRow.finalAmount,
             amountPaid: payingRow.amountPaid,
-            service: payingRow.serviceName,
+            treatment: payingRow.treatmentName,
             dueHolderName: payingRow.isUnassigned ? '' : payingRow.responsible,
           }}
           additionalBookings={otherDueBookings}

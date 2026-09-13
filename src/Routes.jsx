@@ -191,7 +191,7 @@ const AppRoutes = () => {
 
         {/* ==================== CUSTOMER-FACING ROUTES ==================== */}
 
-        {/* Customer booking flow — v2 (side-by-side service + booking panel) is now the
+        {/* Customer booking flow — v2 (side-by-side treatment + booking panel) is now the
             live default; v1 (pages/customer-booking-flow) stays in the repo, unrouted, in
             case of a fast rollback. */}
         <Route path="/:orgSlug/book" element={<TenantWrapper><CustomerBookingFlowV2 /></TenantWrapper>} />

@@ -194,7 +194,7 @@ const CustomerAccount = () => {
     <div className="min-h-screen bg-background">
       <header className="px-6 md:px-8 py-5 flex items-center justify-between border-b border-border bg-surface">
         <span className="font-heading font-heading-semibold text-lg text-text-primary tracking-tight">
-          {orgName || 'Zennly'}
+          {orgName || 'Superdental'}
         </span>
         <button
           type="button"
@@ -220,7 +220,7 @@ const CustomerAccount = () => {
             className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-spa text-sm font-medium shadow-spa-resting spa-transition-fast"
           >
             <Icon name="Calendar" size={16} />
-            Book a service
+            Book a treatment
           </Link>
         </div>
 
@@ -231,7 +231,7 @@ const CustomerAccount = () => {
             <summary className="p-6 pl-7 flex items-center justify-between gap-4 flex-wrap cursor-pointer list-none">
               <div>
                 <p className="font-caption text-xs text-accent uppercase tracking-widest mb-1.5">Your next appointment</p>
-                <p className="font-heading font-heading-semibold text-xl text-text-primary mb-1">{nextBooking.service}</p>
+                <p className="font-heading font-heading-semibold text-xl text-text-primary mb-1">{nextBooking.treatment}</p>
                 <p className="font-body text-sm text-text-secondary">
                   {formatRelativeDate(nextBooking.date)} · {formatTime12h(nextBooking.time)}
                   {nextBooking.duration ? ` · ${nextBooking.duration}` : ''}
@@ -309,7 +309,7 @@ const CustomerAccount = () => {
               to={`/${orgSlug}/book`}
               className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-spa text-sm font-medium spa-transition-fast"
             >
-              Book your first service
+              Book your first treatment
             </Link>
           </div>
         )}
@@ -406,7 +406,7 @@ const BookingRow = ({ booking, accent }) => (
           <Icon name="Sparkles" size={15} className="text-primary" />
         </div>
         <div className="min-w-0">
-          <p className="font-body font-body-medium text-sm text-text-primary truncate">{booking.service}</p>
+          <p className="font-body font-body-medium text-sm text-text-primary truncate">{booking.treatment}</p>
           <p className="font-caption text-xs text-text-secondary">
             {formatRelativeDate(booking.date)} at {formatTime12h(booking.time)} &middot; {booking.price}
           </p>

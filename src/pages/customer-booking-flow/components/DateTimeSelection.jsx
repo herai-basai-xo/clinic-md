@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Icon from '../../../components/AppIcon';
 import { supabase } from '../../../lib/supabase';
-import { fetchBranchAvailabilityWindow, getRoomCapacity } from '../../../services/api';
+import { fetchBranchAvailabilityWindow, getChairCapacity } from '../../../services/api';
 import { useTenant } from '../../../contexts/TenantContext';
 import {
   START_HOUR,
@@ -15,8 +15,8 @@ import {
 
 const WINDOW_DAYS = 14; // matches the 14 date-chips rendered below — one fetch covers all of them
 
-const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService, selectedBranch, genderPreference, onGenderPreferenceChange }) => {
-  const { enableStaffGender, enableRooms, staffLabel } = useTenant();
+const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedTreatment, selectedBranch, genderPreference, onGenderPreferenceChange }) => {
+  const { enableStaffGender, enableChairs, staffLabel } = useTenant();
   const [selectedDate, setSelectedDate] = useState(selectedDateTime?.date || '');
   const [selectedTime, setSelectedTime] = useState(selectedDateTime?.time || '');
   const [dentistCounts, setDentistCounts] = useState({ male: 0, female: 0 });
@@ -26,7 +26,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
   const [loadingExtended, setLoadingExtended] = useState(false);
 
   // Fetch dentist counts for the selected branch (once) — advisory gender signal only; real
-  // availability is gated by room capacity below.
+  // availability is gated by chair capacity below.
   useEffect(() => {
     if (!selectedBranch?.id) return;
     async function fetchDentistCounts() {
@@ -72,7 +72,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
   }, []);
 
   // Fetch the rolling 14-day real-availability window once per branch — replaces the old
-  // per-date-click fetch. Duration/service changes don't need a refetch; they only change which
+  // per-date-click fetch. Duration/treatment changes don't need a refetch; they only change which
   // of the already-fetched bookings block a candidate slot (computed in `computedDays` below).
   useEffect(() => {
     if (!selectedBranch?.id) return;
@@ -93,15 +93,15 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
       .finally(() => setLoadingExtended(false));
   };
 
-  // Real, duration-aware, per-room-capacity availability across the whole fetched window.
+  // Real, duration-aware, per-chair-capacity availability across the whole fetched window.
   const computedDays = useMemo(() => {
     if (!availabilityWindow) return [];
 
-    const rooms = availabilityWindow.rooms || [];
+    const chairs = availabilityWindow.chairs || [];
     const allBookings = [...(availabilityWindow.bookings || []), ...(extendedWindow?.bookings || [])];
-    const { byRoom, byGender } = buildOccupancy(allBookings);
+    const { byChair, byGender } = buildOccupancy(allBookings);
 
-    const duration = selectedService?.durationMinutes || 60;
+    const duration = selectedTreatment?.durationMinutes || 60;
     const nepalToday = getNepalToday();
     const nepalNow = getNepalNow();
     const nowMinutes = nepalNow.getHours() * 60 + nepalNow.getMinutes();
@@ -114,12 +114,12 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
       for (let start = START_HOUR * 60; start + duration <= END_HOUR * 60; start += 30) {
         const isPast = isToday && start <= nowMinutes;
 
-        let roomAvailable = true;
-        if (enableRooms) {
-          roomAvailable = rooms.some((room) => {
-            const capacity = getRoomCapacity(room);
+        let chairAvailable = true;
+        if (enableChairs) {
+          chairAvailable = chairs.some((chair) => {
+            const capacity = getChairCapacity(chair);
             for (let offset = 0; offset < duration; offset += 30) {
-              const occupied = byRoom[d.fullDate]?.[room.id]?.get(start + offset) || 0;
+              const occupied = byChair[d.fullDate]?.[chair.id]?.get(start + offset) || 0;
               if (occupied >= capacity) return false;
             }
             return true;
@@ -139,7 +139,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
           (genderPreference === 'female' && femaleAvailable) ||
           (genderPreference === 'no-preference' && (maleAvailable || femaleAvailable));
 
-        const isAvailable = !isPast && roomAvailable && genderOk;
+        const isAvailable = !isPast && chairAvailable && genderOk;
 
         slots.push({
           time24: minutesToTime24(start),
@@ -153,7 +153,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
 
       return { date: d.fullDate, slots };
     });
-  }, [availabilityWindow, extendedWindow, selectedService?.durationMinutes, genderPreference, enableRooms, dentistCounts, dates]);
+  }, [availabilityWindow, extendedWindow, selectedTreatment?.durationMinutes, genderPreference, enableChairs, dentistCounts, dates]);
 
   const timeSlots = useMemo(
     () => computedDays.find((d) => d.date === selectedDate)?.slots || [],
@@ -238,12 +238,12 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
 
   return (
     <div className="space-y-4">
-      {selectedService && (
+      {selectedTreatment && (
         <div className="flex items-center gap-2 px-4 py-2 bg-primary/5 border border-primary/10 rounded-spa text-sm">
           <Icon name="Clock" size={14} className="text-primary" />
           <span className="font-body font-body-normal text-text-secondary">
-            Showing real availability for <span className="font-body font-body-medium text-text-primary">{selectedService.name}</span>
-            {' '}({selectedService.durationMinutes || 60} min) — a slot is only shown open if a room is free for the entire duration.
+            Showing real availability for <span className="font-body font-body-medium text-text-primary">{selectedTreatment.name}</span>
+            {' '}({selectedTreatment.durationMinutes || 60} min) — a slot is only shown open if a chair is free for the entire duration.
           </span>
         </div>
       )}
@@ -369,7 +369,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
               >
                 {(isFull || isPartial) && (
                   <span
-                    title={isFull ? 'Fully booked for this service' : 'Limited availability for this service'}
+                    title={isFull ? 'Fully booked for this treatment' : 'Limited availability for this treatment'}
                     className={`absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-caption font-caption-medium leading-none whitespace-nowrap text-white border ${
                       isSelected ? 'border-primary-foreground/40' : 'border-surface'
                     } ${isFull ? 'bg-error' : 'bg-warning'}`}
@@ -443,7 +443,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
               <Icon name="CalendarX" size={48} className="text-error/60 mx-auto mb-4" />
               <p className="font-body font-body-medium text-text-primary">
                 {datesWithNoAvailability.has(selectedDate)
-                  ? 'This day is fully booked for the selected service.'
+                  ? 'This day is fully booked for the selected treatment.'
                   : 'No available slots for selected date and preference.'}
               </p>
               <p className="font-caption font-caption-normal text-sm text-text-secondary mt-2">
@@ -459,7 +459,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
         <div className="bg-background rounded-spa p-4 text-center">
           {extendedWindow ? (
             <p className="font-body font-body-normal text-sm text-text-secondary">
-              No openings found in the next 30 days for this service.
+              No openings found in the next 30 days for this treatment.
             </p>
           ) : (
             <>

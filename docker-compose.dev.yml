@@ -1,7 +1,7 @@
 services:
-  nuad-thai-dev:
-    image: ghcr.io/zunkireelabs/book-spa:stage
-    container_name: nuad-thai-dev
+  book-dental-app-stage:
+    image: ghcr.io/zunkireelabs/book-dental:stage
+    container_name: book-dental-app-stage
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/"]
@@ -13,15 +13,15 @@ services:
       - "autoheal=true"
       - "traefik.enable=true"
       - "traefik.docker.network=hosting"
-      - "traefik.http.routers.nuad-thai-dev.rule=Host(`dev-app.zennly.io`) || Host(`dev-zenly.zunkireelabs.com`)"
-      - "traefik.http.routers.nuad-thai-dev.entrypoints=websecure"
-      - "traefik.http.routers.nuad-thai-dev.tls=true"
-      - "traefik.http.routers.nuad-thai-dev.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.nuad-thai-dev-http.rule=Host(`dev-app.zennly.io`) || Host(`dev-zenly.zunkireelabs.com`)"
-      - "traefik.http.routers.nuad-thai-dev-http.entrypoints=web"
-      - "traefik.http.routers.nuad-thai-dev-http.middlewares=nuad-thai-dev-redirect"
-      - "traefik.http.middlewares.nuad-thai-dev-redirect.redirectscheme.scheme=https"
-      - "traefik.http.services.nuad-thai-dev.loadbalancer.server.port=80"
+      - "traefik.http.routers.book-dental-app-stage.rule=Host(`dev-book-dental.zunkireelabs.com`)"
+      - "traefik.http.routers.book-dental-app-stage.entrypoints=websecure"
+      - "traefik.http.routers.book-dental-app-stage.tls=true"
+      - "traefik.http.routers.book-dental-app-stage.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.book-dental-app-stage-http.rule=Host(`dev-book-dental.zunkireelabs.com`)"
+      - "traefik.http.routers.book-dental-app-stage-http.entrypoints=web"
+      - "traefik.http.routers.book-dental-app-stage-http.middlewares=book-dental-app-stage-redirect"
+      - "traefik.http.middlewares.book-dental-app-stage-redirect.redirectscheme.scheme=https"
+      - "traefik.http.services.book-dental-app-stage.loadbalancer.server.port=80"
     networks:
       - hosting
 

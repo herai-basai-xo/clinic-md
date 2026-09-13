@@ -40,7 +40,7 @@ const BookingCard = ({ booking, onReschedule, onCancel }) => {
           <div className="flex-1">
             <div className="flex items-center space-x-3 mb-2">
               <h3 className="font-heading font-heading-semibold text-lg text-text-primary">
-                {booking.service}
+                {booking.treatment}
               </h3>
               <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-caption font-caption-normal border ${getStatusColor(booking.status)} capitalize`}>
                 <Icon name={getStatusIcon(booking.status)} size={12} className="mr-1" />
@@ -70,11 +70,11 @@ const BookingCard = ({ booking, onReschedule, onCancel }) => {
       {/* Expandable Content */}
       {isExpanded && (
         <div className="p-4 sm:p-6 space-y-6">
-          {/* Service Details */}
+          {/* Treatment Details */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-3">
               <h4 className="font-heading font-heading-medium text-base text-text-primary">
-                Service Information
+                Treatment Information
               </h4>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
@@ -105,7 +105,7 @@ const BookingCard = ({ booking, onReschedule, onCancel }) => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-body font-body-normal text-sm text-text-secondary">
-                    Service Cost:
+                    Treatment Cost:
                   </span>
                   <span className="font-body font-body-medium text-sm text-text-primary">
                     NPR {booking.price}

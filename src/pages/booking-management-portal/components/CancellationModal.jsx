@@ -14,7 +14,7 @@ const CancellationModal = ({ isOpen, onClose, booking, onConfirm }) => {
     'Personal emergency',
     'Health reasons',
     'Travel plans changed',
-    'Service no longer needed',
+    'Treatment no longer needed',
     'Other'
   ];
 
@@ -85,7 +85,7 @@ const CancellationModal = ({ isOpen, onClose, booking, onConfirm }) => {
                 Cancel Booking
               </h2>
               <p className="font-caption font-caption-normal text-sm text-text-secondary">
-                {booking?.service} • {booking?.id}
+                {booking?.treatment} • {booking?.id}
               </p>
             </div>
           </div>

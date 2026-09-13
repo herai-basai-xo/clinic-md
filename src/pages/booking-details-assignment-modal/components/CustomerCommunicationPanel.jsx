@@ -11,24 +11,24 @@ const CustomerCommunicationPanel = ({ booking, onSendMessage, isLoading }) => {
 
   const messageTemplates = {
     confirmation: {
-      sms: `Hi ${booking.customerName}, your spa appointment is confirmed for ${booking.date} at ${booking.time}. Service: ${booking.service}. See you soon! - Zennly`,
+      sms: `Hi ${booking.customerName}, your spa appointment is confirmed for ${booking.date} at ${booking.time}. Treatment: ${booking.treatment}. See you soon! - Superdental`,
       email: {
-        subject: 'Booking Confirmation - Zennly',
-        body: `Dear ${booking.customerName},\n\nYour spa appointment has been confirmed:\n\nService: ${booking.service}\nDate: ${booking.date}\nTime: ${booking.time}\nDuration: ${booking.duration}\nBranch: ${booking.branch}\n\nWe look forward to serving you!\n\nBest regards,\nZennly Team`
+        subject: 'Booking Confirmation - Superdental',
+        body: `Dear ${booking.customerName},\n\nYour spa appointment has been confirmed:\n\nTreatment: ${booking.treatment}\nDate: ${booking.date}\nTime: ${booking.time}\nDuration: ${booking.duration}\nBranch: ${booking.branch}\n\nWe look forward to serving you!\n\nBest regards,\nSuperdental Team`
       }
     },
     reminder: {
-      sms: `Reminder: Your spa appointment is tomorrow at ${booking.time}. Service: ${booking.service} at ${booking.branch}. Call us if you need to reschedule. - Zennly`,
+      sms: `Reminder: Your spa appointment is tomorrow at ${booking.time}. Treatment: ${booking.treatment} at ${booking.branch}. Call us if you need to reschedule. - Superdental`,
       email: {
-        subject: 'Appointment Reminder - Zennly',
-        body: `Dear ${booking.customerName},\n\nThis is a friendly reminder about your upcoming appointment:\n\nService: ${booking.service}\nDate: ${booking.date}\nTime: ${booking.time}\nBranch: ${booking.branch}\n\nPlease arrive 15 minutes early. If you need to reschedule, please contact us.\n\nBest regards,\nZennly Team`
+        subject: 'Appointment Reminder - Superdental',
+        body: `Dear ${booking.customerName},\n\nThis is a friendly reminder about your upcoming appointment:\n\nTreatment: ${booking.treatment}\nDate: ${booking.date}\nTime: ${booking.time}\nBranch: ${booking.branch}\n\nPlease arrive 15 minutes early. If you need to reschedule, please contact us.\n\nBest regards,\nSuperdental Team`
       }
     },
     cancellation: {
-      sms: `Your spa appointment for ${booking.date} at ${booking.time} has been cancelled. We apologize for any inconvenience. Please call us to reschedule. - Zennly`,
+      sms: `Your spa appointment for ${booking.date} at ${booking.time} has been cancelled. We apologize for any inconvenience. Please call us to reschedule. - Superdental`,
       email: {
-        subject: 'Appointment Cancellation - Zennly',
-        body: `Dear ${booking.customerName},\n\nWe regret to inform you that your appointment has been cancelled:\n\nService: ${booking.service}\nDate: ${booking.date}\nTime: ${booking.time}\n\nWe apologize for any inconvenience. Please contact us to reschedule at your convenience.\n\nBest regards,\nZennly Team`
+        subject: 'Appointment Cancellation - Superdental',
+        body: `Dear ${booking.customerName},\n\nWe regret to inform you that your appointment has been cancelled:\n\nTreatment: ${booking.treatment}\nDate: ${booking.date}\nTime: ${booking.time}\n\nWe apologize for any inconvenience. Please contact us to reschedule at your convenience.\n\nBest regards,\nSuperdental Team`
       }
     },
     custom: {

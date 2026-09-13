@@ -1,6 +1,6 @@
-# Zenly — Multi-tenant Booking Web App
+# Superdental — Multi-tenant Booking Web App
 
-Zenly is a multi-tenant spa/booking management SPA (currently running Nuad Thai Spa). Staff,
+Superdental is a multi-tenant spa/booking management SPA (currently running Nuad Thai Spa). Staff,
 managers, and admins manage bookings, therapists, rooms, services, payments, and discounts across
 multiple branches; customers book through an org-scoped public flow.
 

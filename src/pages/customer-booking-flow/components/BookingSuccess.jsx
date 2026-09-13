@@ -107,9 +107,9 @@ const BookingSuccess = ({ bookingData }) => {
             <div className="flex items-center space-x-3">
               <Icon name="Sparkles" size={16} className="text-primary" />
               <div>
-                <span className="font-body font-body-medium text-sm text-text-secondary">Service</span>
+                <span className="font-body font-body-medium text-sm text-text-secondary">Treatment</span>
                 <p className="font-body font-body-normal text-sm text-text-primary">
-                  {bookingData?.selectedService?.name}
+                  {bookingData?.selectedTreatment?.name}
                 </p>
               </div>
             </div>
@@ -129,7 +129,7 @@ const BookingSuccess = ({ bookingData }) => {
               <div>
                 <span className="font-body font-body-medium text-sm text-text-secondary">Total Amount</span>
                 <p className="font-heading font-heading-semibold text-lg text-primary">
-                  {formatPrice(bookingData?.selectedService?.price || 0)}
+                  {formatPrice(bookingData?.selectedTreatment?.price || 0)}
                 </p>
               </div>
             </div>
@@ -274,7 +274,7 @@ const BookingSuccess = ({ bookingData }) => {
           iconSize={16}
           className="flex-1"
         >
-          Book Another Service
+          Book Another Treatment
         </Button>
       </div>
 

@@ -99,7 +99,7 @@ const ReferralsReportPanel = ({ branchId }) => {
         const bookings = g.bookings.filter(b =>
           (b.customerName || '').toLowerCase().includes(q) ||
           (b.bookingNumber || '').toLowerCase().includes(q) ||
-          (b.serviceName || '').toLowerCase().includes(q)
+          (b.treatmentName || '').toLowerCase().includes(q)
         );
         if (bookings.length === 0) return null;
         const totalCommission = Math.round(bookings.reduce((s, b) => s + Number(b.commission || 0), 0) * 100) / 100;
@@ -235,7 +235,7 @@ const ReferralsReportPanel = ({ branchId }) => {
   const handleExportCSV = () => {
     if (!filtered.length) return;
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const header = ['Referrer', 'Customer', 'Booking #', 'Date', 'Service', 'Final', 'Commission Rule', 'Commission Earned'];
+    const header = ['Referrer', 'Customer', 'Booking #', 'Date', 'Treatment', 'Final', 'Commission Rule', 'Commission Earned'];
     let csv = header.join(',') + '\n';
     sorted.forEach((g) => {
       g.bookings.forEach((b) => {
@@ -244,7 +244,7 @@ const ReferralsReportPanel = ({ branchId }) => {
           esc(b.customerName),
           esc(b.bookingNumber),
           esc(formatDateOnly(b.date)),
-          esc(b.serviceName),
+          esc(b.treatmentName),
           esc(b.finalAmount),
           esc(commissionLabel(b.commissionType, b.commissionValue)),
           esc(b.commission),
@@ -445,7 +445,7 @@ const ReferralsReportPanel = ({ branchId }) => {
                               <div className="min-w-0">
                                 <span className="font-body font-body-medium text-sm text-text-primary">{b.customerName}</span>
                                 <span className="font-body text-xs text-text-secondary ml-2">
-                                  #{b.bookingNumber} · {b.serviceName} · {formatDateOnly(b.date)} · {formatNPR(b.finalAmount)}
+                                  #{b.bookingNumber} · {b.treatmentName} · {formatDateOnly(b.date)} · {formatNPR(b.finalAmount)}
                                 </span>
                               </div>
                               <div className="flex items-center gap-3 flex-shrink-0">

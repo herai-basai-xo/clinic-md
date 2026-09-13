@@ -7,7 +7,7 @@ import {
   fetchVoucher,
   fetchVoucherClaims,
   fetchBranchesByOrgId,
-  fetchServicesByOrgId,
+  fetchTreatmentsByOrgId,
   claimVoucher,
 } from '../../../../services/api';
 
@@ -42,13 +42,13 @@ const VoucherDetailModal = ({ voucherId, onClose, onChanged }) => {
   const [voucher, setVoucher] = useState(null);
   const [claims, setClaims] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [services, setServices] = useState([]);
+  const [treatments, setTreatments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
   const [redeemedDate, setRedeemedDate] = useState(() => toDateInputValue(new Date()));
   const [guestNameUsedBy, setGuestNameUsedBy] = useState('');
-  const [serviceClaimed, setServiceClaimed] = useState('');
+  const [treatmentClaimed, setTreatmentClaimed] = useState('');
   const [branchClaimedId, setBranchClaimedId] = useState('');
   const [amountClaimed, setAmountClaimed] = useState('');
   const [notes, setNotes] = useState('');
@@ -59,11 +59,11 @@ const VoucherDetailModal = ({ voucherId, onClose, onChanged }) => {
   const loadData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    const [voucherRes, claimsRes, branchesRes, servicesRes] = await Promise.all([
+    const [voucherRes, claimsRes, branchesRes, treatmentsRes] = await Promise.all([
       fetchVoucher(voucherId),
       fetchVoucherClaims(voucherId),
       orgId ? fetchBranchesByOrgId(orgId) : Promise.resolve({ data: [] }),
-      orgId ? fetchServicesByOrgId(orgId) : Promise.resolve({ data: [] }),
+      orgId ? fetchTreatmentsByOrgId(orgId) : Promise.resolve({ data: [] }),
     ]);
     if (voucherRes.error) {
       setLoadError(voucherRes.error.message || 'Failed to load voucher.');
@@ -73,7 +73,7 @@ const VoucherDetailModal = ({ voucherId, onClose, onChanged }) => {
     setVoucher(voucherRes.data);
     setClaims(claimsRes.data || []);
     setBranches(branchesRes.data || []);
-    setServices(servicesRes.data || []);
+    setTreatments(treatmentsRes.data || []);
     setGuestNameUsedBy((prev) => prev || voucherRes.data.guestName);
     setAmountClaimed(String(voucherRes.data.remainingBalance));
     setLoading(false);
@@ -110,7 +110,7 @@ const VoucherDetailModal = ({ voucherId, onClose, onChanged }) => {
       amountClaimed: amountNum,
       redeemedDate,
       guestNameUsedBy: guestNameUsedBy.trim() || null,
-      serviceClaimed: serviceClaimed.trim() || null,
+      treatmentClaimed: treatmentClaimed.trim() || null,
       branchClaimedId,
       notes: notes.trim() || null,
     });
@@ -121,7 +121,7 @@ const VoucherDetailModal = ({ voucherId, onClose, onChanged }) => {
       return;
     }
 
-    setServiceClaimed('');
+    setTreatmentClaimed('');
     setNotes('');
     await loadData();
     onChanged?.();
@@ -240,7 +240,7 @@ const VoucherDetailModal = ({ voucherId, onClose, onChanged }) => {
                       <div key={c.id} className="px-3 py-2.5 border-b border-border last:border-0 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-body font-body-medium text-sm text-text-primary truncate">
-                            {c.service_claimed || 'Service not recorded'}
+                            {c.treatment_claimed || 'Treatment not recorded'}
                           </p>
                           <p className="font-caption text-xs text-text-tertiary">
                             {formatDate(c.redeemed_date)} · {c.branch?.name || '—'}
@@ -294,12 +294,12 @@ const VoucherDetailModal = ({ voucherId, onClose, onChanged }) => {
                       />
                     </div>
                     <div>
-                      <label className="block font-body font-body-medium text-xs text-text-secondary mb-1.5">Service claimed</label>
+                      <label className="block font-body font-body-medium text-xs text-text-secondary mb-1.5">Treatment claimed</label>
                       <CustomSelect
-                        value={serviceClaimed}
-                        onChange={setServiceClaimed}
-                        options={services.map((s) => ({ value: s.name, label: s.name }))}
-                        placeholder="Select service"
+                        value={treatmentClaimed}
+                        onChange={setTreatmentClaimed}
+                        options={treatments.map((s) => ({ value: s.name, label: s.name }))}
+                        placeholder="Select treatment"
                         searchable
                       />
                     </div>

@@ -78,7 +78,7 @@ const SettledDueHistoryPanel = ({ branchId }) => {
       (r.customerName || '').toLowerCase().includes(q) ||
       (r.customerPhone || '').toLowerCase().includes(q) ||
       (r.bookingNumber || '').toLowerCase().includes(q) ||
-      (r.serviceName || '').toLowerCase().includes(q) ||
+      (r.treatmentName || '').toLowerCase().includes(q) ||
       (r.dueHolderName || '').toLowerCase().includes(q)
     );
   }, [rows, searchQuery]);
@@ -91,7 +91,7 @@ const SettledDueHistoryPanel = ({ branchId }) => {
   const handleExportCSV = () => {
     if (!filtered.length) return;
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const header = ['Customer', 'Phone', 'Responsible Person', 'Booking #', 'Date', 'Service', 'Amount', 'Settled On', 'Paid Via'];
+    const header = ['Customer', 'Phone', 'Responsible Person', 'Booking #', 'Date', 'Treatment', 'Amount', 'Settled On', 'Paid Via'];
     let csv = header.join(',') + '\n';
     filtered.forEach((r) => {
       csv += [
@@ -100,7 +100,7 @@ const SettledDueHistoryPanel = ({ branchId }) => {
         esc(r.dueHolderName),
         esc(r.bookingNumber),
         esc(formatDateOnly(r.date)),
-        esc(r.serviceName),
+        esc(r.treatmentName),
         esc(r.finalAmount),
         esc(formatDateOnly(r.settledAt)),
         esc(r.paymentModes.map(humanizePaymentMethod).join(', ')),
@@ -194,7 +194,7 @@ const SettledDueHistoryPanel = ({ branchId }) => {
                       <div className="font-body font-body-medium text-sm text-text-primary">{r.customerName}</div>
                       <div className="font-caption text-xs text-text-tertiary">{r.customerPhone || '—'}</div>
                       <div className="font-body text-xs text-text-secondary">
-                        #{r.bookingNumber} · {r.serviceName} · {formatDateOnly(r.date)}
+                        #{r.bookingNumber} · {r.treatmentName} · {formatDateOnly(r.date)}
                       </div>
                     </td>
                     <td className="px-4 py-3">

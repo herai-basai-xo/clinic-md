@@ -1,20 +1,18 @@
 import { useOrg } from '../contexts/OrgContext';
 
 /**
- * Hook for accessing industry-specific configuration
- * Provides terminology, feature flags, and industry type checks
+ * Hook for accessing dental terminology and feature flags.
+ * This app is dental-only — no multi-industry abstraction.
  */
 export const useIndustry = () => {
   const {
-    industry,
-    industryType,
     staffLabel,
     staffLabelPlural,
     locationLabel,
     locationLabelPlural,
     sessionLabel,
     sessionLabelPlural,
-    enableRooms,
+    enableChairs,
     enableStaffGender,
     enableSpecialties,
     enableCustomerGender,
@@ -22,10 +20,6 @@ export const useIndustry = () => {
   } = useOrg();
 
   return {
-    // Raw industry data
-    industry,
-    industryType,
-
     // Terminology
     staffLabel,
     staffLabelPlural,
@@ -35,18 +29,13 @@ export const useIndustry = () => {
     sessionLabelPlural,
 
     // Feature flags
-    enableRooms,
+    enableChairs,
     enableStaffGender,
     enableSpecialties,
     enableCustomerGender,
 
-    // Default categories for this industry
+    // Default categories
     defaultCategories,
-
-    // Helper checks for industry type
-    isSpa: industryType === 'spa',
-    isCleaning: industryType === 'cleaning',
-    isSalon: industryType === 'salon',
   };
 };
 

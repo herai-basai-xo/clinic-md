@@ -91,8 +91,8 @@ async function getAuthenticatedUser() {
  * Checks: lock, completed immutability, terminal status.
  * Returns null if valid, or a structured error object.
  */
-export function getRoomCapacity(room) {
-  return room?.capacity ?? 1;
+export function getChairCapacity(chair) {
+  return chair?.capacity ?? 1;
 }
 
 function validateBookingMutation(booking) {
@@ -121,16 +121,16 @@ function validateStatusTransition(currentStatus, newStatus) {
 // Read-only queries
 // ============================================================
 
-export async function fetchServices(branchId) {
+export async function fetchTreatments(branchId) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError || !profile?.org_id) {
-      console.warn('[API] fetchServices: No authenticated user or org_id', authError);
+      console.warn('[API] fetchTreatments: No authenticated user or org_id', authError);
       return { data: [], error: null };
     }
 
     const { data, error } = await supabase
-      .from('services')
+      .from('treatments')
       .select('id, name, duration_minutes, price_npr, description, image_url, category')
       .eq('org_id', profile.org_id)
       .eq('is_active', true)
@@ -142,10 +142,10 @@ export async function fetchServices(branchId) {
     if (resolvedBranchId && data) {
       const { data: branch } = await supabase
         .from('branches')
-        .select('excluded_service_categories')
+        .select('excluded_treatment_categories')
         .eq('id', resolvedBranchId)
         .single();
-      const excluded = branch?.excluded_service_categories;
+      const excluded = branch?.excluded_treatment_categories;
       if (excluded?.length > 0) {
         return { data: data.filter(s => !excluded.includes(s.category)), error: null };
       }
@@ -153,15 +153,15 @@ export async function fetchServices(branchId) {
 
     return { data, error: null };
   } catch (error) {
-    console.error('[API] fetchServices error:', error.message);
+    console.error('[API] fetchTreatments error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function fetchRooms(branchId) {
+export async function fetchChairs(branchId) {
   try {
     const { data, error } = await supabase
-      .from('rooms')
+      .from('chairs')
       .select('id, name, amenities, floor, capacity, requires_dentist')
       .eq('branch_id', branchId)
       .eq('is_active', true)
@@ -170,18 +170,18 @@ export async function fetchRooms(branchId) {
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('[API] fetchRooms error:', error.message);
+    console.error('[API] fetchChairs error:', error.message);
     return { data: null, error };
   }
 }
 
-// Real, room-capacity-aware availability for the customer booking flow — fetches active rooms
+// Real, chair-capacity-aware availability for the customer booking flow — fetches active chairs
 // (with capacity) plus every non-cancelled booking in the branch across a date range in one call,
-// so the client can compute per-service, duration-aware slot availability without a fetch per date.
+// so the client can compute per-treatment, duration-aware slot availability without a fetch per date.
 export async function fetchBranchAvailabilityWindow(branchId, startDate, endDate) {
-  const [{ data: rooms, error: roomsError }, { data: bookings, error: bookingsError }] =
+  const [{ data: chairs, error: chairsError }, { data: bookings, error: bookingsError }] =
     await Promise.all([
-      fetchRooms(branchId),
+      fetchChairs(branchId),
       supabase.rpc('public_check_branch_bookings_range', {
         p_branch_id: branchId,
         p_start_date: startDate,
@@ -189,19 +189,19 @@ export async function fetchBranchAvailabilityWindow(branchId, startDate, endDate
       }),
     ]);
 
-  if (roomsError) throw roomsError;
+  if (chairsError) throw chairsError;
   if (bookingsError) throw bookingsError;
 
-  return { rooms: rooms || [], bookings: bookings || [] };
+  return { chairs: chairs || [], bookings: bookings || [] };
 }
 
 export async function fetchDentists(branchId, { date } = {}) {
   try {
     let dentistsQuery = supabase
       .from('dentists')
-      .select('id, name, gender, specialties, position, is_service_staff')
+      .select('id, name, gender, specialties, position, is_treatment_staff')
       .eq('is_active', true)
-      .eq('is_service_staff', true)
+      .eq('is_treatment_staff', true)
       .order('name');
     dentistsQuery = withBranch(dentistsQuery, branchId);
 
@@ -247,9 +247,9 @@ export async function fetchBookings(branchId, { date, dateFrom, dateTo, status }
       .from('bookings')
       .select(`
         *,
-        service:services(id, name, duration_minutes),
+        treatment:treatments(id, name, duration_minutes),
         dentist:dentists(id, name, gender),
-        room:rooms(id, name),
+        chair:chairs(id, name),
         payments(amount)
       `)
       .order('start_time');
@@ -528,7 +528,7 @@ export async function recordPayment({ bookingId, tenders, paymentMode, dueHolder
     }
 
     // SessionPackage tenders settle whatever balance is left after the NPR
-    // tenders above ("1 session, full service value" — a redemption is
+    // tenders above ("1 session, full treatment value" — a redemption is
     // expected to cover the rest of this booking's remaining balance, not a
     // caller-chosen amount). This residual — split evenly across multiple
     // SessionPackage tenders, if more than one, with any rounding remainder
@@ -826,7 +826,7 @@ export async function getOutstandingByStaff({ branchId, from, to } = {}) {
     // request regardless of dataset size, so there's no ceiling to hit again.
     let query = supabase
       .from('bookings')
-      .select('id, booking_number, customer_name, customer_phone, date, final_amount, payment_status, due_holder_name, service_name_snapshot, payments(amount)')
+      .select('id, booking_number, customer_name, customer_phone, date, final_amount, payment_status, due_holder_name, treatment_name_snapshot, payments(amount)')
       .in('payment_status', ['unpaid', 'partial'])
       .not('status', 'in', '("Cancelled","No Show")');
     if (from) query = query.gte('date', from);
@@ -855,7 +855,7 @@ export async function getOutstandingByStaff({ branchId, from, to } = {}) {
         customerName: b.customer_name,
         customerPhone: b.customer_phone,
         date: b.date,
-        serviceName: b.service_name_snapshot || '—',
+        treatmentName: b.treatment_name_snapshot || '—',
         finalAmount: Number(b.final_amount),
         amountPaid: collected,
         amountDue: due,
@@ -891,7 +891,7 @@ export async function getCustomerOutstandingBalance({ customerPhone, branchId, e
 
     let query = supabase
       .from('bookings')
-      .select('id, booking_number, customer_name, customer_phone, date, final_amount, payment_status, service_name_snapshot')
+      .select('id, booking_number, customer_name, customer_phone, date, final_amount, payment_status, treatment_name_snapshot')
       .in('payment_status', ['unpaid', 'partial'])
       .not('status', 'in', '("Cancelled","No Show")');
     if (excludeBookingId) query = query.neq('id', excludeBookingId);
@@ -925,7 +925,7 @@ export async function getCustomerOutstandingBalance({ customerPhone, branchId, e
         bookingNumber: b.booking_number,
         customerName: b.customer_name,
         date: b.date,
-        serviceName: b.service_name_snapshot || '—',
+        treatmentName: b.treatment_name_snapshot || '—',
         finalAmount: Number(b.final_amount),
         amountPaid: collected,
         amountDue: due,
@@ -947,7 +947,7 @@ export async function getSettledDueHistory({ branchId, from, to } = {}) {
   try {
     let query = supabase
       .from('bookings')
-      .select('id, booking_number, customer_name, customer_phone, date, final_amount, due_holder_name, service_name_snapshot')
+      .select('id, booking_number, customer_name, customer_phone, date, final_amount, due_holder_name, treatment_name_snapshot')
       .eq('payment_status', 'paid')
       .not('due_holder_name', 'is', null);
     query = withBranch(query, branchId);
@@ -980,7 +980,7 @@ export async function getSettledDueHistory({ branchId, from, to } = {}) {
         customerName: b.customer_name,
         customerPhone: b.customer_phone,
         date: b.date,
-        serviceName: b.service_name_snapshot || '—',
+        treatmentName: b.treatment_name_snapshot || '—',
         finalAmount: Number(b.final_amount),
         dueHolderName: b.due_holder_name,
         settledAt,
@@ -1072,7 +1072,7 @@ export async function getReferralsReport({ branchId, from, to } = {}) {
   try {
     let query = supabase
       .from('bookings')
-      .select('id, booking_number, customer_name, date, final_amount, referred_by, referral_commission_type, referral_commission_value, service_name_snapshot')
+      .select('id, booking_number, customer_name, date, final_amount, referred_by, referral_commission_type, referral_commission_value, treatment_name_snapshot')
       .eq('payment_status', 'paid')
       .not('referred_by', 'is', null);
     if (from) query = query.gte('date', from);
@@ -1096,7 +1096,7 @@ export async function getReferralsReport({ branchId, from, to } = {}) {
         bookingNumber: b.booking_number,
         customerName: b.customer_name,
         date: b.date,
-        serviceName: b.service_name_snapshot || '—',
+        treatmentName: b.treatment_name_snapshot || '—',
         finalAmount: Number(b.final_amount),
         commissionType: b.referral_commission_type || null,
         commissionValue: b.referral_commission_value != null ? Number(b.referral_commission_value) : null,
@@ -1124,7 +1124,7 @@ export async function getCustomerReferralsReport({ branchId, from, to } = {}) {
         referring_customer_id, referred_customer_id, booking_id,
         referrer:customers!customer_referrals_referring_customer_id_fkey(id, full_name, phone),
         referred:customers!customer_referrals_referred_customer_id_fkey(id, full_name, phone),
-        booking:bookings!customer_referrals_booking_id_fkey(id, booking_number, branch_id, date, status, service_name_snapshot, final_amount)
+        booking:bookings!customer_referrals_booking_id_fkey(id, booking_number, branch_id, date, status, treatment_name_snapshot, final_amount)
       `)
       .order('created_at', { ascending: false });
     if (from) query = query.gte('created_at', from);
@@ -1360,9 +1360,9 @@ export async function fetchReferralRewardForBooking(bookingId) {
 }
 
 // Active (redeemable) session packages for a customer/guest, scoped to one
-// service — used by PaymentModal to surface a `PackageWalletCard` at checkout
+// treatment — used by PaymentModal to surface a `PackageWalletCard` at checkout
 // (migration-141). A package only shows up here if it's bound to the same
-// service being booked (a package for a different service is never a valid
+// treatment being booked (a package for a different treatment is never a valid
 // tender for this booking) and hasn't been fully redeemed or expired.
 // Matches by `customer_id` (registered customers) OR `guest_info` (phone —
 // walk-in/guest-issued packages with no linked customer row), mirroring how
@@ -1372,18 +1372,18 @@ export async function fetchReferralRewardForBooking(bookingId) {
 // view owner — without that, it would bypass RLS on the underlying table
 // entirely. Returns the enriched rows the UI needs
 // (`sessionsRemaining`, `expiryDate`, etc.) — `[]` when nothing matches.
-export async function getActivePackagesForCustomer(customerId, phone, serviceId) {
+export async function getActivePackagesForCustomer(customerId, phone, treatmentId) {
   try {
-    if (!serviceId || (!customerId && !phone)) return { data: [], error: null };
+    if (!treatmentId || (!customerId && !phone)) return { data: [], error: null };
 
     let query = supabase
       .from('package_balances')
       .select(`
-        package_id, org_id, branch_id, package_type_id, service_id, customer_id,
+        package_id, org_id, branch_id, package_type_id, treatment_id, customer_id,
         guest_name, guest_info, expiry_date, sessions_total, sessions_used,
         sessions_remaining, status, last_redeemed_date
       `)
-      .eq('service_id', serviceId)
+      .eq('treatment_id', treatmentId)
       .not('status', 'in', '("fully_redeemed","expired")');
 
     // Sanitize phone before interpolating into a raw PostgREST filter string
@@ -1418,7 +1418,7 @@ export async function getActivePackagesForCustomer(customerId, phone, serviceId)
         packageTypeId: b.package_type_id,
         packageName: pkg.package_type?.name || 'Package',
         packageCode: pkg.package_code || null,
-        serviceId: b.service_id,
+        treatmentId: b.treatment_id,
         customerId: b.customer_id,
         guestName: b.guest_name,
         guestInfo: b.guest_info,
@@ -1482,19 +1482,19 @@ export async function fetchCustomerReferralForBooking(bookingId) {
   }
 }
 
-// Revenue per service, broken out by branch, for PAID bookings only in the
+// Revenue per treatment, broken out by branch, for PAID bookings only in the
 // given date range. Always returns every branch that has at least one
 // matching paid booking (1 column when branchId is a concrete branch —
 // withBranch scopes the query — N columns when branchId is Overall).
 // from/to are ISO dates (inclusive); omit for all-time.
-export async function getServiceRevenueByBranch({ branchId, from, to } = {}) {
+export async function getTreatmentRevenueByBranch({ branchId, from, to } = {}) {
   try {
     const PAGE_SIZE = 1000; // PostgREST caps unpaginated responses at 1000 rows
     const bookings = [];
     for (let offset = 0; ; offset += PAGE_SIZE) {
       let query = supabase
         .from('bookings')
-        .select('service_name_snapshot, final_amount, branch_id, branches(name)')
+        .select('treatment_name_snapshot, final_amount, branch_id, branches(name)')
         .eq('payment_status', 'paid');
       if (from) query = query.gte('date', from);
       if (to) query = query.lte('date', to);
@@ -1506,20 +1506,20 @@ export async function getServiceRevenueByBranch({ branchId, from, to } = {}) {
     }
 
     const branchMap = new Map();     // branch_id -> branch name
-    const serviceMap = new Map();    // service name -> { [branchId]: { revenue, count } }
+    const treatmentMap = new Map();    // treatment name -> { [branchId]: { revenue, count } }
     const branchTotals = {};         // branch_id -> { revenue, count }
     let grandTotalRevenue = 0;
     let grandTotalCount = 0;
 
     for (const b of (bookings || [])) {
-      const svc = b.service_name_snapshot || 'Unknown Service';
+      const svc = b.treatment_name_snapshot || 'Unknown Treatment';
       const bId = b.branch_id;
       const bName = b.branches?.name || 'Unknown Branch';
       const amount = Number(b.final_amount) || 0;
 
       if (!branchMap.has(bId)) branchMap.set(bId, bName);
-      if (!serviceMap.has(svc)) serviceMap.set(svc, {});
-      const svcRow = serviceMap.get(svc);
+      if (!treatmentMap.has(svc)) treatmentMap.set(svc, {});
+      const svcRow = treatmentMap.get(svc);
       if (!svcRow[bId]) svcRow[bId] = { revenue: 0, count: 0 };
       svcRow[bId].revenue = Math.round((svcRow[bId].revenue + amount) * 100) / 100;
       svcRow[bId].count += 1;
@@ -1536,11 +1536,11 @@ export async function getServiceRevenueByBranch({ branchId, from, to } = {}) {
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    const services = Array.from(serviceMap.entries()).map(([name, byBranch]) => {
+    const treatments = Array.from(treatmentMap.entries()).map(([name, byBranch]) => {
       const totalRevenue = branches.reduce((s, br) => s + (byBranch[br.id]?.revenue || 0), 0);
       const totalCount = branches.reduce((s, br) => s + (byBranch[br.id]?.count || 0), 0);
       return {
-        serviceName: name,
+        treatmentName: name,
         byBranch,
         totalRevenue: Math.round(totalRevenue * 100) / 100,
         totalCount,
@@ -1548,11 +1548,11 @@ export async function getServiceRevenueByBranch({ branchId, from, to } = {}) {
     }).sort((a, b) => b.totalRevenue - a.totalRevenue);
 
     return {
-      data: { branches, services, branchTotals, grandTotalRevenue, grandTotalCount },
+      data: { branches, treatments, branchTotals, grandTotalRevenue, grandTotalCount },
       error: null,
     };
   } catch (error) {
-    console.error('[API] getServiceRevenueByBranch error:', error.message);
+    console.error('[API] getTreatmentRevenueByBranch error:', error.message);
     return { data: null, error };
   }
 }
@@ -1683,15 +1683,15 @@ export async function updateBookingStatus({ bookingId, newStatus, reason }) {
   }
 }
 
-export async function assignDentist({ bookingId, dentistIds = [], roomId }) {
+export async function assignDentist({ bookingId, dentistIds = [], chairId }) {
   try {
     // Support legacy single dentistId param
     const ids = Array.isArray(dentistIds) ? dentistIds.filter(Boolean) : (dentistIds ? [dentistIds] : []);
 
-    // 1. Fetch booking (include room_id + date for attendance check)
+    // 1. Fetch booking (include chair_id + date for attendance check)
     const { data: booking, error: fetchError } = await supabase
       .from('bookings')
-      .select('id, status, is_locked, branch_id, room_id, date, start_time')
+      .select('id, status, is_locked, branch_id, chair_id, date, start_time')
       .eq('id', bookingId)
       .single();
 
@@ -1783,28 +1783,28 @@ export async function assignDentist({ bookingId, dentistIds = [], roomId }) {
       dentist_name_snapshot: dentistNameSnapshot,
     };
 
-    // 6. Room assignment (if roomId provided)
-    if (roomId !== undefined) {
-      if (roomId === null) {
-        updatePayload.room_id = null;
-        updatePayload.room_name_snapshot = null;
+    // 6. Chair assignment (if chairId provided)
+    if (chairId !== undefined) {
+      if (chairId === null) {
+        updatePayload.chair_id = null;
+        updatePayload.chair_name_snapshot = null;
       } else {
-        const { data: room } = await supabase
-          .from('rooms')
+        const { data: chair } = await supabase
+          .from('chairs')
           .select('name')
-          .eq('id', roomId)
+          .eq('id', chairId)
           .single();
-        updatePayload.room_id = roomId;
-        updatePayload.room_name_snapshot = room?.name || null;
+        updatePayload.chair_id = chairId;
+        updatePayload.chair_name_snapshot = chair?.name || null;
       }
     } else {
-      if (booking.room_id) {
-        const { data: room } = await supabase
-          .from('rooms')
+      if (booking.chair_id) {
+        const { data: chair } = await supabase
+          .from('chairs')
           .select('name')
-          .eq('id', booking.room_id)
+          .eq('id', booking.chair_id)
           .single();
-        updatePayload.room_name_snapshot = room?.name || null;
+        updatePayload.chair_name_snapshot = chair?.name || null;
       }
     }
 
@@ -1813,7 +1813,7 @@ export async function assignDentist({ bookingId, dentistIds = [], roomId }) {
       .from('bookings')
       .update(updatePayload)
       .eq('id', bookingId)
-      .select('id, dentist_id, room_id')
+      .select('id, dentist_id, chair_id')
       .single();
 
     if (updateError) {
@@ -1845,7 +1845,7 @@ export async function assignDentist({ bookingId, dentistIds = [], roomId }) {
       }
     }
 
-    return { data: { success: true, bookingId, dentistIds: ids, roomId: updated.room_id }, error: null };
+    return { data: { success: true, bookingId, dentistIds: ids, chairId: updated.chair_id }, error: null };
   } catch (error) {
     console.error('[API] assignDentist error:', error.message);
     return { data: null, error };
@@ -1856,7 +1856,7 @@ export async function fetchRelatedUnpaidBookings({ customerName, date, excludeBo
   try {
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, booking_number, customer_name, date, start_time, end_time, base_amount, discount_amount, final_amount, payment_status, status, service:services(name, duration_minutes), room:rooms(name), dentist:dentists(name)')
+      .select('id, booking_number, customer_name, date, start_time, end_time, base_amount, discount_amount, final_amount, payment_status, status, treatment:treatments(name, duration_minutes), chair:chairs(name), dentist:dentists(name)')
       .eq('customer_name', customerName)
       .eq('date', date)
       .eq('payment_status', 'unpaid')
@@ -1926,13 +1926,13 @@ export async function resizeSharedBookingTime({ bookingId, startTime, endTime })
   }
 }
 
-export async function updateBookingDetails({ bookingId, customerName, customerPhone, serviceId, date, startTime, specialRequests, referredBy }) {
+export async function updateBookingDetails({ bookingId, customerName, customerPhone, treatmentId, date, startTime, specialRequests, referredBy }) {
   try {
     customerName = toTitleCase(customerName);
     // 1. Fetch current booking
     const { data: booking, error: fetchError } = await supabase
       .from('bookings')
-      .select('id, status, is_locked, payment_status, service_id, date, start_time, branch_id, base_amount, discount_amount, final_amount, customer_name, customer_phone, service:services(duration_minutes)')
+      .select('id, status, is_locked, payment_status, treatment_id, date, start_time, branch_id, base_amount, discount_amount, final_amount, customer_name, customer_phone, treatment:treatments(duration_minutes)')
       .eq('id', bookingId)
       .single();
 
@@ -2035,31 +2035,31 @@ export async function updateBookingDetails({ bookingId, customerName, customerPh
       updatePayload.referred_by = referredBy || null;
     }
 
-    // 5. If service changed, recalculate financials and duration
-    const effectiveServiceId = serviceId !== undefined ? serviceId : booking.service_id;
-    let newServiceDurationMinutes = null;
-    if (serviceId && serviceId !== booking.service_id) {
-      const { data: newService, error: svcError } = await supabase
-        .from('services')
+    // 5. If treatment changed, recalculate financials and duration
+    const effectiveTreatmentId = treatmentId !== undefined ? treatmentId : booking.treatment_id;
+    let newTreatmentDurationMinutes = null;
+    if (treatmentId && treatmentId !== booking.treatment_id) {
+      const { data: newTreatment, error: svcError } = await supabase
+        .from('treatments')
         .select('id, name, duration_minutes, price_npr')
-        .eq('id', serviceId)
+        .eq('id', treatmentId)
         .single();
 
-      if (svcError || !newService) {
-        return { data: null, error: { code: 'SERVICE_NOT_FOUND', message: 'Selected service not found.' } };
+      if (svcError || !newTreatment) {
+        return { data: null, error: { code: 'TREATMENT_NOT_FOUND', message: 'Selected treatment not found.' } };
       }
 
-      newServiceDurationMinutes = newService.duration_minutes;
-      updatePayload.service_id = serviceId;
-      updatePayload.service_name_snapshot = newService.name;
-      updatePayload.base_amount = newService.price_npr;
+      newTreatmentDurationMinutes = newTreatment.duration_minutes;
+      updatePayload.treatment_id = treatmentId;
+      updatePayload.treatment_name_snapshot = newTreatment.name;
+      updatePayload.base_amount = newTreatment.price_npr;
       // Preserve existing discount amount
       const discountAmt = Number(booking.discount_amount || 0);
-      updatePayload.final_amount = Math.max(0, newService.price_npr - discountAmt);
+      updatePayload.final_amount = Math.max(0, newTreatment.price_npr - discountAmt);
 
       // Recalculate end_time based on new duration
       const effectiveStartTime = startTime || booking.start_time;
-      updatePayload.end_time = addMinutesToTime(effectiveStartTime.slice(0, 5), newService.duration_minutes);
+      updatePayload.end_time = addMinutesToTime(effectiveStartTime.slice(0, 5), newTreatment.duration_minutes);
 
       // Recompute payment_status — price change can leave a stale 'paid' status
       const { data: paymentsRows } = await supabase
@@ -2083,9 +2083,9 @@ export async function updateBookingDetails({ bookingId, customerName, customerPh
       updatePayload.start_time = startTime;
     }
 
-    // Recalculate end_time if time changed but service didn't (service change already handled above)
+    // Recalculate end_time if time changed but treatment didn't (treatment change already handled above)
     if (timeChanged && !updatePayload.end_time) {
-      const durationMinutes = booking.service?.duration_minutes;
+      const durationMinutes = booking.treatment?.duration_minutes;
       if (durationMinutes) {
         updatePayload.end_time = addMinutesToTime(startTime.slice(0, 5), durationMinutes);
       }
@@ -2113,17 +2113,17 @@ export async function updateBookingDetails({ bookingId, customerName, customerPh
       throw updateError;
     }
 
-    // 10. Extending the service changes duration — keep any co-assigned
+    // 10. Extending the treatment changes duration — keep any co-assigned
     // dentist's booking_dentists row in sync, since getCalendarBookings
     // reads end_time from this junction row, not just bookings.end_time.
-    if (newServiceDurationMinutes) {
+    if (newTreatmentDurationMinutes) {
       const { data: btRows } = await supabase
         .from('booking_dentists')
         .select('dentist_id, start_time')
         .eq('booking_id', bookingId);
       for (const row of (btRows || [])) {
         if (!row.start_time) continue;
-        const newEndTime = addMinutesToTime(row.start_time.slice(0, 5), newServiceDurationMinutes);
+        const newEndTime = addMinutesToTime(row.start_time.slice(0, 5), newTreatmentDurationMinutes);
         const { error: btUpdateError } = await supabase
           .from('booking_dentists')
           .update({ end_time: newEndTime })
@@ -2314,7 +2314,7 @@ export async function fetchPendingDiscounts(branchId) {
       .select(`
         id, booking_number, customer_name, date, start_time,
         base_amount, discount_amount, final_amount, discount_reason,
-        status, service_id, services:service_id(name),
+        status, treatment_id, treatments:treatment_id(name),
         requester:users!discount_requested_by(full_name)
       `)
       .eq('discount_status', 'pending')
@@ -2342,7 +2342,7 @@ export async function fetchPendingDiscounts(branchId) {
           ? Math.round((Number(b.discount_amount) / Number(b.base_amount)) * 100)
           : 0,
         status: b.status,
-        serviceName: b.services?.name || '—',
+        treatmentName: b.treatments?.name || '—',
         requestedByName: b.requester?.full_name || null,
       })),
       error: null,
@@ -2409,8 +2409,8 @@ export async function fetchAllDiscounts(branchId) {
       .select(`
         id, booking_number, customer_name, date, start_time,
         base_amount, discount_amount, final_amount, discount_reason,
-        discount_status, status, service_id,
-        services:service_id(name),
+        discount_status, status, treatment_id,
+        treatments:treatment_id(name),
         requester:users!discount_requested_by(full_name),
         approver:users!discount_approved_by(full_name),
         requestedTo:users!discount_requested_to(full_name)
@@ -2430,7 +2430,7 @@ export async function fetchAllDiscounts(branchId) {
         customerName: b.customer_name,
         date: b.date,
         startTime: b.start_time,
-        serviceName: b.services?.name || '—',
+        treatmentName: b.treatments?.name || '—',
         baseAmount: Number(b.base_amount),
         discountAmount: Number(b.discount_amount),
         finalAmount: Number(b.final_amount),
@@ -2682,15 +2682,15 @@ export async function markAllNotificationsRead() {
 
 /**
  * Reschedule a booking to a new date/time.
- * Optionally reassign to a different dentist or room (cross-column drag).
- * Validates lifecycle, checks room/dentist availability, and updates the booking.
+ * Optionally reassign to a different dentist or chair (cross-column drag).
+ * Validates lifecycle, checks chair/dentist availability, and updates the booking.
  */
-export async function rescheduleBooking({ bookingId, newDate, newStartTime, newDentistId, newRoomId }) {
+export async function rescheduleBooking({ bookingId, newDate, newStartTime, newDentistId, newChairId }) {
   try {
-    // 1. Fetch booking with service duration, room, dentist, and branch
+    // 1. Fetch booking with treatment duration, chair, dentist, and branch
     const { data: booking, error: fetchError } = await supabase
       .from('bookings')
-      .select('id, status, is_locked, payment_status, room_id, dentist_id, branch_id, service:services(duration_minutes)')
+      .select('id, status, is_locked, payment_status, chair_id, dentist_id, branch_id, treatment:treatments(duration_minutes)')
       .eq('id', bookingId)
       .single();
 
@@ -2714,10 +2714,10 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newD
     const { user, profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
 
-    // 5. Compute end_time from service duration
-    const durationMinutes = booking.service?.duration_minutes;
+    // 5. Compute end_time from treatment duration
+    const durationMinutes = booking.treatment?.duration_minutes;
     if (!durationMinutes) {
-      return { data: null, error: { code: 'SERVICE_NOT_FOUND', message: 'Could not determine service duration for this booking.' } };
+      return { data: null, error: { code: 'TREATMENT_NOT_FOUND', message: 'Could not determine treatment duration for this booking.' } };
     }
     const newEndTime = addMinutesToTime(newStartTime, durationMinutes);
 
@@ -2806,41 +2806,41 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newD
       }
     }
 
-    // 6b. Room reassignment
-    const effectiveRoomId = newRoomId !== undefined
-      ? (newRoomId === 'unassigned' || newRoomId === null ? null : newRoomId)
-      : booking.room_id;
+    // 6b. Chair reassignment
+    const effectiveChairId = newChairId !== undefined
+      ? (newChairId === 'unassigned' || newChairId === null ? null : newChairId)
+      : booking.chair_id;
 
-    if (newRoomId !== undefined) {
-      if (newRoomId === 'unassigned' || newRoomId === null) {
-        updatePayload.room_id = null;
-        updatePayload.room_name_snapshot = null;
+    if (newChairId !== undefined) {
+      if (newChairId === 'unassigned' || newChairId === null) {
+        updatePayload.chair_id = null;
+        updatePayload.chair_name_snapshot = null;
       } else {
-        const { data: room } = await supabase
-          .from('rooms')
+        const { data: chair } = await supabase
+          .from('chairs')
           .select('name')
-          .eq('id', newRoomId)
+          .eq('id', newChairId)
           .single();
-        updatePayload.room_id = newRoomId;
-        updatePayload.room_name_snapshot = room?.name || null;
+        updatePayload.chair_id = newChairId;
+        updatePayload.chair_name_snapshot = chair?.name || null;
       }
     }
 
-    // 7. Check room availability with capacity
-    if (effectiveRoomId) {
-      // Fetch room to get capacity
-      const { data: roomData } = await supabase
-        .from('rooms')
+    // 7. Check chair availability with capacity
+    if (effectiveChairId) {
+      // Fetch chair to get capacity
+      const { data: chairData } = await supabase
+        .from('chairs')
         .select('id, name, capacity')
-        .eq('id', effectiveRoomId)
+        .eq('id', effectiveChairId)
         .single();
 
-      const capacity = roomData ? getRoomCapacity(roomData) : 1;
+      const capacity = chairData ? getChairCapacity(chairData) : 1;
 
       const { data: conflicts, error: conflictError } = await supabase
         .from('bookings')
         .select('id')
-        .eq('room_id', effectiveRoomId)
+        .eq('chair_id', effectiveChairId)
         .eq('branch_id', booking.branch_id)
         .eq('date', newDate)
         .not('status', 'in', '("Cancelled","No Show")')
@@ -2853,7 +2853,7 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newD
       if (conflicts && conflicts.length >= capacity) {
         return {
           data: null,
-          error: { code: 'ROOM_CONFLICT', message: `Room ${roomData?.name || 'unknown'} is fully booked at this time (${conflicts.length}/${capacity} slots used). Change the room or pick a different time.` },
+          error: { code: 'CHAIR_CONFLICT', message: `Chair ${chairData?.name || 'unknown'} is fully booked at this time (${conflicts.length}/${capacity} slots used). Change the chair or pick a different time.` },
         };
       }
     }
@@ -2863,7 +2863,7 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newD
       .from('bookings')
       .update(updatePayload)
       .eq('id', bookingId)
-      .select('id, date, start_time, end_time, dentist_id, room_id')
+      .select('id, date, start_time, end_time, dentist_id, chair_id')
       .single();
 
     if (updateError) {
@@ -2871,9 +2871,9 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newD
       if (updateError.code === '23P01') {
         return { data: null, error: { code: 'DENTIST_CONFLICT', message: 'Dentist is already booked during this time slot.' } };
       }
-      // Room-capacity trigger: lost a race against a concurrent booking for the same room
+      // Chair-capacity trigger: lost a race against a concurrent booking for the same chair
       if (updateError.code === 'P0003') {
-        return { data: null, error: { code: 'ROOM_CONFLICT', message: 'Room is fully booked at this time. Change the room or pick a different time.' } };
+        return { data: null, error: { code: 'CHAIR_CONFLICT', message: 'Chair is fully booked at this time. Change the chair or pick a different time.' } };
       }
       throw updateError;
     }
@@ -2915,7 +2915,7 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newD
         startTime: updated.start_time,
         endTime: updated.end_time,
         dentistId: updated.dentist_id,
-        roomId: updated.room_id,
+        chairId: updated.chair_id,
       },
       error: null,
     };
@@ -3399,8 +3399,8 @@ export async function getDailyOperationalReport(branchId, date) {
         id, booking_number, customer_name, status, payment_status,
         base_amount, discount_amount, final_amount, discount_status,
         discount_approved_by, dentist_id,
-        service_name_snapshot, service_duration_snapshot, service_price_snapshot,
-        dentist_name_snapshot, room_name_snapshot
+        treatment_name_snapshot, treatment_duration_snapshot, treatment_price_snapshot,
+        dentist_name_snapshot, chair_name_snapshot
       `)
       .eq('date', date)
       .order('start_time');
@@ -3477,9 +3477,9 @@ export async function getDailyOperationalReport(branchId, date) {
         bookingId: b.id,
         bookingNumber: b.booking_number,
         customerName: b.customer_name,
-        serviceName: b.service_name_snapshot || '—',
+        treatmentName: b.treatment_name_snapshot || '—',
         dentistName: b.dentist_name_snapshot || 'Unassigned',
-        roomName: b.room_name_snapshot || '—',
+        chairName: b.chair_name_snapshot || '—',
         baseAmount: Number(b.base_amount),
         discountAmount: Number(b.discount_amount),
         finalAmount: Number(b.final_amount),
@@ -3624,7 +3624,7 @@ export async function getDailyOperationalReport(branchId, date) {
         return {
           bookingNumber: b.booking_number,
           customerName: b.customer_name,
-          serviceName: b.service_name_snapshot || '—',
+          treatmentName: b.treatment_name_snapshot || '—',
           finalAmount: Number(b.final_amount),
           amountDue: Math.max(Number(b.final_amount) - collected, 0),
           status: b.status,
@@ -3661,7 +3661,7 @@ export function exportDailyReportCSV(reportData) {
   rows.push('DAILY OPERATIONAL REPORT');
   rows.push('');
   rows.push([
-    'Booking #', 'Customer Name', 'Service', 'Dentist', 'Room',
+    'Booking #', 'Customer Name', 'Treatment', 'Dentist', 'Chair',
     'Base Amount', 'Discount', 'Final Amount', 'Payment Mode', 'Payment Status', 'Status'
   ].join(','));
 
@@ -3669,9 +3669,9 @@ export function exportDailyReportCSV(reportData) {
     rows.push([
       b.bookingNumber,
       `"${(b.customerName || '').replace(/"/g, '""')}"`,
-      `"${(b.serviceName || '').replace(/"/g, '""')}"`,
+      `"${(b.treatmentName || '').replace(/"/g, '""')}"`,
       `"${(b.dentistName || '').replace(/"/g, '""')}"`,
-      `"${(b.roomName || '').replace(/"/g, '""')}"`,
+      `"${(b.chairName || '').replace(/"/g, '""')}"`,
       b.baseAmount.toFixed(2),
       b.discountAmount.toFixed(2),
       b.finalAmount.toFixed(2),
@@ -3723,9 +3723,9 @@ export function exportDailyReportCSV(reportData) {
   if (unpaidBookings.length > 0) {
     rows.push('');
     rows.push('UNPAID BOOKINGS');
-    rows.push('Booking #,Customer Name,Service,Final Amount,Status');
+    rows.push('Booking #,Customer Name,Treatment,Final Amount,Status');
     for (const u of unpaidBookings) {
-      rows.push(`${u.bookingNumber},"${(u.customerName || '').replace(/"/g, '""')}","${(u.serviceName || '').replace(/"/g, '""')}",${u.finalAmount.toFixed(2)},${u.status}`);
+      rows.push(`${u.bookingNumber},"${(u.customerName || '').replace(/"/g, '""')}","${(u.treatmentName || '').replace(/"/g, '""')}",${u.finalAmount.toFixed(2)},${u.status}`);
     }
   }
 
@@ -3932,12 +3932,12 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
     // Operating window (minutes) attributable to a given resource's branch.
     const windowFor = (bid) => overall ? (branchWindow[bid] || 0) : operatingMinutes;
 
-    // 2. Fetch active rooms + dentists + attendance (parallel)
-    let roomsQuery = supabase
-      .from('rooms')
+    // 2. Fetch active chairs + dentists + attendance (parallel)
+    let chairsQuery = supabase
+      .from('chairs')
       .select('id, name, branch_id')
       .eq('is_active', true);
-    roomsQuery = withBranch(roomsQuery, branchId);
+    chairsQuery = withBranch(chairsQuery, branchId);
     let dentistsQuery = supabase
       .from('dentists')
       .select('id, name, branch_id')
@@ -3952,13 +3952,13 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
       .select('dentist_id, status')
       .eq('date', targetDate)
       .in('status', ['Absent', ...LEAVE_LIKE_ATTENDANCE_STATUSES]);
-    const [roomsResult, dentistsResult, attendanceResult] = await Promise.all([
-      roomsQuery,
+    const [chairsResult, dentistsResult, attendanceResult] = await Promise.all([
+      chairsQuery,
       dentistsQuery,
       isRange ? Promise.resolve({ data: [], error: null }) : attendanceQuery,
     ]);
 
-    if (roomsResult.error) throw roomsResult.error;
+    if (chairsResult.error) throw chairsResult.error;
     if (dentistsResult.error) throw dentistsResult.error;
     // Attendance errors are non-fatal — just ignore
     const absentIds = new Set();
@@ -3968,7 +3968,7 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
       }
     }
 
-    const rooms = roomsResult.data || [];
+    const chairs = chairsResult.data || [];
     const dentists = dentistsResult.data || [];
     // Available dentists = active minus absent/leave (single-day only; see isRange above)
     const availableDentists = dentists.filter(t => !absentIds.has(t.id));
@@ -3976,7 +3976,7 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
     // 3. Fetch qualifying bookings: Confirmed, In-Progress, Completed only
     let bookingsQuery = supabase
       .from('bookings')
-      .select('id, room_id, dentist_id, start_time, end_time, service_duration_snapshot, status')
+      .select('id, chair_id, dentist_id, start_time, end_time, treatment_duration_snapshot, status')
       .in('status', ['Confirmed', 'In-Progress', 'Completed']);
     bookingsQuery = isRange
       ? bookingsQuery.gte('date', rangeStart).lte('date', rangeEnd)
@@ -3988,20 +3988,20 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
 
     const allBookings = bookings || [];
 
-    // 4. Compute per-room utilization
-    const roomMinutesMap = {};
-    for (const r of rooms) {
-      roomMinutesMap[r.id] = { name: r.name, bookedMinutes: 0 };
+    // 4. Compute per-chair utilization
+    const chairMinutesMap = {};
+    for (const r of chairs) {
+      chairMinutesMap[r.id] = { name: r.name, bookedMinutes: 0 };
     }
 
     for (const b of allBookings) {
-      if (b.room_id && roomMinutesMap[b.room_id]) {
-        roomMinutesMap[b.room_id].bookedMinutes += b.service_duration_snapshot || 0;
+      if (b.chair_id && chairMinutesMap[b.chair_id]) {
+        chairMinutesMap[b.chair_id].bookedMinutes += b.treatment_duration_snapshot || 0;
       }
     }
 
-    const roomUtilization = rooms.map(r => {
-      const booked = roomMinutesMap[r.id]?.bookedMinutes || 0;
+    const chairUtilization = chairs.map(r => {
+      const booked = chairMinutesMap[r.id]?.bookedMinutes || 0;
       const total = windowFor(r.branch_id);
       return {
         id: r.id,
@@ -4020,7 +4020,7 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
 
     for (const b of allBookings) {
       if (b.dentist_id && dentistMinutesMap[b.dentist_id]) {
-        dentistMinutesMap[b.dentist_id].bookedMinutes += b.service_duration_snapshot || 0;
+        dentistMinutesMap[b.dentist_id].bookedMinutes += b.treatment_duration_snapshot || 0;
       }
     }
 
@@ -4047,19 +4047,19 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
     }
 
     // 7. Summary stats
-    const totalBookedMinutes = allBookings.reduce((sum, b) => sum + (b.service_duration_snapshot || 0), 0);
-    const totalRoomCapacity = rooms.reduce((sum, r) => sum + windowFor(r.branch_id), 0);
+    const totalBookedMinutes = allBookings.reduce((sum, b) => sum + (b.treatment_duration_snapshot || 0), 0);
+    const totalChairCapacity = chairs.reduce((sum, r) => sum + windowFor(r.branch_id), 0);
     const totalDentistCapacity = availableDentists.reduce((sum, t) => sum + windowFor(t.branch_id), 0);
 
-    const avgRoomUtilization = totalRoomCapacity > 0
-      ? Math.round((roomUtilization.reduce((sum, r) => sum + r.bookedMinutes, 0) / totalRoomCapacity) * 100)
+    const avgChairUtilization = totalChairCapacity > 0
+      ? Math.round((chairUtilization.reduce((sum, r) => sum + r.bookedMinutes, 0) / totalChairCapacity) * 100)
       : 0;
     const avgDentistUtilization = totalDentistCapacity > 0
       ? Math.round((dentistUtilization.reduce((sum, t) => sum + t.bookedMinutes, 0) / totalDentistCapacity) * 100)
       : 0;
 
-    // Idle = total room capacity minus booked room minutes
-    const idleMinutes = totalRoomCapacity - roomUtilization.reduce((sum, r) => sum + r.bookedMinutes, 0);
+    // Idle = total chair capacity minus booked chair minutes
+    const idleMinutes = totalChairCapacity - chairUtilization.reduce((sum, r) => sum + r.bookedMinutes, 0);
 
     // Peak hour
     const peakHour = hourlyDistribution.indexOf(Math.max(...hourlyDistribution));
@@ -4072,17 +4072,17 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
           : (branch.open_time && branch.close_time
             ? `${branch.open_time.slice(0, 5)}–${branch.close_time.slice(0, 5)}`
             : 'Not set'),
-        roomUtilization,
+        chairUtilization,
         dentistUtilization,
         hourlyDistribution,
         summary: {
-          avgRoomUtilization,
+          avgChairUtilization,
           avgDentistUtilization,
           totalBookedMinutes,
           idleMinutes: Math.max(0, idleMinutes),
           peakHour,
           totalBookings: allBookings.length,
-          roomCount: rooms.length,
+          chairCount: chairs.length,
           dentistCount: availableDentists.length,
         },
       },
@@ -4115,31 +4115,31 @@ export async function searchBookingPublic(branchId, query) {
       return { data: [], error: null };
     }
 
-    const serviceIds = [...new Set(data.map(b => b.service_id).filter(Boolean))];
+    const treatmentIds = [...new Set(data.map(b => b.treatment_id).filter(Boolean))];
     const dentistIds = [...new Set(data.map(b => b.dentist_id).filter(Boolean))];
-    const roomIds = [...new Set(data.map(b => b.room_id).filter(Boolean))];
+    const chairIds = [...new Set(data.map(b => b.chair_id).filter(Boolean))];
 
-    const [{ data: services }, { data: dentists }, { data: rooms }] = await Promise.all([
-      serviceIds.length
-        ? supabase.from('services').select('id, name, duration_minutes').in('id', serviceIds)
+    const [{ data: treatments }, { data: dentists }, { data: chairs }] = await Promise.all([
+      treatmentIds.length
+        ? supabase.from('treatments').select('id, name, duration_minutes').in('id', treatmentIds)
         : Promise.resolve({ data: [] }),
       dentistIds.length
         ? supabase.from('dentists').select('id, name, gender').in('id', dentistIds)
         : Promise.resolve({ data: [] }),
-      roomIds.length
-        ? supabase.from('rooms').select('id, name').in('id', roomIds)
+      chairIds.length
+        ? supabase.from('chairs').select('id, name').in('id', chairIds)
         : Promise.resolve({ data: [] }),
     ]);
 
-    const serviceMap = new Map((services || []).map(s => [s.id, s]));
+    const treatmentMap = new Map((treatments || []).map(s => [s.id, s]));
     const dentistMap = new Map((dentists || []).map(t => [t.id, t]));
-    const roomMap = new Map((rooms || []).map(r => [r.id, r]));
+    const chairMap = new Map((chairs || []).map(r => [r.id, r]));
 
     const enriched = data.map(b => ({
       ...b,
-      service: serviceMap.get(b.service_id) || null,
+      treatment: treatmentMap.get(b.treatment_id) || null,
       dentist: dentistMap.get(b.dentist_id) || null,
-      room: roomMap.get(b.room_id) || null,
+      chair: chairMap.get(b.chair_id) || null,
     }));
 
     return { data: enriched, error: null };
@@ -4161,9 +4161,9 @@ export async function searchBookings(branchId, query) {
       .from('bookings')
       .select(`
         *,
-        service:services(id, name, duration_minutes),
+        treatment:treatments(id, name, duration_minutes),
         dentist:dentists(id, name, gender),
-        room:rooms(id, name)
+        chair:chairs(id, name)
       `)
       .eq('branch_id', resolvedBranchId)
       .order('date', { ascending: false })
@@ -4195,9 +4195,9 @@ export async function getCustomerBookingHistory(customerAccountId) {
       .from('bookings')
       .select(`
         *,
-        service:services(id, name, duration_minutes),
+        treatment:treatments(id, name, duration_minutes),
         dentist:dentists(id, name, gender),
-        room:rooms(id, name),
+        chair:chairs(id, name),
         branch:branches(id, name)
       `)
       .eq('customer_account_id', customerAccountId)
@@ -4217,9 +4217,9 @@ export async function fetchBookingById(bookingId) {
       .from('bookings')
       .select(`
         *,
-        service:services(id, name, duration_minutes, price_npr),
+        treatment:treatments(id, name, duration_minutes, price_npr),
         dentist:dentists(id, name, gender),
-        room:rooms(id, name),
+        chair:chairs(id, name),
         payments(amount, payment_mode, created_at),
         booking_dentists(dentist_id, start_time, end_time, dentist:dentists(id, name, gender))
       `)
@@ -4256,22 +4256,22 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
 
     if (branchError) throw branchError;
 
-    // 2. Fetch dentists, rooms, and any staffers currently transferred OUT of this
+    // 2. Fetch dentists, chairs, and any staffers currently transferred OUT of this
     //    branch (they still show as a column here — booking creation is already
     //    blocked for them since their branch_id now points elsewhere — see migration-145).
     const [
-      dentistsResult, roomsResult, transferredOutResult, transferredInResult,
+      dentistsResult, chairsResult, transferredOutResult, transferredInResult,
       revertedOutResult, revertedInResult, checkedOutResult,
     ] = await Promise.all([
       supabase
         .from('dentists')
-        .select('id, name, gender, specialties, position, is_service_staff, display_order')
+        .select('id, name, gender, specialties, position, is_treatment_staff, display_order')
         .eq('branch_id', resolvedBranchId)
         .eq('is_active', true)
         .order('display_order')
         .order('name'),
       supabase
-        .from('rooms')
+        .from('chairs')
         .select('id, name, is_active, display_order, amenities, floor')
         .eq('branch_id', resolvedBranchId)
         .eq('is_active', true)
@@ -4289,7 +4289,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
       // real, still-active temporary window" signal.
       supabase
         .from('staff_transfers')
-        .select('id, revert_at, effective_date, start_time, from_display_order, dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
+        .select('id, revert_at, effective_date, start_time, from_display_order, dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_treatment_staff, display_order)')
         .eq('from_branch_id', resolvedBranchId)
         .eq('applied', true)
         .eq('reverted', false)
@@ -4303,7 +4303,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
       // everything OUTSIDE that window (they're only really here for that slice of time).
       supabase
         .from('staff_transfers')
-        .select('dentist_id, revert_at, effective_date, start_time, fromBranch:branches!staff_transfers_from_branch_id_fkey(name), dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
+        .select('dentist_id, revert_at, effective_date, start_time, fromBranch:branches!staff_transfers_from_branch_id_fkey(name), dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_treatment_staff, display_order)')
         .eq('to_branch_id', resolvedBranchId)
         .eq('applied', true)
         .eq('reverted', false)
@@ -4319,7 +4319,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
       // Bounded to [startDate, endDate] so this can't resurrect arbitrarily old transfers.
       supabase
         .from('staff_transfers')
-        .select('id, revert_at, effective_date, start_time, from_display_order, dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
+        .select('id, revert_at, effective_date, start_time, from_display_order, dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_treatment_staff, display_order)')
         .eq('from_branch_id', resolvedBranchId)
         .eq('applied', true)
         .eq('reverted', true)
@@ -4331,7 +4331,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
         .order('start_time', { ascending: true }),
       supabase
         .from('staff_transfers')
-        .select('dentist_id, revert_at, effective_date, start_time, fromBranch:branches!staff_transfers_from_branch_id_fkey(name), dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
+        .select('dentist_id, revert_at, effective_date, start_time, fromBranch:branches!staff_transfers_from_branch_id_fkey(name), dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_treatment_staff, display_order)')
         .eq('to_branch_id', resolvedBranchId)
         .eq('applied', true)
         .eq('reverted', true)
@@ -4355,7 +4355,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
     ]);
 
     if (dentistsResult.error) throw dentistsResult.error;
-    if (roomsResult.error) throw roomsResult.error;
+    if (chairsResult.error) throw chairsResult.error;
     if (transferredOutResult.error) throw transferredOutResult.error;
     if (transferredInResult.error) throw transferredInResult.error;
     if (revertedOutResult.error) throw revertedOutResult.error;
@@ -4441,11 +4441,11 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
       .select(`
         id, booking_number, customer_name, customer_phone, status, payment_status,
         date, start_time, end_time, start_datetime, end_datetime, created_at,
-        dentist_id, room_id,
+        dentist_id, chair_id,
         base_amount, discount_amount, final_amount, special_requests,
-        service:services(name, duration_minutes),
+        treatment:treatments(name, duration_minutes),
         dentist:dentists(id, name),
-        room:rooms(id, name),
+        chair:chairs(id, name),
         creator:users!created_by(full_name),
         booking_dentists(dentist_id, start_time, end_time, dentist:dentists(id, name)),
         payments(amount)
@@ -4495,7 +4495,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
       const [orphanDentistsResult, orphanTransfersResult] = await Promise.all([
         supabase
           .from('dentists')
-          .select('id, name, gender, specialties, position, is_service_staff, display_order')
+          .select('id, name, gender, specialties, position, is_treatment_staff, display_order')
           .in('id', orphanDentistIds),
         supabase
           .from('staff_transfers')
@@ -4536,7 +4536,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
           timezone: branch.timezone || 'Asia/Kathmandu',
         },
         dentists: finalDentists,
-        rooms: roomsResult.data || [],
+        chairs: chairsResult.data || [],
         bookings: bookings || [],
         checkedOutByDentistAndDate,
       },
@@ -4550,7 +4550,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
 
 export async function createBooking({
   branchId,
-  serviceId,
+  treatmentId,
   date,
   startTime,
   customerName,
@@ -4560,7 +4560,7 @@ export async function createBooking({
   specialRequests,
   dentistId,
   dentistIds,
-  roomId,
+  chairId,
   bookingGroupId,
   referringCustomerId,
   referringRewardType,
@@ -4575,97 +4575,86 @@ export async function createBooking({
     customerName = toTitleCase(customerName);
     const resolvedBranchId = resolveBranchId(branchId);
 
-    // 1. Fetch service for duration + price
-    const { data: service, error: serviceError } = await supabase
-      .from('services')
+    // 1. Fetch treatment for duration + price
+    const { data: treatment, error: treatmentError } = await supabase
+      .from('treatments')
       .select('id, name, duration_minutes, price_npr')
-      .eq('id', serviceId)
+      .eq('id', treatmentId)
       .single();
 
-    if (serviceError) throw serviceError;
+    if (treatmentError) throw treatmentError;
 
     // 2. Compute end time for overlap check
-    const endTime = addMinutesToTime(startTime, service.duration_minutes);
+    const endTime = addMinutesToTime(startTime, treatment.duration_minutes);
 
-    // 2b. Check if this industry requires rooms
     const { data: branchData, error: branchError } = await supabase
       .from('branches')
-      .select('org_id, organizations(industry_type)')
+      .select('org_id')
       .eq('id', resolvedBranchId)
       .single();
 
     if (branchError) throw branchError;
 
-    const industryType = branchData?.organizations?.industry_type;
-    let enableRooms = true; // default to requiring rooms
+    const enableChairs = true;
 
-    if (industryType) {
-      const { data: industryData } = await supabase
-        .from('industries')
-        .select('enable_rooms')
-        .eq('id', industryType)
-        .single();
-      enableRooms = industryData?.enable_rooms !== false;
-    }
+    // Chair handling
+    let availableChair = null;
 
-    // Room handling - only required for industries that use rooms
-    let availableRoom = null;
-
-    if (enableRooms) {
-      if (roomId === 'none') {
-        // Explicitly no room selected — skip auto-assignment
-        availableRoom = null;
-      } else if (roomId) {
-        // Room explicitly selected — verify it belongs to this branch and is active
-        const { data: selectedRoom, error: roomLookupError } = await supabase
-          .from('rooms')
+    if (enableChairs) {
+      if (chairId === 'none') {
+        // Explicitly no chair selected — skip auto-assignment
+        availableChair = null;
+      } else if (chairId) {
+        // Chair explicitly selected — verify it belongs to this branch and is active
+        const { data: selectedChair, error: chairLookupError } = await supabase
+          .from('chairs')
           .select('id, name, is_active, capacity')
-          .eq('id', roomId)
+          .eq('id', chairId)
           .eq('branch_id', resolvedBranchId)
           .maybeSingle();
-        if (roomLookupError) throw roomLookupError;
-        if (!selectedRoom) {
-          return { data: null, error: { code: 'INVALID_ROOM', message: 'Selected room is not available in this branch.' } };
+        if (chairLookupError) throw chairLookupError;
+        if (!selectedChair) {
+          return { data: null, error: { code: 'INVALID_CHAIR', message: 'Selected chair is not available in this branch.' } };
         }
-        if (!selectedRoom.is_active) {
-          return { data: null, error: { code: 'ROOM_INACTIVE', message: 'Selected room is not active.' } };
+        if (!selectedChair.is_active) {
+          return { data: null, error: { code: 'CHAIR_INACTIVE', message: 'Selected chair is not active.' } };
         }
 
-        // Check room capacity — count overlapping bookings
-        const capacity = getRoomCapacity(selectedRoom);
-        const { data: roomOverlaps } = await supabase
+        // Check chair capacity — count overlapping bookings
+        const capacity = getChairCapacity(selectedChair);
+        const { data: chairOverlaps } = await supabase
           .from('bookings')
           .select('id')
-          .eq('room_id', roomId)
+          .eq('chair_id', chairId)
           .eq('branch_id', resolvedBranchId)
           .eq('date', date)
           .not('status', 'in', '("Cancelled","No Show")')
           .lt('start_time', endTime)
           .gt('end_time', startTime);
 
-        if ((roomOverlaps || []).length >= capacity) {
-          return { data: null, error: { code: 'ROOM_FULL', message: `${selectedRoom.name} is fully booked at this time (capacity: ${capacity}).` } };
+        if ((chairOverlaps || []).length >= capacity) {
+          return { data: null, error: { code: 'CHAIR_FULL', message: `${selectedChair.name} is fully booked at this time (capacity: ${capacity}).` } };
         }
 
-        availableRoom = selectedRoom;
+        availableChair = selectedChair;
       } else {
-        // 3. Fetch active rooms for branch (with capacity)
-        const { data: rooms, error: roomsError } = await supabase
-          .from('rooms')
+        // 3. Fetch active chairs for branch (with capacity)
+        const { data: chairs, error: chairsError } = await supabase
+          .from('chairs')
           .select('id, name, capacity')
           .eq('branch_id', resolvedBranchId)
           .eq('is_active', true)
           .order('name');
 
-        if (roomsError) throw roomsError;
-        if (!rooms || rooms.length === 0) {
-          return { data: null, error: { code: 'ROOMS_FULL', message: 'No rooms available at this branch.' } };
+        if (chairsError) throw chairsError;
+        if (!chairs || chairs.length === 0) {
+          return { data: null, error: { code: 'CHAIRS_FULL', message: 'No chairs available at this branch.' } };
         }
 
-        // 4. Count overlapping bookings per room
+        // 4. Count overlapping bookings per chair
         const { data: overlapping, error: overlapError } = await supabase
           .from('bookings')
-          .select('room_id')
+          .select('chair_id')
           .eq('branch_id', resolvedBranchId)
           .eq('date', date)
           .not('status', 'in', '("Cancelled","No Show")')
@@ -4674,23 +4663,23 @@ export async function createBooking({
 
         if (overlapError) throw overlapError;
 
-        // 5. Count bookings per room and pick first with remaining capacity
-        const roomBookingCounts = {};
+        // 5. Count bookings per chair and pick first with remaining capacity
+        const chairBookingCounts = {};
         (overlapping || []).forEach(b => {
-          roomBookingCounts[b.room_id] = (roomBookingCounts[b.room_id] || 0) + 1;
+          chairBookingCounts[b.chair_id] = (chairBookingCounts[b.chair_id] || 0) + 1;
         });
-        availableRoom = rooms.find(r => {
-          const capacity = getRoomCapacity(r);
-          const used = roomBookingCounts[r.id] || 0;
+        availableChair = chairs.find(r => {
+          const capacity = getChairCapacity(r);
+          const used = chairBookingCounts[r.id] || 0;
           return used < capacity;
         });
 
-        if (!availableRoom) {
-          return { data: null, error: { code: 'ROOMS_FULL', message: 'Selected time slot is fully booked.' } };
+        if (!availableChair) {
+          return { data: null, error: { code: 'CHAIRS_FULL', message: 'Selected time slot is fully booked.' } };
         }
       }
     }
-    // End of room handling - industries without rooms skip the above block
+    // End of chair handling - industries without chairs skip the above block
 
     // 6. Look up or create customer record for CRM linking.
     // Identity is org-wide (org_id + normalized phone), so a returning customer first
@@ -4822,8 +4811,8 @@ export async function createBooking({
       .from('bookings')
       .insert({
         branch_id: resolvedBranchId,
-        room_id: availableRoom?.id || null,
-        service_id: serviceId,
+        chair_id: availableChair?.id || null,
+        treatment_id: treatmentId,
         dentist_id: primaryDentistId,
         customer_id: customerId,
         customer_name: customerName,
@@ -4833,7 +4822,7 @@ export async function createBooking({
         customer_account_id: customerAccountId || null,
         date: date,
         start_time: startTime,
-        base_amount: Number(service.price_npr),
+        base_amount: Number(treatment.price_npr),
         discount_amount: 0,
         special_requests: specialRequests || null,
         created_by: authUser?.id || null,
@@ -4841,10 +4830,10 @@ export async function createBooking({
         referral_source: referralSource || null,
         referral_source_detail: referralSourceDetail || null,
         // Phase 9A: Snapshot fields — preserve original values at booking time
-        service_name_snapshot: service.name,
-        service_duration_snapshot: service.duration_minutes,
-        service_price_snapshot: Number(service.price_npr),
-        room_name_snapshot: availableRoom?.name || null,
+        treatment_name_snapshot: treatment.name,
+        treatment_duration_snapshot: treatment.duration_minutes,
+        treatment_price_snapshot: Number(treatment.price_npr),
+        chair_name_snapshot: availableChair?.name || null,
         dentist_name_snapshot: dentistNameSnapshot,
       })
       .select()
@@ -4855,7 +4844,7 @@ export async function createBooking({
         return { data: null, error: { code: 'DENTIST_CONFLICT', message: 'One or more selected dentists are already booked during this time slot.' } };
       }
       if (insertError.code === 'P0003') {
-        return { data: null, error: { code: 'ROOMS_FULL', message: 'Scheduling conflict. Please try a different time or room.' } };
+        return { data: null, error: { code: 'CHAIRS_FULL', message: 'Scheduling conflict. Please try a different time or chair.' } };
       }
       if (insertError.code === 'P0005') {
         return { data: null, error: { code: 'BRANCH_ONLINE_CAPACITY', message: 'This time is fully booked — no dentists available. Please choose another time.' } };
@@ -4908,7 +4897,7 @@ export async function createBooking({
     }
 
     capture('staff_booking_created', {
-      service_id: serviceId,
+      treatment_id: treatmentId,
       branch_id: booking.branch_id,
       final_amount: Number(booking.final_amount),
     });
@@ -5008,10 +4997,10 @@ export async function resolveCustomerReferralReward({ referralId, rewardType, re
 }
 
 // ============================================================
-// Phase 9B: Master Data Management — Room CRUD
+// Phase 9B: Master Data Management — Chair CRUD
 // ============================================================
 
-export async function fetchRoomsForManagement(branchId) {
+export async function fetchChairsForManagement(branchId) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
@@ -5026,7 +5015,7 @@ export async function fetchRoomsForManagement(branchId) {
     }
 
     const { data, error } = await supabase
-      .from('rooms')
+      .from('chairs')
       .select('id, name, branch_id, is_active, amenities, floor, capacity, created_at')
       .eq('branch_id', effectiveBranchId)
       .order('name');
@@ -5034,12 +5023,12 @@ export async function fetchRoomsForManagement(branchId) {
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('[API] fetchRoomsForManagement error:', error.message);
+    console.error('[API] fetchChairsForManagement error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function createRoom({ name, branchId, amenities = [], floor = null, capacity = 1 }) {
+export async function createChair({ name, branchId, amenities = [], floor = null, capacity = 1 }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
@@ -5055,18 +5044,18 @@ export async function createRoom({ name, branchId, amenities = [], floor = null,
 
     // Check for duplicate name within branch
     const { data: existing } = await supabase
-      .from('rooms')
+      .from('chairs')
       .select('id')
       .eq('branch_id', effectiveBranchId)
       .ilike('name', name.trim())
       .maybeSingle();
 
     if (existing) {
-      return { data: null, error: { code: 'DUPLICATE_NAME', message: 'A room with this name already exists in this branch.' } };
+      return { data: null, error: { code: 'DUPLICATE_NAME', message: 'A chair with this name already exists in this branch.' } };
     }
 
     const { data, error } = await supabase
-      .from('rooms')
+      .from('chairs')
       .insert({ name: name.trim(), branch_id: effectiveBranchId, is_active: true, amenities: amenities || [], floor: floor || null, capacity: capacity || 1 })
       .select('id, name, branch_id, is_active, amenities, floor, capacity, created_at')
       .single();
@@ -5074,12 +5063,12 @@ export async function createRoom({ name, branchId, amenities = [], floor = null,
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('[API] createRoom error:', error.message);
+    console.error('[API] createChair error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function updateRoom({ roomId, name, amenities, floor, capacity }) {
+export async function updateChair({ chairId, name, amenities, floor, capacity }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
@@ -5088,36 +5077,36 @@ export async function updateRoom({ roomId, name, amenities, floor, capacity }) {
       return { data: null, error: { code: 'UNAUTHORIZED', message: 'Insufficient permissions.' } };
     }
 
-    // Fetch room to get branch_id for duplicate check
-    const { data: room, error: fetchError } = await supabase
-      .from('rooms')
+    // Fetch chair to get branch_id for duplicate check
+    const { data: chair, error: fetchError } = await supabase
+      .from('chairs')
       .select('id, branch_id')
-      .eq('id', roomId)
+      .eq('id', chairId)
       .single();
 
     if (fetchError) {
       if (fetchError.code === 'PGRST116') {
-        return { data: null, error: { code: 'NOT_FOUND', message: 'Room not found.' } };
+        return { data: null, error: { code: 'NOT_FOUND', message: 'Chair not found.' } };
       }
       throw fetchError;
     }
 
     // Manager can only update own branch
-    if (profile.role === 'manager' && room.branch_id !== profile.branch_id) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot manage rooms outside your branch.' } };
+    if (profile.role === 'manager' && chair.branch_id !== profile.branch_id) {
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot manage chairs outside your branch.' } };
     }
 
-    // Check for duplicate name within branch (excluding this room)
+    // Check for duplicate name within branch (excluding this chair)
     const { data: existing } = await supabase
-      .from('rooms')
+      .from('chairs')
       .select('id')
-      .eq('branch_id', room.branch_id)
+      .eq('branch_id', chair.branch_id)
       .ilike('name', name.trim())
-      .neq('id', roomId)
+      .neq('id', chairId)
       .maybeSingle();
 
     if (existing) {
-      return { data: null, error: { code: 'DUPLICATE_NAME', message: 'A room with this name already exists in this branch.' } };
+      return { data: null, error: { code: 'DUPLICATE_NAME', message: 'A chair with this name already exists in this branch.' } };
     }
 
     const updatePayload = { name: name.trim() };
@@ -5126,21 +5115,21 @@ export async function updateRoom({ roomId, name, amenities, floor, capacity }) {
     if (capacity !== undefined) updatePayload.capacity = capacity;
 
     const { data, error } = await supabase
-      .from('rooms')
+      .from('chairs')
       .update(updatePayload)
-      .eq('id', roomId)
+      .eq('id', chairId)
       .select('id, name, branch_id, is_active, amenities, floor, capacity, created_at')
       .single();
 
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('[API] updateRoom error:', error.message);
+    console.error('[API] updateChair error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function toggleRoomActive({ roomId, isActive }) {
+export async function toggleChairActive({ chairId, isActive }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
@@ -5149,70 +5138,70 @@ export async function toggleRoomActive({ roomId, isActive }) {
       return { data: null, error: { code: 'UNAUTHORIZED', message: 'Insufficient permissions.' } };
     }
 
-    // Fetch room to verify branch ownership
-    const { data: room, error: fetchError } = await supabase
-      .from('rooms')
+    // Fetch chair to verify branch ownership
+    const { data: chair, error: fetchError } = await supabase
+      .from('chairs')
       .select('id, branch_id')
-      .eq('id', roomId)
+      .eq('id', chairId)
       .single();
 
     if (fetchError) {
       if (fetchError.code === 'PGRST116') {
-        return { data: null, error: { code: 'NOT_FOUND', message: 'Room not found.' } };
+        return { data: null, error: { code: 'NOT_FOUND', message: 'Chair not found.' } };
       }
       throw fetchError;
     }
 
-    if (profile.role === 'manager' && room.branch_id !== profile.branch_id) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot manage rooms outside your branch.' } };
+    if (profile.role === 'manager' && chair.branch_id !== profile.branch_id) {
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot manage chairs outside your branch.' } };
     }
 
     const { data, error } = await supabase
-      .from('rooms')
+      .from('chairs')
       .update({ is_active: isActive })
-      .eq('id', roomId)
+      .eq('id', chairId)
       .select('id, name, branch_id, is_active')
       .single();
 
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('[API] toggleRoomActive error:', error.message);
+    console.error('[API] toggleChairActive error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function deleteRoom({ roomId }) {
+export async function deleteChair({ chairId }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
 
-    // Only manager and admin can delete rooms
+    // Only manager and admin can delete chairs
     if (!['manager', 'admin'].includes(profile.role)) {
       return { data: null, error: { code: 'UNAUTHORIZED', message: 'Insufficient permissions.' } };
     }
 
-    // Fetch room to verify it exists and check branch ownership
-    const { data: room, error: fetchError } = await supabase
-      .from('rooms')
+    // Fetch chair to verify it exists and check branch ownership
+    const { data: chair, error: fetchError } = await supabase
+      .from('chairs')
       .select('id, branch_id, name')
-      .eq('id', roomId)
+      .eq('id', chairId)
       .single();
 
-    if (fetchError || !room) {
-      return { data: null, error: { code: 'NOT_FOUND', message: 'Room not found.' } };
+    if (fetchError || !chair) {
+      return { data: null, error: { code: 'NOT_FOUND', message: 'Chair not found.' } };
     }
 
-    // Manager can only delete rooms in their own branch
-    if (profile.role === 'manager' && room.branch_id !== profile.branch_id) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot delete rooms outside your branch.' } };
+    // Manager can only delete chairs in their own branch
+    if (profile.role === 'manager' && chair.branch_id !== profile.branch_id) {
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot delete chairs outside your branch.' } };
     }
 
-    // Check if room has any bookings (past or future)
+    // Check if chair has any bookings (past or future)
     const { data: bookings, error: bookingError } = await supabase
       .from('bookings')
       .select('id')
-      .eq('room_id', roomId)
+      .eq('chair_id', chairId)
       .limit(1);
 
     if (bookingError) throw bookingError;
@@ -5222,22 +5211,22 @@ export async function deleteRoom({ roomId }) {
         data: null,
         error: {
           code: 'HAS_BOOKINGS',
-          message: 'This room has booking history and cannot be deleted. Deactivate it instead to hide from new bookings.'
+          message: 'This chair has booking history and cannot be deleted. Deactivate it instead to hide from new bookings.'
         }
       };
     }
 
     // Safe to delete - no bookings exist
     const { error: deleteError } = await supabase
-      .from('rooms')
+      .from('chairs')
       .delete()
-      .eq('id', roomId);
+      .eq('id', chairId);
 
     if (deleteError) throw deleteError;
 
-    return { data: { deleted: true, roomId, roomName: room.name }, error: null };
+    return { data: { deleted: true, chairId, chairName: chair.name }, error: null };
   } catch (error) {
-    console.error('[API] deleteRoom error:', error.message);
+    console.error('[API] deleteChair error:', error.message);
     return { data: null, error };
   }
 }
@@ -5262,7 +5251,7 @@ export async function fetchDentistsForManagement(branchId) {
 
     let query = supabase
       .from('dentists')
-      .select('id, name, gender, specialties, position, is_service_staff, branch_id, is_active, created_at, display_order')
+      .select('id, name, gender, specialties, position, is_treatment_staff, branch_id, is_active, created_at, display_order')
       .order('display_order')
       .order('name');
     query = withBranch(query, effectiveBranchId);
@@ -5277,7 +5266,7 @@ export async function fetchDentistsForManagement(branchId) {
   }
 }
 
-export async function createDentist({ name, gender, specialties, position, isServiceStaff = true, branchId }) {
+export async function createDentist({ name, gender, specialties, position, isTreatmentStaff = true, branchId }) {
   try {
     name = toTitleCase(name);
     const { profile, error: authError } = await getAuthenticatedUser();
@@ -5322,13 +5311,13 @@ export async function createDentist({ name, gender, specialties, position, isSer
         gender: gender || 'Male',
         specialties: specialties || [],
         position: position || null,
-        is_service_staff: isServiceStaff,
+        is_treatment_staff: isTreatmentStaff,
         branch_id: effectiveBranchId,
         org_id: profile.org_id,
         is_active: true,
         display_order: nextOrder,
       })
-      .select('id, name, gender, specialties, position, is_service_staff, branch_id, is_active, created_at, display_order')
+      .select('id, name, gender, specialties, position, is_treatment_staff, branch_id, is_active, created_at, display_order')
       .single();
 
     if (error) throw error;
@@ -5339,7 +5328,7 @@ export async function createDentist({ name, gender, specialties, position, isSer
   }
 }
 
-export async function updateDentist({ dentistId, name, gender, specialties, position, isServiceStaff }) {
+export async function updateDentist({ dentistId, name, gender, specialties, position, isTreatmentStaff }) {
   try {
     name = toTitleCase(name);
     const { profile, error: authError } = await getAuthenticatedUser();
@@ -5387,13 +5376,13 @@ export async function updateDentist({ dentistId, name, gender, specialties, posi
     if (gender !== undefined) updatePayload.gender = gender;
     if (specialties !== undefined) updatePayload.specialties = specialties;
     if (position !== undefined) updatePayload.position = position;
-    if (isServiceStaff !== undefined) updatePayload.is_service_staff = isServiceStaff;
+    if (isTreatmentStaff !== undefined) updatePayload.is_treatment_staff = isTreatmentStaff;
 
     const { data, error } = await supabase
       .from('dentists')
       .update(updatePayload)
       .eq('id', dentistId)
-      .select('id, name, gender, specialties, position, is_service_staff, branch_id, is_active, created_at')
+      .select('id, name, gender, specialties, position, is_treatment_staff, branch_id, is_active, created_at')
       .single();
 
     if (error) throw error;
@@ -5873,7 +5862,7 @@ export async function updateDentistOrder({ branchId, orderedIds }) {
   }
 }
 
-export async function updateRoomOrder({ branchId, orderedIds }) {
+export async function updateChairOrder({ branchId, orderedIds }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
@@ -5890,7 +5879,7 @@ export async function updateRoomOrder({ branchId, orderedIds }) {
 
     const updates = orderedIds.map((id, index) =>
       supabase
-        .from('rooms')
+        .from('chairs')
         .update({ display_order: index + 1 })
         .eq('id', id)
         .eq('branch_id', effectiveBranchId)
@@ -5902,22 +5891,22 @@ export async function updateRoomOrder({ branchId, orderedIds }) {
 
     return { data: { success: true }, error: null };
   } catch (error) {
-    console.error('[API] updateRoomOrder error:', error.message);
+    console.error('[API] updateChairOrder error:', error.message);
     return { data: null, error };
   }
 }
 
 // ============================================================
-// Phase 9B: Master Data Management — Service CRUD (Admin Only)
+// Phase 9B: Master Data Management — Treatment CRUD (Admin Only)
 // ============================================================
 
-export async function fetchServicesForManagement() {
+export async function fetchTreatmentsForManagement() {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
 
     if (!['manager', 'admin'].includes(profile.role)) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Only managers and admins can manage services.' } };
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Only managers and admins can manage treatments.' } };
     }
 
     // Filter by user's organization for tenant isolation
@@ -5926,7 +5915,7 @@ export async function fetchServicesForManagement() {
     }
 
     const { data, error } = await supabase
-      .from('services')
+      .from('treatments')
       .select('id, name, duration_minutes, price_npr, description, image_url, category, is_active, created_at')
       .eq('org_id', profile.org_id)
       .order('name');
@@ -5934,22 +5923,22 @@ export async function fetchServicesForManagement() {
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('[API] fetchServicesForManagement error:', error.message);
+    console.error('[API] fetchTreatmentsForManagement error:', error.message);
     return { data: null, error };
   }
 }
 
 /**
- * Upload a service image to Supabase Storage.
+ * Upload a treatment image to Supabase Storage.
  * Returns the public URL of the uploaded image.
  */
-export async function uploadServiceImage(file) {
+export async function uploadTreatmentImage(file) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { url: null, error: authError };
 
     if (!['admin', 'manager'].includes(profile.role)) {
-      return { url: null, error: { code: 'UNAUTHORIZED', message: 'Only admins and managers can upload service images.' } };
+      return { url: null, error: { code: 'UNAUTHORIZED', message: 'Only admins and managers can upload treatment images.' } };
     }
 
     // Validate file type
@@ -5966,11 +5955,11 @@ export async function uploadServiceImage(file) {
     // Generate unique filename
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-    const filePath = `services/${fileName}`;
+    const filePath = `treatments/${fileName}`;
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage
-      .from('service-images')
+      .from('treatment-images')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false,
@@ -5980,43 +5969,43 @@ export async function uploadServiceImage(file) {
 
     // Get public URL
     const { data: { publicUrl } } = supabase.storage
-      .from('service-images')
+      .from('treatment-images')
       .getPublicUrl(filePath);
 
     return { url: publicUrl, error: null };
   } catch (error) {
-    console.error('[API] uploadServiceImage error:', error.message);
+    console.error('[API] uploadTreatmentImage error:', error.message);
     return { url: null, error };
   }
 }
 
-export async function createService({ name, priceNpr, durationMinutes, description, imageUrl, category }) {
+export async function createTreatment({ name, priceNpr, durationMinutes, description, imageUrl, category }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
 
     if (!['manager', 'admin'].includes(profile.role)) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Only managers and admins can create services.' } };
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Only managers and admins can create treatments.' } };
     }
 
     if (!name || !name.trim()) {
-      return { data: null, error: { code: 'VALIDATION', message: 'Service name is required.' } };
+      return { data: null, error: { code: 'VALIDATION', message: 'Treatment name is required.' } };
     }
 
     // Check for duplicate name within the same organization
     const { data: existing } = await supabase
-      .from('services')
+      .from('treatments')
       .select('id')
       .eq('org_id', profile.org_id)
       .ilike('name', name.trim())
       .maybeSingle();
 
     if (existing) {
-      return { data: null, error: { code: 'DUPLICATE_NAME', message: 'A service with this name already exists in your organization.' } };
+      return { data: null, error: { code: 'DUPLICATE_NAME', message: 'A treatment with this name already exists in your organization.' } };
     }
 
     const { data, error } = await supabase
-      .from('services')
+      .from('treatments')
       .insert({
         name: name.trim(),
         price_npr: priceNpr,
@@ -6033,21 +6022,21 @@ export async function createService({ name, priceNpr, durationMinutes, descripti
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('[API] createService error:', error.message);
+    console.error('[API] createTreatment error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function updateServicePricing({ serviceId, priceNpr, durationMinutes, description, imageUrl, category }) {
+export async function updateTreatmentPricing({ treatmentId, priceNpr, durationMinutes, description, imageUrl, category }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
 
     if (!['manager', 'admin'].includes(profile.role)) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Only managers and admins can update service pricing.' } };
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Only managers and admins can update treatment pricing.' } };
     }
 
-    // Tenant isolation: ensure service belongs to user's org
+    // Tenant isolation: ensure treatment belongs to user's org
     if (!profile.org_id) {
       return { data: null, error: { code: 'NO_ORG', message: 'User is not associated with an organization.' } };
     }
@@ -6064,33 +6053,33 @@ export async function updateServicePricing({ serviceId, priceNpr, durationMinute
     }
 
     const { data, error } = await supabase
-      .from('services')
+      .from('treatments')
       .update(updatePayload)
-      .eq('id', serviceId)
+      .eq('id', treatmentId)
       .eq('org_id', profile.org_id)  // Tenant isolation filter
       .select('id, name, duration_minutes, price_npr, description, image_url, category, is_active')
       .single();
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return { data: null, error: { code: 'NOT_FOUND', message: 'Service not found.' } };
+        return { data: null, error: { code: 'NOT_FOUND', message: 'Treatment not found.' } };
       }
       throw error;
     }
     return { data, error: null };
   } catch (error) {
-    console.error('[API] updateServicePricing error:', error.message);
+    console.error('[API] updateTreatmentPricing error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function toggleServiceActive({ serviceId, isActive }) {
+export async function toggleTreatmentActive({ treatmentId, isActive }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
 
     if (!['manager', 'admin'].includes(profile.role)) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Only managers and admins can manage service status.' } };
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Only managers and admins can manage treatment status.' } };
     }
 
     // Tenant isolation: ensure user has org
@@ -6098,16 +6087,16 @@ export async function toggleServiceActive({ serviceId, isActive }) {
       return { data: null, error: { code: 'NO_ORG', message: 'User is not associated with an organization.' } };
     }
 
-    // Verify service belongs to user's org before proceeding
-    const { data: service, error: serviceError } = await supabase
-      .from('services')
+    // Verify treatment belongs to user's org before proceeding
+    const { data: treatment, error: treatmentError } = await supabase
+      .from('treatments')
       .select('id')
-      .eq('id', serviceId)
+      .eq('id', treatmentId)
       .eq('org_id', profile.org_id)
       .single();
 
-    if (serviceError || !service) {
-      return { data: null, error: { code: 'NOT_FOUND', message: 'Service not found.' } };
+    if (treatmentError || !treatment) {
+      return { data: null, error: { code: 'NOT_FOUND', message: 'Treatment not found.' } };
     }
 
     // If deactivating, check for future bookings (within this org's branches)
@@ -6116,7 +6105,7 @@ export async function toggleServiceActive({ serviceId, isActive }) {
       const { data: futureBookings, error: bookingsError } = await supabase
         .from('bookings')
         .select('id, branches!inner(org_id)')
-        .eq('service_id', serviceId)
+        .eq('treatment_id', treatmentId)
         .eq('branches.org_id', profile.org_id)
         .gte('date', today)
         .in('status', ['Pending', 'Confirmed', 'In-Progress'])
@@ -6125,40 +6114,40 @@ export async function toggleServiceActive({ serviceId, isActive }) {
       if (bookingsError) throw bookingsError;
 
       if (futureBookings && futureBookings.length > 0) {
-        return { data: null, error: { code: 'ACTIVE_BOOKINGS_EXIST', message: 'Cannot deactivate service with active future bookings. Cancel or complete them first.' } };
+        return { data: null, error: { code: 'ACTIVE_BOOKINGS_EXIST', message: 'Cannot deactivate treatment with active future bookings. Cancel or complete them first.' } };
       }
     }
 
     const { data, error } = await supabase
-      .from('services')
+      .from('treatments')
       .update({ is_active: isActive })
-      .eq('id', serviceId)
+      .eq('id', treatmentId)
       .eq('org_id', profile.org_id)  // Tenant isolation filter
       .select('id, name, is_active')
       .single();
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return { data: null, error: { code: 'NOT_FOUND', message: 'Service not found.' } };
+        return { data: null, error: { code: 'NOT_FOUND', message: 'Treatment not found.' } };
       }
       throw error;
     }
     return { data, error: null };
   } catch (error) {
-    console.error('[API] toggleServiceActive error:', error.message);
+    console.error('[API] toggleTreatmentActive error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function deleteService({ serviceId }) {
+export async function deleteTreatment({ treatmentId }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
 
-    // Manager + admin can delete services. Services are org-global, not branch-scoped,
+    // Manager + admin can delete treatments. Treatments are org-global, not branch-scoped,
     // so any manager's delete affects every branch in the org. Bookings check below still applies.
     if (!['manager', 'admin'].includes(profile.role)) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Only managers and admins can delete services.' } };
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Only managers and admins can delete treatments.' } };
     }
 
     // Tenant isolation: ensure user has org
@@ -6166,23 +6155,23 @@ export async function deleteService({ serviceId }) {
       return { data: null, error: { code: 'NO_ORG', message: 'User is not associated with an organization.' } };
     }
 
-    // Fetch service to verify it exists AND belongs to user's org
-    const { data: service, error: fetchError } = await supabase
-      .from('services')
+    // Fetch treatment to verify it exists AND belongs to user's org
+    const { data: treatment, error: fetchError } = await supabase
+      .from('treatments')
       .select('id, name')
-      .eq('id', serviceId)
+      .eq('id', treatmentId)
       .eq('org_id', profile.org_id)  // Tenant isolation filter
       .single();
 
-    if (fetchError || !service) {
-      return { data: null, error: { code: 'NOT_FOUND', message: 'Service not found.' } };
+    if (fetchError || !treatment) {
+      return { data: null, error: { code: 'NOT_FOUND', message: 'Treatment not found.' } };
     }
 
-    // Check if service has any bookings within this org's branches
+    // Check if treatment has any bookings within this org's branches
     const { data: bookings, error: bookingError } = await supabase
       .from('bookings')
       .select('id, branches!inner(org_id)')
-      .eq('service_id', serviceId)
+      .eq('treatment_id', treatmentId)
       .eq('branches.org_id', profile.org_id)
       .limit(1);
 
@@ -6193,23 +6182,23 @@ export async function deleteService({ serviceId }) {
         data: null,
         error: {
           code: 'HAS_BOOKINGS',
-          message: 'This service has booking history and cannot be deleted. Deactivate instead to hide from new bookings.'
+          message: 'This treatment has booking history and cannot be deleted. Deactivate instead to hide from new bookings.'
         }
       };
     }
 
     // Safe to delete - no bookings exist in this org
     const { error: deleteError } = await supabase
-      .from('services')
+      .from('treatments')
       .delete()
-      .eq('id', serviceId)
+      .eq('id', treatmentId)
       .eq('org_id', profile.org_id);  // Tenant isolation filter
 
     if (deleteError) throw deleteError;
 
-    return { data: { deleted: true, serviceId, serviceName: service.name }, error: null };
+    return { data: { deleted: true, treatmentId, treatmentName: treatment.name }, error: null };
   } catch (error) {
-    console.error('[API] deleteService error:', error.message);
+    console.error('[API] deleteTreatment error:', error.message);
     return { data: null, error };
   }
 }
@@ -6218,7 +6207,7 @@ export async function deleteService({ serviceId }) {
 // Reward Catalog CRUD (migration-068) — gift card / voucher options
 // for customer referral rewards. Org-scoped; read by any staff role
 // (to populate the dropdown when logging a referral), write by
-// manager + admin only (same posture as services, migration-049).
+// manager + admin only (same posture as treatments, migration-049).
 // ============================================================
 
 // Active catalog items for a given reward type, for the booking-form dropdown.
@@ -6700,7 +6689,7 @@ export async function fetchCustomerProfile(customerId) {
       .select(`
         booking_number, date, status, payment_status,
         final_amount, discount_amount,
-        service_name_snapshot, dentist_name_snapshot,
+        treatment_name_snapshot, dentist_name_snapshot,
         is_locked
       `)
       .eq('customer_id', customerId)
@@ -6717,7 +6706,7 @@ export async function fetchCustomerProfile(customerId) {
     let totalDiscount = 0;
     let unpaidCount = 0;
     let lastVisitDate = null;
-    const serviceCount = {};
+    const treatmentCount = {};
 
     for (const b of all) {
       if (b.status === 'Completed') {
@@ -6738,9 +6727,9 @@ export async function fetchCustomerProfile(customerId) {
         lastVisitDate = b.date;
       }
 
-      // Most booked service
-      const svc = b.service_name_snapshot || 'Unknown';
-      serviceCount[svc] = (serviceCount[svc] || 0) + 1;
+      // Most booked treatment
+      const svc = b.treatment_name_snapshot || 'Unknown';
+      treatmentCount[svc] = (treatmentCount[svc] || 0) + 1;
     }
 
     // avgSpend: safe divide
@@ -6748,13 +6737,13 @@ export async function fetchCustomerProfile(customerId) {
       ? Math.round((totalRevenue / completedVisits) * 100) / 100
       : 0;
 
-    // Most booked service
-    let mostBookedService = null;
+    // Most booked treatment
+    let mostBookedTreatment = null;
     let maxSvcCount = 0;
-    for (const [svc, count] of Object.entries(serviceCount)) {
+    for (const [svc, count] of Object.entries(treatmentCount)) {
       if (count > maxSvcCount) {
         maxSvcCount = count;
-        mostBookedService = svc;
+        mostBookedTreatment = svc;
       }
     }
 
@@ -6785,7 +6774,7 @@ export async function fetchCustomerProfile(customerId) {
     const history = all.map(b => ({
       bookingNumber: b.booking_number,
       date: b.date,
-      serviceName: b.service_name_snapshot || '—',
+      treatmentName: b.treatment_name_snapshot || '—',
       dentistName: b.dentist_name_snapshot || 'Unassigned',
       finalAmount: Number(b.final_amount),
       discountAmount: Number(b.discount_amount),
@@ -6813,7 +6802,7 @@ export async function fetchCustomerProfile(customerId) {
           avgSpend,
           lastVisitDate,
           unpaidCount,
-          mostBookedService,
+          mostBookedTreatment,
           loyaltyTier,
         },
         history,
@@ -6840,7 +6829,7 @@ export async function getCustomerIntelligence({ branchId }) {
     custQuery = withBranch(custQuery, branchId);
     let bookQuery = supabase
       .from('bookings')
-      .select('customer_id, status, payment_status, final_amount, discount_amount, date, service_name_snapshot')
+      .select('customer_id, status, payment_status, final_amount, discount_amount, date, treatment_name_snapshot')
       .not('customer_id', 'is', null);
     bookQuery = withBranch(bookQuery, branchId);
     const [custResult, bookResult] = await Promise.all([
@@ -6875,7 +6864,7 @@ export async function getCustomerIntelligence({ branchId }) {
           totalDiscount: 0,
           unpaidCount: 0,
           lastVisitDate: null,
-          serviceCount: {},
+          treatmentCount: {},
         };
       }
       const s = statsMap[b.customer_id];
@@ -6897,8 +6886,8 @@ export async function getCustomerIntelligence({ branchId }) {
         s.lastVisitDate = b.date;
       }
 
-      const svc = b.service_name_snapshot || 'Unknown';
-      s.serviceCount[svc] = (s.serviceCount[svc] || 0) + 1;
+      const svc = b.treatment_name_snapshot || 'Unknown';
+      s.treatmentCount[svc] = (s.treatmentCount[svc] || 0) + 1;
     }
 
     // 3. Enrich each customer with stats + loyalty tier
@@ -6907,20 +6896,20 @@ export async function getCustomerIntelligence({ branchId }) {
     const enriched = customers.map(c => {
       const s = statsMap[c.id] || {
         totalVisits: 0, completedVisits: 0, totalRevenue: 0,
-        totalDiscount: 0, unpaidCount: 0, lastVisitDate: null, serviceCount: {},
+        totalDiscount: 0, unpaidCount: 0, lastVisitDate: null, treatmentCount: {},
       };
 
       const avgSpend = s.completedVisits > 0
         ? Math.round((s.totalRevenue / s.completedVisits) * 100) / 100
         : 0;
 
-      // Most booked service
-      let mostBookedService = null;
+      // Most booked treatment
+      let mostBookedTreatment = null;
       let maxSvcCount = 0;
-      for (const [svc, count] of Object.entries(s.serviceCount)) {
+      for (const [svc, count] of Object.entries(s.treatmentCount)) {
         if (count > maxSvcCount) {
           maxSvcCount = count;
-          mostBookedService = svc;
+          mostBookedTreatment = svc;
         }
       }
 
@@ -6957,7 +6946,7 @@ export async function getCustomerIntelligence({ branchId }) {
         avgSpend,
         unpaidCount: s.unpaidCount,
         lastVisitDate: s.lastVisitDate,
-        mostBookedService,
+        mostBookedTreatment,
         loyaltyTier,
       };
     });
@@ -7259,7 +7248,7 @@ export async function fetchAttendance({ branchId, date }) {
     // still shows up here) and joined in-memory against the branch-scoped dentist list below.
     let dentistsQuery = supabase
       .from('dentists')
-      .select('id, name, is_service_staff')
+      .select('id, name, is_treatment_staff')
       .eq('is_active', true)
       .order('name');
     dentistsQuery = withBranch(dentistsQuery, branchId);
@@ -7286,7 +7275,7 @@ export async function fetchAttendance({ branchId, date }) {
       return {
         dentistId: t.id,
         dentistName: t.name,
-        isServiceStaff: t.is_service_staff !== false,
+        isTreatmentStaff: t.is_treatment_staff !== false,
         status: att?.status || null,
         checkInTime: formatTimeKathmandu(att?.check_in_time),
         checkOutTime: formatTimeKathmandu(att?.check_out_time),
@@ -7522,7 +7511,7 @@ export async function fetchAttendanceReport({ branchId, startDate, endDate }) {
     // the resolved dentist_id set — a status marked pre-transfer still counts this way.
     let dentistsQuery = supabase
       .from('dentists')
-      .select('id, name, is_service_staff')
+      .select('id, name, is_treatment_staff')
       .eq('is_active', true)
       .order('name');
     dentistsQuery = withBranch(dentistsQuery, branchId);
@@ -7558,7 +7547,7 @@ export async function fetchAttendanceReport({ branchId, startDate, endDate }) {
       perStaffMap[t.id] = {
         dentistId: t.id,
         dentistName: t.name,
-        isServiceStaff: t.is_service_staff !== false,
+        isTreatmentStaff: t.is_treatment_staff !== false,
         ...emptyCounts(),
       };
     }
@@ -7642,13 +7631,13 @@ function daysInPeriodInclusive(startDate, endDate) {
 // real utilization and unfairly zeroes out 15% of performanceScore's weighting).
 export function computeDentistMetrics(bookings, attendanceRows, dayWindowMinutes, periodDays) {
   const completed = bookings.filter(b => b.status === 'Completed');
-  const servicesCompleted = completed.length;
+  const treatmentsCompleted = completed.length;
   const totalAssigned = bookings.length;
 
   const paidBookings = completed.filter(b => b.payment_status === 'paid');
   const paidRevenue = paidBookings.reduce((sum, b) => sum + (Number(b.final_amount) || 0), 0);
-  const completionRate = totalAssigned > 0 ? servicesCompleted / totalAssigned : 0;
-  const avgRevenuePerBooking = servicesCompleted > 0 ? Math.round(paidRevenue / servicesCompleted) : 0;
+  const completionRate = totalAssigned > 0 ? treatmentsCompleted / totalAssigned : 0;
+  const avgRevenuePerBooking = treatmentsCompleted > 0 ? Math.round(paidRevenue / treatmentsCompleted) : 0;
 
   const attendedCustomers = new Set(completed.map(bookingCustomerKey));
   const assignedCustomers = new Set(bookings.map(bookingCustomerKey));
@@ -7667,8 +7656,8 @@ export function computeDentistMetrics(bookings, attendanceRows, dayWindowMinutes
   for (const key of attendedCustomers) notAttendedCustomers.delete(key);
   const notAttended = notAttendedCustomers.size;
 
-  const occupiedMinutes = completed.reduce((sum, b) => sum + (b.service_duration_snapshot || 0), 0);
-  const avgServiceDurationMinutes = servicesCompleted > 0 ? Math.round(occupiedMinutes / servicesCompleted) : 0;
+  const occupiedMinutes = completed.reduce((sum, b) => sum + (b.treatment_duration_snapshot || 0), 0);
+  const avgTreatmentDurationMinutes = treatmentsCompleted > 0 ? Math.round(occupiedMinutes / treatmentsCompleted) : 0;
 
   // Actual worked minutes: real check-in→check-out span where recorded, else fall back to the
   // branch's scheduled window for that day (full for Present, half for Half-day) — same
@@ -7702,8 +7691,8 @@ export function computeDentistMetrics(bookings, attendanceRows, dayWindowMinutes
   const utilizationRate = workedMinutes > 0 ? Math.round(Math.min(occupiedMinutes / workedMinutes, 1) * 100) : 0;
 
   return {
-    servicesCompleted,
-    completedBookings: servicesCompleted,
+    treatmentsCompleted,
+    completedBookings: treatmentsCompleted,
     totalAssigned,
     paidRevenue,
     completionRate: Math.round(completionRate * 100),
@@ -7715,7 +7704,7 @@ export function computeDentistMetrics(bookings, attendanceRows, dayWindowMinutes
     workedHours,
     occupiedHours,
     utilizationRate,
-    avgServiceDurationMinutes,
+    avgTreatmentDurationMinutes,
   };
 }
 
@@ -7774,7 +7763,7 @@ export async function getDentistPerformance({ branchId, fromDate, toDate }) {
     // 2. Fetch bookings + attendance in parallel
     let bookingsQuery = supabase
       .from('bookings')
-      .select('dentist_id, status, payment_status, final_amount, service_duration_snapshot, customer_id, customer_name, customer_phone, start_datetime')
+      .select('dentist_id, status, payment_status, final_amount, treatment_duration_snapshot, customer_id, customer_name, customer_phone, start_datetime')
       .gte('date', startDate)
       .lte('date', endDate)
       .in('dentist_id', dentistIds)
@@ -7876,7 +7865,7 @@ export async function getDentistPerformance({ branchId, fromDate, toDate }) {
 }
 
 // ============================================================
-// Dentist Performance — single-dentist drill-down (Overview/Customers/Services/Attendance)
+// Dentist Performance — single-dentist drill-down (Overview/Customers/Treatments/Attendance)
 // ============================================================
 
 // One dentist's Overview-tab numbers for a period. Built on the same computeDentistMetrics
@@ -7910,7 +7899,7 @@ export async function getDentistOverview({ branchId, dentistId, fromDate, toDate
 
     let bookingsQuery = supabase
       .from('bookings')
-      .select('status, payment_status, final_amount, service_duration_snapshot, customer_id, customer_name, customer_phone, start_datetime')
+      .select('status, payment_status, final_amount, treatment_duration_snapshot, customer_id, customer_name, customer_phone, start_datetime')
       .eq('dentist_id', dentistId)
       .gte('date', startDate)
       .lte('date', endDate)
@@ -7958,7 +7947,7 @@ export async function getDentistCustomerHistory({ branchId, dentistId, fromDate,
 
     let query = supabase
       .from('bookings')
-      .select('id, customer_id, customer_name, customer_phone, service_name_snapshot, date, start_time, service_duration_snapshot, status')
+      .select('id, customer_id, customer_name, customer_phone, treatment_name_snapshot, date, start_time, treatment_duration_snapshot, status')
       .eq('dentist_id', dentistId)
       .gte('date', startDate)
       .lte('date', endDate)
@@ -7996,10 +7985,10 @@ export async function getDentistCustomerHistory({ branchId, dentistId, fromDate,
       customerId: r.customer_id,
       customerName: r.customer_name,
       customerPhone: r.customer_phone,
-      serviceName: r.service_name_snapshot,
+      treatmentName: r.treatment_name_snapshot,
       date: r.date,
       startTime: r.start_time,
-      durationMinutes: r.service_duration_snapshot,
+      durationMinutes: r.treatment_duration_snapshot,
       status: r.status,
       customerType: r.status !== 'Completed'
         ? null
@@ -8013,8 +8002,8 @@ export async function getDentistCustomerHistory({ branchId, dentistId, fromDate,
   }
 }
 
-// Services tab: per-service Completed/Cancelled/Missed(No Show) counts, avg duration, revenue.
-export async function getDentistServiceBreakdown({ branchId, dentistId, fromDate, toDate }) {
+// Treatments tab: per-treatment Completed/Cancelled/Missed(No Show) counts, avg duration, revenue.
+export async function getDentistTreatmentBreakdown({ branchId, dentistId, fromDate, toDate }) {
   try {
     if (!branchId) {
       return { data: null, error: { code: 'BRANCH_REQUIRED', message: 'Branch ID is required.' } };
@@ -8029,7 +8018,7 @@ export async function getDentistServiceBreakdown({ branchId, dentistId, fromDate
 
     let query = supabase
       .from('bookings')
-      .select('service_name_snapshot, status, payment_status, final_amount, service_duration_snapshot')
+      .select('treatment_name_snapshot, status, payment_status, final_amount, treatment_duration_snapshot')
       .eq('dentist_id', dentistId)
       .gte('date', startDate)
       .lte('date', endDate)
@@ -8039,17 +8028,17 @@ export async function getDentistServiceBreakdown({ branchId, dentistId, fromDate
     const { data: bookings, error } = await query;
     if (error) throw error;
 
-    const byService = {};
+    const byTreatment = {};
     for (const b of (bookings || [])) {
-      const name = b.service_name_snapshot || 'Unknown Service';
-      if (!byService[name]) {
-        byService[name] = { serviceName: name, completed: 0, cancelled: 0, missed: 0, revenue: 0, _durations: [] };
+      const name = b.treatment_name_snapshot || 'Unknown Treatment';
+      if (!byTreatment[name]) {
+        byTreatment[name] = { treatmentName: name, completed: 0, cancelled: 0, missed: 0, revenue: 0, _durations: [] };
       }
-      const s = byService[name];
+      const s = byTreatment[name];
       if (b.status === 'Completed') {
         s.completed += 1;
         if (b.payment_status === 'paid') s.revenue += Number(b.final_amount) || 0;
-        if (b.service_duration_snapshot) s._durations.push(b.service_duration_snapshot);
+        if (b.treatment_duration_snapshot) s._durations.push(b.treatment_duration_snapshot);
       } else if (b.status === 'Cancelled') {
         s.cancelled += 1;
       } else if (b.status === 'No Show') {
@@ -8057,8 +8046,8 @@ export async function getDentistServiceBreakdown({ branchId, dentistId, fromDate
       }
     }
 
-    const services = Object.values(byService).map(s => ({
-      serviceName: s.serviceName,
+    const treatments = Object.values(byTreatment).map(s => ({
+      treatmentName: s.treatmentName,
       completed: s.completed,
       cancelled: s.cancelled,
       missed: s.missed,
@@ -8068,9 +8057,9 @@ export async function getDentistServiceBreakdown({ branchId, dentistId, fromDate
       revenue: s.revenue,
     })).sort((a, b) => b.completed - a.completed);
 
-    return { data: { services, periodStart: startDate, periodEnd: endDate }, error: null };
+    return { data: { treatments, periodStart: startDate, periodEnd: endDate }, error: null };
   } catch (error) {
-    console.error('[API] getDentistServiceBreakdown error:', error.message);
+    console.error('[API] getDentistTreatmentBreakdown error:', error.message);
     return { data: null, error };
   }
 }
@@ -8284,19 +8273,7 @@ export async function fetchOrganizationBySlug(slug) {
         owner_email,
         timezone,
         currency,
-        industry_type,
-        is_active,
-        industries (
-          id,
-          name,
-          staff_label,
-          staff_label_plural,
-          location_label,
-          location_label_plural,
-          enable_rooms,
-          enable_staff_gender,
-          default_categories
-        )
+        is_active
       `)
       .eq('slug', slug)
       .eq('is_active', true)
@@ -8331,12 +8308,12 @@ export async function fetchBranchesByOrgId(orgId) {
 }
 
 /**
- * Fetch services for a specific organization (customer-facing)
+ * Fetch treatments for a specific organization (customer-facing)
  */
-export async function fetchServicesByOrgId(orgId, branchId) {
+export async function fetchTreatmentsByOrgId(orgId, branchId) {
   try {
     const { data, error } = await supabase
-      .from('services')
+      .from('treatments')
       .select('id, name, duration_minutes, price_npr, description, image_url, category')
       .eq('org_id', orgId)
       .eq('is_active', true)
@@ -8347,10 +8324,10 @@ export async function fetchServicesByOrgId(orgId, branchId) {
     if (branchId && data) {
       const { data: branch } = await supabase
         .from('branches')
-        .select('excluded_service_categories')
+        .select('excluded_treatment_categories')
         .eq('id', branchId)
         .single();
-      const excluded = branch?.excluded_service_categories;
+      const excluded = branch?.excluded_treatment_categories;
       if (excluded?.length > 0) {
         return { data: data.filter(s => !excluded.includes(s.category)), error: null };
       }
@@ -8358,13 +8335,13 @@ export async function fetchServicesByOrgId(orgId, branchId) {
 
     return { data, error: null };
   } catch (error) {
-    console.error('[API] fetchServicesByOrgId error:', error.message);
+    console.error('[API] fetchTreatmentsByOrgId error:', error.message);
     return { data: null, error };
   }
 }
 
 // ============================================================
-// Service Categories Management (Manager + Admin)
+// Treatment Categories Management (Manager + Admin)
 // ============================================================
 
 /**
@@ -8384,31 +8361,31 @@ export async function fetchCategoriesForManagement() {
       return { data: null, error: { code: 'NO_ORG', message: 'User is not associated with an organization.' } };
     }
 
-    // Get categories with service count - filtered by org
+    // Get categories with treatment count - filtered by org
     const { data: categories, error } = await supabase
-      .from('service_categories')
+      .from('treatment_categories')
       .select('id, name, description, is_active, display_order, created_at')
       .eq('org_id', profile.org_id)
       .order('display_order', { ascending: true });
 
     if (error) throw error;
 
-    // Get service counts per category - filtered by org
-    const { data: services } = await supabase
-      .from('services')
+    // Get treatment counts per category - filtered by org
+    const { data: treatments } = await supabase
+      .from('treatments')
       .select('category')
       .eq('org_id', profile.org_id);
 
-    const serviceCounts = {};
-    (services || []).forEach(s => {
+    const treatmentCounts = {};
+    (treatments || []).forEach(s => {
       const cat = s.category || 'Other';
-      serviceCounts[cat] = (serviceCounts[cat] || 0) + 1;
+      treatmentCounts[cat] = (treatmentCounts[cat] || 0) + 1;
     });
 
     // Merge counts into categories
     const categoriesWithCounts = (categories || []).map(cat => ({
       ...cat,
-      service_count: serviceCounts[cat.name] || 0
+      treatment_count: treatmentCounts[cat.name] || 0
     }));
 
     return { data: categoriesWithCounts, error: null };
@@ -8431,7 +8408,7 @@ export async function fetchActiveCategories() {
     }
 
     const { data, error } = await supabase
-      .from('service_categories')
+      .from('treatment_categories')
       .select('id, name')
       .eq('org_id', profile.org_id)
       .eq('is_active', true)
@@ -8463,7 +8440,7 @@ export async function createCategory({ name, description }) {
 
     // Get max display_order
     const { data: maxOrder } = await supabase
-      .from('service_categories')
+      .from('treatment_categories')
       .select('display_order')
       .order('display_order', { ascending: false })
       .limit(1)
@@ -8472,7 +8449,7 @@ export async function createCategory({ name, description }) {
     const nextOrder = (maxOrder?.display_order || 0) + 1;
 
     const { data, error } = await supabase
-      .from('service_categories')
+      .from('treatment_categories')
       .insert({
         name: name.trim(),
         description: description?.trim() || null,
@@ -8513,9 +8490,9 @@ export async function updateCategory({ categoryId, name, description }) {
       return { data: null, error: { code: 'NO_ORG', message: 'User is not associated with an organization.' } };
     }
 
-    // Get old name for service update - verify category belongs to user's org
+    // Get old name for treatment update - verify category belongs to user's org
     const { data: oldCategory, error: catError } = await supabase
-      .from('service_categories')
+      .from('treatment_categories')
       .select('name')
       .eq('id', categoryId)
       .eq('org_id', profile.org_id)  // Tenant isolation filter
@@ -8532,7 +8509,7 @@ export async function updateCategory({ categoryId, name, description }) {
     if (description !== undefined) updateData.description = description?.trim() || null;
 
     const { data, error } = await supabase
-      .from('service_categories')
+      .from('treatment_categories')
       .update(updateData)
       .eq('id', categoryId)
       .eq('org_id', profile.org_id)  // Tenant isolation filter
@@ -8546,10 +8523,10 @@ export async function updateCategory({ categoryId, name, description }) {
       throw error;
     }
 
-    // Update services with old category name to new name (within this org only)
+    // Update treatments with old category name to new name (within this org only)
     if (name && oldName && name.trim() !== oldName) {
       await supabase
-        .from('services')
+        .from('treatments')
         .update({ category: name.trim() })
         .eq('category', oldName)
         .eq('org_id', profile.org_id);  // Tenant isolation filter
@@ -8580,7 +8557,7 @@ export async function toggleCategoryActive({ categoryId, isActive }) {
     }
 
     const { data, error } = await supabase
-      .from('service_categories')
+      .from('treatment_categories')
       .update({ is_active: isActive })
       .eq('id', categoryId)
       .eq('org_id', profile.org_id)  // Tenant isolation filter
@@ -8601,7 +8578,7 @@ export async function toggleCategoryActive({ categoryId, isActive }) {
 }
 
 /**
- * Delete a category (only if no services use it)
+ * Delete a category (only if no treatments use it)
  */
 export async function deleteCategory({ categoryId }) {
   try {
@@ -8619,7 +8596,7 @@ export async function deleteCategory({ categoryId }) {
 
     // Check if category exists and belongs to user's org
     const { data: category } = await supabase
-      .from('service_categories')
+      .from('treatment_categories')
       .select('name')
       .eq('id', categoryId)
       .eq('org_id', profile.org_id)  // Tenant isolation filter
@@ -8629,19 +8606,19 @@ export async function deleteCategory({ categoryId }) {
       return { data: null, error: { code: 'NOT_FOUND', message: 'Category not found.' } };
     }
 
-    // Check if category has services (within this org only)
+    // Check if category has treatments (within this org only)
     const { count } = await supabase
-      .from('services')
+      .from('treatments')
       .select('id', { count: 'exact', head: true })
       .eq('category', category.name)
       .eq('org_id', profile.org_id);  // Tenant isolation filter
 
     if (count > 0) {
-      return { data: null, error: { code: 'HAS_SERVICES', message: `Cannot delete category with ${count} service(s). Reassign services first or deactivate the category.` } };
+      return { data: null, error: { code: 'HAS_TREATMENTS', message: `Cannot delete category with ${count} treatment(s). Reassign treatments first or deactivate the category.` } };
     }
 
     const { error } = await supabase
-      .from('service_categories')
+      .from('treatment_categories')
       .delete()
       .eq('id', categoryId)
       .eq('org_id', profile.org_id);  // Tenant isolation filter
@@ -8665,7 +8642,7 @@ export async function fetchStaffCompensation(branchId) {
   try {
     let query = supabase
       .from('dentists')
-      .select('id, name, position, is_service_staff, staff_compensation(monthly_salary, commission_rate)')
+      .select('id, name, position, is_treatment_staff, staff_compensation(monthly_salary, commission_rate)')
       .eq('is_active', true)
       .order('name');
     query = withBranch(query, branchId);
@@ -8676,7 +8653,7 @@ export async function fetchStaffCompensation(branchId) {
         dentistId: t.id,
         name: t.name,
         position: t.position,
-        isServiceStaff: t.is_service_staff,
+        isTreatmentStaff: t.is_treatment_staff,
         monthlySalary: t.staff_compensation?.monthly_salary != null
           ? Number(t.staff_compensation.monthly_salary)
           : 0,
@@ -8770,8 +8747,8 @@ export async function getPayrollRun({ branchId, periodMonth }) {
           leaveDays: i.leave_days,
           unpaidLeaveDays: Number(i.unpaid_leave_days),
           attendanceDeduction: Number(i.attendance_deduction),
-          serviceRevenue: Number(i.service_revenue),
-          serviceCommission: Number(i.service_commission),
+          treatmentRevenue: Number(i.treatment_revenue),
+          treatmentCommission: Number(i.treatment_commission),
           referralCommission: Number(i.referral_commission),
           netPay: Number(i.net_pay),
         })),
@@ -8901,7 +8878,7 @@ export async function generatePayroll({ branchId, periodMonth }) {
         + overCap(t.annualBefore, t.annualIn, ANNUAL_LEAVE_PAID_CAP_DAYS);
     };
 
-    // Fetch completed+paid bookings in the period to compute service revenue.
+    // Fetch completed+paid bookings in the period to compute treatment revenue.
     let bookingQuery = supabase
       .from('bookings')
       .select('dentist_id, final_amount, referred_by, referral_commission_type, referral_commission_value')
@@ -8913,17 +8890,17 @@ export async function generatePayroll({ branchId, periodMonth }) {
     const { data: bookings, error: bErr } = await bookingQuery;
     if (bErr) throw bErr;
 
-    // Sum service revenue per dentist, and referral commission per dentist name.
-    const serviceRevenueMap = {};
+    // Sum treatment revenue per dentist, and referral commission per dentist name.
+    const treatmentRevenueMap = {};
     const referralCommissionMap = {};
     for (const dentistId of dentistIds) {
-      serviceRevenueMap[dentistId] = 0;
+      treatmentRevenueMap[dentistId] = 0;
       referralCommissionMap[dentistId] = 0;
     }
     for (const b of (bookings || [])) {
-      if (b.dentist_id && serviceRevenueMap[b.dentist_id] !== undefined) {
-        serviceRevenueMap[b.dentist_id] = Math.round(
-          (serviceRevenueMap[b.dentist_id] + Number(b.final_amount)) * 100
+      if (b.dentist_id && treatmentRevenueMap[b.dentist_id] !== undefined) {
+        treatmentRevenueMap[b.dentist_id] = Math.round(
+          (treatmentRevenueMap[b.dentist_id] + Number(b.final_amount)) * 100
         ) / 100;
       }
       // Attribute referral commission by name match.
@@ -8956,8 +8933,8 @@ export async function generatePayroll({ branchId, periodMonth }) {
       const unpaidLeaveDays = unpaidLeaveDaysFor(t.id);
       const perDay = daysInMonth > 0 ? salary / daysInMonth : 0;
       const deduction = Math.round(perDay * (att.absent + 0.5 * att.halfDay + unpaidLeaveDays) * 100) / 100;
-      const serviceRev = serviceRevenueMap[t.id] || 0;
-      const svcCommission = Math.round(serviceRev * (rate / 100) * 100) / 100;
+      const treatmentRev = treatmentRevenueMap[t.id] || 0;
+      const svcCommission = Math.round(treatmentRev * (rate / 100) * 100) / 100;
       const refCommission = referralCommissionMap[t.id] || 0;
       const netPay = Math.round(
         (salary - deduction + svcCommission + refCommission) * 100
@@ -8976,8 +8953,8 @@ export async function generatePayroll({ branchId, periodMonth }) {
         leave_days: att.leave,
         unpaid_leave_days: unpaidLeaveDays,
         attendance_deduction: deduction,
-        service_revenue: serviceRev,
-        service_commission: svcCommission,
+        treatment_revenue: treatmentRev,
+        treatment_commission: svcCommission,
         referral_commission: refCommission,
         net_pay: netPay,
       });
@@ -9400,7 +9377,7 @@ export async function fetchMembershipLedgerReport() {
           customer:customers ( full_name ),
           tier:membership_tiers ( name )
         ),
-        booking:bookings ( service_name_snapshot )
+        booking:bookings ( treatment_name_snapshot )
       `)
       .order('membership_id', { ascending: true })
       .order('created_at', { ascending: true });
@@ -9428,11 +9405,11 @@ export async function fetchMembershipLedgerReport() {
           memberName: row.membership?.customer?.full_name || '—',
           cardNo: row.membership?.membership_number || '—',
           tierName: row.membership?.tier?.name || '—',
-          // Voucher-purchase deductions have no booking to name a service from —
+          // Voucher-purchase deductions have no booking to name a treatment from —
           // notes carries the per-voucher code (e.g. "Voucher purchase: NT 4326-0041"),
-          // which would fragment this report into one bogus "service" per voucher
+          // which would fragment this report into one bogus "treatment" per voucher
           // instead of grouping as a single recognizable category.
-          service: row.voucher_payment_id ? 'Voucher purchase' : (row.booking?.service_name_snapshot || row.notes || 'Other'),
+          treatment: row.voucher_payment_id ? 'Voucher purchase' : (row.booking?.treatment_name_snapshot || row.notes || 'Other'),
           amountUsed: Math.abs(Number(row.amount || 0)),
           remainingBalance: newBalance,
         });
@@ -9991,7 +9968,7 @@ export async function getCustomerReferralStats(customerId) {
 
 export async function claimVoucher({
   voucherId, amountClaimed, redeemedDate = null, guestNameUsedBy = null,
-  serviceClaimed = null, branchClaimedId, notes = null,
+  treatmentClaimed = null, branchClaimedId, notes = null,
 }) {
   try {
     guestNameUsedBy = toTitleCase(guestNameUsedBy);
@@ -10003,7 +9980,7 @@ export async function claimVoucher({
       p_amount_claimed: amountClaimed,
       p_redeemed_date: redeemedDate,
       p_guest_name_used_by: guestNameUsedBy,
-      p_service_claimed: serviceClaimed,
+      p_treatment_claimed: treatmentClaimed,
       p_branch_claimed_id: branchClaimedId,
       p_notes: notes,
     });
@@ -10127,7 +10104,7 @@ export async function fetchVoucherClaims(voucherId) {
     const { data, error } = await supabase
       .from('voucher_claims')
       .select(`
-        id, redeemed_date, guest_name_used_by, service_claimed, amount_claimed, notes, created_at,
+        id, redeemed_date, guest_name_used_by, treatment_claimed, amount_claimed, notes, created_at,
         branch:branches ( id, name ),
         performer:users!performed_by ( id, full_name )
       `)
@@ -10272,7 +10249,7 @@ export async function fetchVoucherWallets() {
       const { data: claimsData, error: claimsError } = await supabase
         .from('voucher_claims')
         .select(`
-          id, voucher_id, redeemed_date, guest_name_used_by, service_claimed, amount_claimed, notes,
+          id, voucher_id, redeemed_date, guest_name_used_by, treatment_claimed, amount_claimed, notes,
           branch:branches ( id, name )
         `)
         .in('voucher_id', walletIds)
@@ -10287,7 +10264,7 @@ export async function fetchVoucherWallets() {
         id: c.id,
         redeemedDate: c.redeemed_date,
         guestNameUsedBy: c.guest_name_used_by,
-        serviceClaimed: c.service_claimed,
+        treatmentClaimed: c.treatment_claimed,
         amountClaimed: Number(c.amount_claimed || 0),
         notes: c.notes,
         branchName: c.branch?.name || '—',
@@ -10326,17 +10303,17 @@ export async function fetchVoucherWallets() {
 }
 
 // ============================================================
-// SERVICE PACKAGES (migration-141) — manager/admin issue; staff/manager/
+// TREATMENT PACKAGES (migration-141) — manager/admin issue; staff/manager/
 // admin can read (redemption is a staff-facing action). Mirrors the
 // vouchers pattern above, structurally, but each package is bound to
-// exactly one service_id and tracks *sessions*, not a monetary balance.
+// exactly one treatment_id and tracks *sessions*, not a monetary balance.
 // ============================================================
 
 export async function fetchPackageTypes() {
   try {
     const { data, error } = await supabase
       .from('package_types')
-      .select('id, name, service_id, default_sessions, standard_price, validity_days, is_active, display_order, service:services ( id, name, duration_minutes )')
+      .select('id, name, treatment_id, default_sessions, standard_price, validity_days, is_active, display_order, treatment:treatments ( id, name, duration_minutes )')
       .eq('is_active', true)
       .order('display_order', { ascending: true });
     if (error) throw error;
@@ -10395,7 +10372,7 @@ export async function fetchPackages() {
           paid_amount, sessions_total, remarks, created_at,
           branch:branches ( id, name ),
           package_type:package_types ( id, name ),
-          service:services ( id, name, duration_minutes ),
+          treatment:treatments ( id, name, duration_minutes ),
           issuer:users!issued_by ( id, full_name ),
           customer:customers ( id, full_name, phone )
         `)
@@ -10422,8 +10399,8 @@ export async function fetchPackages() {
         branchName: p.branch?.name || '—',
         packageTypeId: p.package_type?.id || null,
         packageTypeName: p.package_type?.name || '—',
-        serviceName: p.service?.name || '—',
-        serviceDurationMinutes: p.service?.duration_minutes || null,
+        treatmentName: p.treatment?.name || '—',
+        treatmentDurationMinutes: p.treatment?.duration_minutes || null,
         paidAmount: Number(p.paid_amount || 0),
         sessionsTotal: p.sessions_total,
         remarks: p.remarks,
@@ -10456,7 +10433,7 @@ export async function fetchPackage(packageId) {
           paid_amount, sessions_total, remarks, created_at,
           branch:branches ( id, name ),
           package_type:package_types ( id, name ),
-          service:services ( id, name, duration_minutes ),
+          treatment:treatments ( id, name, duration_minutes ),
           issuer:users!issued_by ( id, full_name ),
           customer:customers ( id, full_name, phone )
         `)
@@ -10484,8 +10461,8 @@ export async function fetchPackage(packageId) {
         branchName: p.branch?.name || '—',
         packageTypeId: p.package_type?.id || null,
         packageTypeName: p.package_type?.name || '—',
-        serviceName: p.service?.name || '—',
-        serviceDurationMinutes: p.service?.duration_minutes || null,
+        treatmentName: p.treatment?.name || '—',
+        treatmentDurationMinutes: p.treatment?.duration_minutes || null,
         paidAmount: Number(p.paid_amount || 0),
         sessionsTotal: p.sessions_total,
         remarks: p.remarks,

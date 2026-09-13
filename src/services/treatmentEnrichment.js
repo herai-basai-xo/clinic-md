@@ -1,4 +1,4 @@
-const SERVICE_UI_DATA = {
+const TREATMENT_UI_DATA = {
   'Deep Tissue Massage': {
     image: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&h=300&fit=crop',
     benefits: ['Relieves muscle tension', 'Improves circulation', 'Reduces stress'],
@@ -37,7 +37,7 @@ const SERVICE_UI_DATA = {
     dentistPreference: ['male', 'female'],
     category: 'Traditional',
     popularity: null,
-    specialty: 'Signature Service',
+    specialty: 'Signature Treatment',
   },
   'Couples Massage': {
     image: 'https://images.pixabay.com/photo/2016/11/08/05/26/woman-1807533_1280.jpg?w=400&h=300&fit=crop',
@@ -74,27 +74,27 @@ const DEFAULT_UI_DATA = {
   specialty: null,
 };
 
-export function enrichService(dbService) {
-  const uiData = SERVICE_UI_DATA[dbService.name] || DEFAULT_UI_DATA;
+export function enrichTreatment(dbTreatment) {
+  const uiData = TREATMENT_UI_DATA[dbTreatment.name] || DEFAULT_UI_DATA;
 
   return {
-    id: dbService.id,
-    name: dbService.name,
-    description: dbService.description,
-    duration: `${dbService.duration_minutes} minutes`,
-    durationMinutes: dbService.duration_minutes,
-    price: Number(dbService.price_npr),
+    id: dbTreatment.id,
+    name: dbTreatment.name,
+    description: dbTreatment.description,
+    duration: `${dbTreatment.duration_minutes} minutes`,
+    durationMinutes: dbTreatment.duration_minutes,
+    price: Number(dbTreatment.price_npr),
     // Prefer database image_url over hardcoded fallback
-    image: dbService.image_url || uiData.image,
+    image: dbTreatment.image_url || uiData.image,
     benefits: uiData.benefits,
     dentistPreference: uiData.dentistPreference,
     // Prefer database category over hardcoded fallback
-    category: dbService.category || uiData.category,
+    category: dbTreatment.category || uiData.category,
     popularity: uiData.popularity,
     specialty: uiData.specialty,
   };
 }
 
-export function enrichServices(dbServices) {
-  return dbServices.map(enrichService);
+export function enrichTreatments(dbTreatments) {
+  return dbTreatments.map(enrichTreatment);
 }

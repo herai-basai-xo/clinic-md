@@ -15,7 +15,6 @@ export const useTenant = () => {
 export const TenantProvider = ({ children }) => {
   const { orgSlug } = useParams();
   const [org, setOrg] = useState(null);
-  const [industry, setIndustry] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -39,32 +38,13 @@ export const TenantProvider = ({ children }) => {
       }
 
       setOrg(data);
-      setIndustry(data.industries || null);
       setLoading(false);
     }
 
     loadTenant();
   }, [orgSlug]);
 
-  // Industry-based terminology
-  const staffLabel = industry?.staff_label || 'Dentist';
-  const staffLabelPlural = industry?.staff_label_plural || 'Dentists';
-  const locationLabel = industry?.location_label || 'Room';
-  const locationLabelPlural = industry?.location_label_plural || 'Rooms';
-  const enableRooms = industry?.enable_rooms !== false;
-  const enableStaffGender = industry?.enable_staff_gender !== false;
-
-  // Industry checks
-  const isSpa = org?.industry_type === 'spa';
-  const isCleaning = org?.industry_type === 'cleaning';
-  const isSalon = org?.industry_type === 'salon';
-
-  // Booking flow text based on industry
-  const getBookingJourneyText = () => {
-    if (isCleaning) return 'Complete your cleaning service booking';
-    if (isSalon) return 'Complete your salon booking';
-    return 'Complete your spa booking journey';
-  };
+  const getBookingJourneyText = () => 'Complete your dental booking journey';
 
   const value = {
     // Organization data
@@ -73,21 +53,14 @@ export const TenantProvider = ({ children }) => {
     orgName: org?.name,
     orgSlug: org?.slug,
     orgPhone: org?.owner_email, // Could add phone to org later
-    industryType: org?.industry_type || 'spa',
 
-    // Industry config
-    industry,
-    staffLabel,
-    staffLabelPlural,
-    locationLabel,
-    locationLabelPlural,
-    enableRooms,
-    enableStaffGender,
-
-    // Industry checks
-    isSpa,
-    isCleaning,
-    isSalon,
+    // Dental terminology (fixed — this app is dental-only)
+    staffLabel: 'Dentist',
+    staffLabelPlural: 'Dentists',
+    locationLabel: 'Chair',
+    locationLabelPlural: 'Chairs',
+    enableChairs: true,
+    enableStaffGender: true,
 
     // Helper text
     getBookingJourneyText,

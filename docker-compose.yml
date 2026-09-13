@@ -1,7 +1,7 @@
 services:
   app:
-    container_name: nuad-thai-prod
-    image: ghcr.io/zunkireelabs/book-spa:prod
+    container_name: book-dental-app-prod
+    image: ghcr.io/zunkireelabs/book-dental:prod
     networks:
       - hosting
     restart: unless-stopped
@@ -15,15 +15,15 @@ services:
       - "autoheal=true"
       - "traefik.enable=true"
       - "traefik.docker.network=hosting"
-      - "traefik.http.routers.nuad-thai-prod.rule=Host(`app.zennly.io`) || Host(`zenly.zunkireelabs.com`)"
-      - "traefik.http.routers.nuad-thai-prod.entrypoints=websecure"
-      - "traefik.http.routers.nuad-thai-prod.tls=true"
-      - "traefik.http.routers.nuad-thai-prod.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.nuad-thai-prod-http.rule=Host(`app.zennly.io`) || Host(`zenly.zunkireelabs.com`)"
-      - "traefik.http.routers.nuad-thai-prod-http.entrypoints=web"
-      - "traefik.http.routers.nuad-thai-prod-http.middlewares=nuad-thai-prod-redirect"
-      - "traefik.http.middlewares.nuad-thai-prod-redirect.redirectscheme.scheme=https"
-      - "traefik.http.services.nuad-thai-prod.loadbalancer.server.port=80"
+      - "traefik.http.routers.book-dental-app-prod.rule=Host(`book-dental.zunkireelabs.com`)"
+      - "traefik.http.routers.book-dental-app-prod.entrypoints=websecure"
+      - "traefik.http.routers.book-dental-app-prod.tls=true"
+      - "traefik.http.routers.book-dental-app-prod.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.book-dental-app-prod-http.rule=Host(`book-dental.zunkireelabs.com`)"
+      - "traefik.http.routers.book-dental-app-prod-http.entrypoints=web"
+      - "traefik.http.routers.book-dental-app-prod-http.middlewares=book-dental-app-prod-redirect"
+      - "traefik.http.middlewares.book-dental-app-prod-redirect.redirectscheme.scheme=https"
+      - "traefik.http.services.book-dental-app-prod.loadbalancer.server.port=80"
 
 networks:
   hosting:

@@ -98,7 +98,7 @@ const DentistPerformancePanel = ({ branchId }) => {
     const rows = visibleDentists;
     if (!rows.length) return;
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const header = ['Rank', 'Dentist', 'Score', 'Tier', 'Services', 'Customers', 'Worked (h)', 'Occupied (h)', 'Utilization %'];
+    const header = ['Rank', 'Dentist', 'Score', 'Tier', 'Treatments', 'Customers', 'Worked (h)', 'Occupied (h)', 'Utilization %'];
     let csv = header.join(',') + '\n';
     rows.forEach((t, idx) => {
       csv += [
@@ -106,7 +106,7 @@ const DentistPerformancePanel = ({ branchId }) => {
         esc(t.dentistName),
         t.performanceScore,
         esc(getTier(t.performanceScore).label),
-        t.servicesCompleted,
+        t.treatmentsCompleted,
         t.customersAttended,
         t.workedHours,
         t.occupiedHours,
@@ -240,7 +240,7 @@ const DentistPerformancePanel = ({ branchId }) => {
                   <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide w-12">#</th>
                   <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Dentist</th>
                   <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Score</th>
-                  <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Services</th>
+                  <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Treatments</th>
                   <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Customers</th>
                   <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Worked</th>
                   <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Occupied</th>
@@ -284,9 +284,9 @@ const DentistPerformancePanel = ({ branchId }) => {
                         <ScoreBadge score={t.performanceScore} />
                       </td>
 
-                      {/* Services */}
+                      {/* Treatments */}
                       <td className="px-4 py-3 text-center">
-                        <span className="font-data font-data-normal text-sm text-text-primary">{t.servicesCompleted}</span>
+                        <span className="font-data font-data-normal text-sm text-text-primary">{t.treatmentsCompleted}</span>
                       </td>
 
                       {/* Customers */}
@@ -349,8 +349,8 @@ const DentistPerformancePanel = ({ branchId }) => {
 
                   <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-text-tertiary text-xs">Services</span>
-                      <span className="font-data font-data-normal text-text-primary">{t.servicesCompleted}</span>
+                      <span className="text-text-tertiary text-xs">Treatments</span>
+                      <span className="font-data font-data-normal text-text-primary">{t.treatmentsCompleted}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-text-tertiary text-xs">Customers</span>

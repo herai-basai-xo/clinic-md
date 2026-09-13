@@ -278,15 +278,15 @@ const NewPackageModal = ({ onClose, onIssued }) => {
                   onChange={handleTypeChange}
                   options={types.map((t) => ({
                     value: t.id,
-                    label: `${t.name} — ${t.service?.name || 'service'}${t.default_sessions ? ` (${t.default_sessions} sessions)` : ''}${t.standard_price != null ? ` — ${formatNPR(t.standard_price)}` : ''}`,
+                    label: `${t.name} — ${t.treatment?.name || 'treatment'}${t.default_sessions ? ` (${t.default_sessions} sessions)` : ''}${t.standard_price != null ? ` — ${formatNPR(t.standard_price)}` : ''}`,
                   }))}
                   placeholder={loadingTypes ? 'Loading...' : 'Select package type'}
                   disabled={loadingTypes || types.length === 0}
                 />
-                {selectedType?.service && (
+                {selectedType?.treatment && (
                   <p className="mt-1.5 font-caption text-xs text-text-tertiary">
-                    Redeemable against {selectedType.service.name}
-                    {selectedType.service.duration_minutes ? ` (${selectedType.service.duration_minutes} min)` : ''} only.
+                    Redeemable against {selectedType.treatment.name}
+                    {selectedType.treatment.duration_minutes ? ` (${selectedType.treatment.duration_minutes} min)` : ''} only.
                   </p>
                 )}
               </div>

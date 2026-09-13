@@ -102,7 +102,7 @@ const CustomersTab = ({ dentistId, branchId, range }) => {
               <thead>
                 <tr className="bg-background/50 border-b border-border">
                   <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Customer</th>
-                  <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Service</th>
+                  <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Treatment</th>
                   <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Date / Time</th>
                   <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Duration</th>
                   <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Type</th>
@@ -117,7 +117,7 @@ const CustomersTab = ({ dentistId, branchId, range }) => {
                       {c.customerPhone && <span className="font-caption text-[11px] text-text-tertiary">{c.customerPhone}</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-body text-sm text-text-secondary truncate block max-w-[160px]">{c.serviceName || '—'}</span>
+                      <span className="font-body text-sm text-text-secondary truncate block max-w-[160px]">{c.treatmentName || '—'}</span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className="font-data font-data-normal text-sm text-text-secondary">{formatDateTime(c.date, c.startTime)}</span>
@@ -161,7 +161,7 @@ const CustomersTab = ({ dentistId, branchId, range }) => {
                     </span>
                   )}
                 </div>
-                <p className="font-body text-xs text-text-secondary truncate">{c.serviceName || '—'}</p>
+                <p className="font-body text-xs text-text-secondary truncate">{c.treatmentName || '—'}</p>
                 <div className="flex items-center gap-2 text-xs text-text-tertiary">
                   <span>{formatDateTime(c.date, c.startTime)}</span>
                   {c.durationMinutes && <><span>·</span><span>{c.durationMinutes} min</span></>}

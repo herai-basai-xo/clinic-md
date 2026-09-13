@@ -21,9 +21,9 @@ import RealtimeBookingFeed from './components/RealtimeBookingFeed';
 import RevenueAnalyticsChart from './components/RevenueAnalyticsChart';
 import DailyOperationalReportPanel from './components/DailyOperationalReportPanel';
 import OperationalCalendar from './components/calendar';
-import RoomManagementPanel from './components/MasterData/RoomManagementPanel';
+import ChairManagementPanel from './components/MasterData/ChairManagementPanel';
 import DentistManagementPanel from './components/MasterData/DentistManagementPanel';
-import ServiceManagementPanel from './components/MasterData/ServiceManagementPanel';
+import TreatmentManagementPanel from './components/MasterData/TreatmentManagementPanel';
 import CategoryManagementPanel from './components/MasterData/CategoryManagementPanel';
 import PaymentMethodsPanel from './components/MasterData/PaymentMethodsPanel';
 import AuditPanel from './components/Governance/AuditPanel';
@@ -48,7 +48,7 @@ import ReferralsReportPanel from './components/Referrals/ReferralsReportPanel';
 import CustomerReferralsReportPanel from './components/Referrals/CustomerReferralsReportPanel';
 import ReferralWalletPanel from './components/Referrals/ReferralWalletPanel';
 import RewardCatalogPanel from './components/Referrals/RewardCatalogPanel';
-import ServiceRevenueReportPanel from './components/ServiceRevenueReportPanel';
+import TreatmentRevenueReportPanel from './components/TreatmentRevenueReportPanel';
 import PayrollPanel from './components/Payroll/PayrollPanel';
 import MembershipsPanel from './components/Memberships/MembershipsPanel';
 import { MEMBERSHIP_ENABLED, CUSTOMER_REFERRALS_ENABLED, VOUCHER_ENABLED, OUTREACH_ENABLED } from '../../lib/featureFlags';
@@ -230,7 +230,7 @@ const BranchManagerDashboard = () => {
 
   // Overall is read-only: redirect away from booking-creation / per-branch write views.
   useEffect(() => {
-    const writeOnlyViews = ['new-booking', 'check-booking', 'attendance', 'rooms', 'services', 'categories'];
+    const writeOnlyViews = ['new-booking', 'check-booking', 'attendance', 'chairs', 'treatments', 'categories'];
     if (isOverall && writeOnlyViews.includes(viewMode)) {
       navigate('?view=dashboard', { replace: true });
     }
@@ -398,17 +398,17 @@ const BranchManagerDashboard = () => {
 
   const renderInfrastructureView = () => (
     <div className="space-y-8">
-      <RoomManagementPanel branchId={branchId} />
+      <ChairManagementPanel branchId={branchId} />
       <DentistManagementPanel branchId={branchId} />
-      {profile?.role === 'admin' && <ServiceManagementPanel />}
+      {profile?.role === 'admin' && <TreatmentManagementPanel />}
     </div>
   );
 
   return (
     <>
       <Helmet>
-        <title>Branch Manager Dashboard - Zennly</title>
-        <meta name="description" content="Comprehensive branch management dashboard for Zennly managers with analytics, staff oversight, and operational controls." />
+        <title>Branch Manager Dashboard - Superdental</title>
+        <meta name="description" content="Comprehensive branch management dashboard for Superdental managers with analytics, staff oversight, and operational controls." />
       </Helmet>
 
       <div className="min-h-screen bg-surface-sidebar">
@@ -639,7 +639,7 @@ const BranchManagerDashboard = () => {
               {viewMode === 'customer-referrals' && CUSTOMER_REFERRALS_ENABLED && <CustomerReferralsReportPanel branchId={branchId} />}
               {viewMode === 'referral-wallet' && CUSTOMER_REFERRALS_ENABLED && <ReferralWalletPanel branchId={branchId} />}
               {viewMode === 'reward-catalog' && CUSTOMER_REFERRALS_ENABLED && ['manager', 'admin'].includes(profile?.role) && <RewardCatalogPanel />}
-              {viewMode === 'service-revenue' && <ServiceRevenueReportPanel branchId={branchId} />}
+              {viewMode === 'treatment-revenue' && <TreatmentRevenueReportPanel branchId={branchId} />}
               {viewMode === 'payroll' && profile?.role === 'admin' && <PayrollPanel branchId={branchId} isOverall={isOverall} />}
               {MEMBERSHIP_ENABLED && viewMode === 'memberships' && ['manager','admin'].includes(profile?.role) && <MembershipsPanel branchId={branchId} />}
               {MEMBERSHIP_ENABLED && viewMode === 'membership-collection' && ['manager','admin'].includes(profile?.role) && <MembershipCollectionPanel />}
@@ -650,8 +650,8 @@ const BranchManagerDashboard = () => {
               {viewMode === 'packages' && ['manager','admin'].includes(profile?.role) && <PackageListPanel />}
               {OUTREACH_ENABLED && viewMode === 'outreach' && profile?.role === 'admin' && <OutreachPanel />}
               {viewMode === 'infrastructure' && renderInfrastructureView()}
-              {viewMode === 'rooms' && !isOverall && <RoomManagementPanel branchId={branchId} />}
-              {viewMode === 'services' && !isOverall && <ServiceManagementPanel />}
+              {viewMode === 'chairs' && !isOverall && <ChairManagementPanel branchId={branchId} />}
+              {viewMode === 'treatments' && !isOverall && <TreatmentManagementPanel />}
               {viewMode === 'categories' && !isOverall && <CategoryManagementPanel />}
               {viewMode === 'payment-methods' && profile?.role === 'admin' && <PaymentMethodsPanel />}
               {viewMode === 'dentists' && <DentistManagementPanel branchId={branchId} readOnly={isOverall} />}

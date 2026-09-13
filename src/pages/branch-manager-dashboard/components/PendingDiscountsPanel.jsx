@@ -124,7 +124,7 @@ const PendingDiscountsPanel = ({ branchId, highlightBookingId }) => {
                 </span>
               </div>
               <div className="flex items-center space-x-2 text-xs text-gray-500 mb-2">
-                <span>{d.serviceName}</span>
+                <span>{d.treatmentName}</span>
                 <span className="text-gray-400">·</span>
                 <span>{new Date(d.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
               </div>

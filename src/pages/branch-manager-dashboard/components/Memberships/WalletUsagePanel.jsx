@@ -13,7 +13,7 @@ function formatDate(d) {
 
 // Wallet Usage: per-member view of "how much wallet value they had, how much
 // they've used, and how much is left" — plus, per member, the individual
-// service-usage transactions behind that number. "Wallet Amount" is the
+// treatment-usage transactions behind that number. "Wallet Amount" is the
 // CURRENT CYCLE deposit only (e.g. 100,000 for a Premium Club member, not
 // 200,000 after a renewal) — see fetchMembershipLedgerReport's cycleDeposited
 // in services/api.js for why total_deposited can't be used as-is here. Balance
@@ -92,14 +92,14 @@ const WalletUsagePanel = () => {
     );
   }, [memberRows, search]);
 
-  const serviceBreakdown = useMemo(() => {
+  const treatmentBreakdown = useMemo(() => {
     const map = new Map();
     transactions.forEach((t) => {
-      const key = t.service || 'Other';
+      const key = t.treatment || 'Other';
       map.set(key, (map.get(key) || 0) + Number(t.amountUsed || 0));
     });
     const list = Array.from(map.entries())
-      .map(([service, amount]) => ({ service, amount }))
+      .map(([treatment, amount]) => ({ treatment, amount }))
       .sort((a, b) => b.amount - a.amount);
     const total = list.reduce((sum, s) => sum + s.amount, 0);
     return { list, total };
@@ -152,7 +152,7 @@ const WalletUsagePanel = () => {
       <div>
         <h3 className="font-heading font-heading-semibold text-lg text-text-primary">Wallet Usage</h3>
         <p className="font-body text-sm text-text-secondary">
-          {memberRows.length} member{memberRows.length !== 1 ? 's' : ''} · {transactions.length} service-usage transaction{transactions.length !== 1 ? 's' : ''}
+          {memberRows.length} member{memberRows.length !== 1 ? 's' : ''} · {transactions.length} treatment-usage transaction{transactions.length !== 1 ? 's' : ''}
         </p>
       </div>
 
@@ -204,7 +204,7 @@ const WalletUsagePanel = () => {
         </span>
       </div>
 
-      {/* Per-member table — click a row to see the services behind the numbers */}
+      {/* Per-member table — click a row to see the treatments behind the numbers */}
       <div className="bg-surface rounded-spa-lg border border-border overflow-hidden">
         {filtered.length === 0 ? (
           <div className="text-center py-12">
@@ -273,7 +273,7 @@ const WalletUsagePanel = () => {
                             <div className="flex items-center justify-between gap-3 flex-wrap pl-4">
                               <div className="flex items-center gap-2 min-w-0">
                                 <Icon name="Sparkles" size={13} className="text-text-tertiary flex-shrink-0" />
-                                <span className="font-body font-body-medium text-sm text-text-primary">{t.service}</span>
+                                <span className="font-body font-body-medium text-sm text-text-primary">{t.treatment}</span>
                                 <span className="font-caption text-xs text-text-tertiary">{formatDate(t.date)}</span>
                               </div>
                               <div className="flex items-center gap-4 flex-shrink-0">
@@ -304,18 +304,18 @@ const WalletUsagePanel = () => {
         )}
       </div>
 
-      {/* Service-wise breakdown */}
-      {serviceBreakdown.list.length > 0 && (
+      {/* Treatment-wise breakdown */}
+      {treatmentBreakdown.list.length > 0 && (
         <div className="bg-surface rounded-spa-lg border border-border overflow-hidden">
           <div className="px-4 py-2.5 bg-background border-b border-border">
-            <span className="font-body font-body-medium text-xs text-text-secondary">Service-wise Usage Breakdown</span>
+            <span className="font-body font-body-medium text-xs text-text-secondary">Treatment-wise Usage Breakdown</span>
           </div>
           <table className="w-full">
             <tbody>
-              {serviceBreakdown.list.map((s) => (
-                <tr key={s.service} className="border-b border-border last:border-0">
+              {treatmentBreakdown.list.map((s) => (
+                <tr key={s.treatment} className="border-b border-border last:border-0">
                   <td className="px-4 py-2.5">
-                    <span className="font-body font-body-normal text-sm text-text-primary">{s.service}</span>
+                    <span className="font-body font-body-normal text-sm text-text-primary">{s.treatment}</span>
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     <span className="font-data font-data-medium text-sm text-text-secondary">{formatNPR(s.amount)}</span>
@@ -326,7 +326,7 @@ const WalletUsagePanel = () => {
             <tfoot>
               <tr className="bg-background border-t-2 border-border">
                 <td className="px-4 py-3 font-body font-body-semibold text-sm text-text-primary">Total</td>
-                <td className="px-4 py-3 text-right font-data font-data-semibold text-sm text-text-primary">{formatNPR(serviceBreakdown.total)}</td>
+                <td className="px-4 py-3 text-right font-data font-data-semibold text-sm text-text-primary">{formatNPR(treatmentBreakdown.total)}</td>
               </tr>
             </tfoot>
           </table>

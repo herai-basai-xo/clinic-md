@@ -108,7 +108,7 @@ const BookingDetailsPanel = ({ booking, onStatusUpdate, onRecordPayment, isLoadi
         const banner = booking.status === 'completed'
           ? booking.paymentStatus === 'paid'
             ? { bg: 'bg-success/5', border: 'border-success/20', color: 'text-success', icon: 'ShieldCheck', label: 'Completed — Settled' }
-            : { bg: 'bg-warning/5', border: 'border-warning/20', color: 'text-warning', icon: 'Clock', label: 'Service Completed — Payment Pending' }
+            : { bg: 'bg-warning/5', border: 'border-warning/20', color: 'text-warning', icon: 'Clock', label: 'Treatment Completed — Payment Pending' }
           : { bg: 'bg-gray-50', border: 'border-gray-200', color: 'text-gray-600', iconColor: 'text-gray-500', icon: 'ShieldCheck', label: booking.status === 'cancelled' ? 'Cancelled — Immutable' : 'No Show — Immutable' };
         const iconColor = banner.iconColor || banner.color;
         return (
@@ -258,27 +258,27 @@ const BookingDetailsPanel = ({ booking, onStatusUpdate, onRecordPayment, isLoadi
         </div>
       </div>
 
-      {/* Service Details */}
+      {/* Treatment Details */}
       <div className="space-y-4">
         <h4 className="font-heading font-heading-medium text-base text-text-primary flex items-center space-x-2">
           <Icon name="Sparkles" size={18} className="text-primary" />
-          <span>Service Details</span>
+          <span>Treatment Details</span>
         </h4>
 
         <div className="bg-background rounded-spa p-4 space-y-4">
           <div className="flex items-start space-x-3">
             <Image
               src="https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=80&h=80&fit=crop&crop=center"
-              alt={booking.service}
+              alt={booking.treatment}
               className="w-16 h-16 rounded-spa object-cover"
             />
             <div className="flex-1">
               <h5 className="font-body font-body-semibold text-base text-text-primary">
-                {booking.service}
+                {booking.treatment}
               </h5>
-              {booking.serviceDescription && (
+              {booking.treatmentDescription && (
                 <p className="font-caption font-caption-normal text-sm text-text-secondary mt-1">
-                  {booking.serviceDescription}
+                  {booking.treatmentDescription}
                 </p>
               )}
               <div className="flex items-center space-x-4 mt-2">
@@ -368,7 +368,7 @@ const BookingDetailsPanel = ({ booking, onStatusUpdate, onRecordPayment, isLoadi
             )}
           </div>
 
-          {/* Record Payment button — allowed on Confirmed, In-Progress, and Completed (pay-after-service is standard). */}
+          {/* Record Payment button — allowed on Confirmed, In-Progress, and Completed (pay-after-treatment is standard). */}
           {booking.paymentStatus !== 'paid'
             && ['confirmed', 'in-progress', 'completed'].includes(booking.status)
             && !isLocked
@@ -482,7 +482,7 @@ const BookingDetailsPanel = ({ booking, onStatusUpdate, onRecordPayment, isLoadi
                 <div className="w-2 h-2 bg-success rounded-full"></div>
                 <div className="flex-1">
                   <p className="font-body font-body-medium text-sm text-text-primary">
-                    {visit.service}
+                    {visit.treatment}
                   </p>
                   <p className="font-caption font-caption-normal text-xs text-text-secondary">
                     {visit.date} {visit.dentist ? `\u00B7 ${visit.dentist}` : ''}

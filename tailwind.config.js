@@ -8,15 +8,15 @@ module.exports = {
       extend: {
         colors: {
           // Primary Colors
-          'primary': '#2D5A27', // deep forest green
+          'primary': '#0F6E8C', // clinical teal-blue
           'primary-foreground': '#FFFFFF', // white
-          
+
           // Secondary Colors
-          'secondary': '#8B4513', // warm earth brown
+          'secondary': '#2B4C6F', // deep clinical navy
           'secondary-foreground': '#FFFFFF', // white
-          
+
           // Accent Colors
-          'accent': '#DAA520', // refined gold
+          'accent': '#3FB8AF', // fresh mint teal
           'accent-foreground': '#1A1A1A', // near-black
           
           // Background Colors
@@ -47,7 +47,7 @@ module.exports = {
           'heading': ['Inter', 'sans-serif'],
           'body': ['Inter', 'sans-serif'],
           'caption': ['Inter', 'sans-serif'],
-          'accent': ['Playfair Display', 'serif'],
+          'accent': ['Inter', 'sans-serif'],
           'data': ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
         },
         fontWeight: {

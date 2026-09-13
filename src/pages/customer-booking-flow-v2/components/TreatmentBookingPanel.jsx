@@ -1,7 +1,7 @@
 import React from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
-import ServiceSelection from '../../customer-booking-flow/components/ServiceSelection';
+import TreatmentSelection from '../../customer-booking-flow/components/TreatmentSelection';
 import DateTimeSelection from '../../customer-booking-flow/components/DateTimeSelection';
 
 const formatPrice = (price) => new Intl.NumberFormat('en-IN', {
@@ -10,16 +10,16 @@ const formatPrice = (price) => new Intl.NumberFormat('en-IN', {
   minimumFractionDigits: 0
 }).format(price);
 
-// ServiceSelection is rendered completely untouched. The only thing that changes when a
-// service is picked is that its wrapper becomes a flex-1 child sharing a row with a
+// TreatmentSelection is rendered completely untouched. The only thing that changes when a
+// treatment is picked is that its wrapper becomes a flex-1 child sharing a row with a
 // fixed-width drawer sibling — the grid's own internal `grid-cols-3` naturally reflows
 // narrower to fit, the same way it would in any responsive container. Nothing here ever
 // repositions the grid or overlays on top of it; the drawer only ever occupies the space
 // freed up by that reflow (see index.jsx for how the row's left edge stays pinned).
-const ServiceBookingPanel = ({
+const TreatmentBookingPanel = ({
   selectedBranch,
-  selectedService,
-  onServiceSelect,
+  selectedTreatment,
+  onTreatmentSelect,
   selectedDateTime,
   onDateTimeSelect,
   genderPreference,
@@ -30,22 +30,22 @@ const ServiceBookingPanel = ({
   return (
     <div className="lg:flex lg:items-start lg:gap-6">
       <div className="lg:flex-1 lg:min-w-0">
-        <ServiceSelection
-          selectedService={selectedService}
-          onServiceSelect={onServiceSelect}
+        <TreatmentSelection
+          selectedTreatment={selectedTreatment}
+          onTreatmentSelect={onTreatmentSelect}
           selectedBranch={selectedBranch}
         />
       </div>
 
-      {selectedService && (
+      {selectedTreatment && (
         <div className="fixed inset-0 z-modal bg-background flex flex-col overflow-hidden lg:static lg:z-auto lg:flex-none lg:w-[520px] lg:shrink-0 lg:bg-surface lg:rounded-spa-lg lg:border lg:border-border lg:shadow-spa-elevated lg:sticky lg:top-[136px] lg:max-h-[calc(100dvh-152px)]">
           <button
             type="button"
-            onClick={() => onServiceSelect(null)}
+            onClick={() => onTreatmentSelect(null)}
             className="lg:hidden shrink-0 flex items-center gap-1 text-text-secondary hover:text-text-primary spa-transition-fast p-4 pb-0"
           >
             <Icon name="ChevronLeft" size={18} />
-            <span className="font-body font-body-medium text-sm">Back to services</span>
+            <span className="font-body font-body-medium text-sm">Back to treatments</span>
           </button>
 
           {/* Scrollable content — the footer below is a separate flex sibling, never a
@@ -59,21 +59,21 @@ const ServiceBookingPanel = ({
             </h2>
             <div className="flex items-center justify-between gap-3 p-3 mb-4 bg-primary/5 border border-primary/10 rounded-spa">
               <div>
-                <p className="font-heading font-heading-medium text-text-primary">{selectedService.name}</p>
+                <p className="font-heading font-heading-medium text-text-primary">{selectedTreatment.name}</p>
                 <p className="font-body font-body-normal text-sm text-text-secondary flex items-center gap-1 mt-0.5">
                   <Icon name="Clock" size={12} />
-                  {selectedService.duration}
+                  {selectedTreatment.duration}
                 </p>
               </div>
               <span className="font-heading font-heading-semibold text-primary whitespace-nowrap">
-                {formatPrice(selectedService.price)}
+                {formatPrice(selectedTreatment.price)}
               </span>
             </div>
 
             <DateTimeSelection
               selectedDateTime={selectedDateTime}
               onDateTimeSelect={onDateTimeSelect}
-              selectedService={selectedService}
+              selectedTreatment={selectedTreatment}
               selectedBranch={selectedBranch}
               genderPreference={genderPreference}
               onGenderPreferenceChange={onGenderPreferenceChange}
@@ -100,4 +100,4 @@ const ServiceBookingPanel = ({
   );
 };
 
-export default ServiceBookingPanel;
+export default TreatmentBookingPanel;

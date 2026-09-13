@@ -15,11 +15,11 @@ import {
   fetchAttendance,
   LEAVE_LIKE_ATTENDANCE_STATUSES,
   rescheduleBooking,
-  fetchServices,
+  fetchTreatments,
   createBooking,
   updateBookingDetails,
   updateDentistOrder,
-  updateRoomOrder,
+  updateChairOrder,
   updateDentistTime,
   resizeSharedBookingTime,
   applyDiscount,
@@ -31,7 +31,6 @@ import { getTransferWindowPhase, isWithinTransferDaySlice } from '../../../../se
 import CustomSelect from '../../../../components/ui/CustomSelect';
 import CountryCodeSelect, { parsePhone } from '../../../../components/ui/CountryCodeSelect';
 import CustomerAutocomplete from '../../../../components/ui/CustomerAutocomplete';
-import { useAuth } from '../../../../contexts/AuthContext';
 import { CUSTOMER_REFERRALS_ENABLED } from '../../../../lib/featureFlags';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -103,8 +102,8 @@ function formatTimeDisplay(time) {
 
 // ── Quick Create Panel ────────────────────────────────────────
 
-const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms, bookings = [], onClose, onSubmit, branchId, branchHours }) => {
-  const [serviceId, setServiceId] = useState('');
+const QuickCreatePanel = ({ slotInfo, treatments, treatmentsLoading, dentists, chairs, bookings = [], onClose, onSubmit, branchId, branchHours }) => {
+  const [treatmentId, setTreatmentId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerCountryCode, setCustomerCountryCode] = useState('+977');
@@ -112,7 +111,7 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
   const [customerGender, setCustomerGender] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
   const [selectedDentistIds, setSelectedDentistIds] = useState([]);
-  const [roomId, setRoomId] = useState('');
+  const [chairId, setChairId] = useState('');
   const [bookingDate, setBookingDate] = useState('');
   const [bookingTime, setBookingTime] = useState('');
   // Group booking state (Individual = default, behaves exactly as before)
@@ -122,9 +121,9 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
   const [countText, setCountText] = useState('3');              // editable text for the count combo
   const [countDropdownOpen, setCountDropdownOpen] = useState(false);
   const countDropdownRef = useRef(null);
-  const [serviceMode, setServiceMode] = useState('same');       // 'same' | 'different'
-  const [groupServiceId, setGroupServiceId] = useState('');     // shared service when 'same'
-  const [groupRoomId, setGroupRoomId] = useState('');           // shared room (couple)
+  const [treatmentMode, setTreatmentMode] = useState('same');       // 'same' | 'different'
+  const [groupTreatmentId, setGroupTreatmentId] = useState('');     // shared treatment when 'same'
+  const [groupChairId, setGroupChairId] = useState('');           // shared chair (couple)
   const [people, setPeople] = useState([]);                     // per-person rows
   const [timeText, setTimeText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -208,9 +207,9 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
     setReferringCustomerId(customer.id);
   }, []);
 
-  // Reset form when slot changes + pre-select dentist/room from column
+  // Reset form when slot changes + pre-select dentist/chair from column
   useEffect(() => {
-    setServiceId('');
+    setTreatmentId('');
     setCustomerName('');
     setCustomerPhone('');
     setCustomerCountryCode('+977');
@@ -225,7 +224,7 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
     setReferringRewardAmount('');
     setSelectedDentistIds(slotInfo?.colType === 'dentist' && slotInfo.colId ? [slotInfo.colId] : []);
     setDentistSearch('');
-    setRoomId(slotInfo?.colType === 'room' ? slotInfo.colId : '');
+    setChairId(slotInfo?.colType === 'chair' ? slotInfo.colId : '');
     setBookingDate(slotInfo?.day || '');
     const slotTime = slotInfo && Number.isFinite(slotInfo.hour) && Number.isFinite(slotInfo.minute)
       ? `${String(slotInfo.hour).padStart(2, '0')}:${String(slotInfo.minute).padStart(2, '0')}`
@@ -236,9 +235,9 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
     setGroupType('couple');
     setSeparateCount(3);
     setCountText('3');
-    setServiceMode('same');
-    setGroupServiceId('');
-    setGroupRoomId(slotInfo?.colType === 'room' ? slotInfo.colId : '');
+    setTreatmentMode('same');
+    setGroupTreatmentId('');
+    setGroupChairId(slotInfo?.colType === 'chair' ? slotInfo.colId : '');
     setPeople([]);
     setError(null);
     setSubmitting(false);
@@ -246,24 +245,24 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
     setPreviousDue(null);
   }, [slotInfo]);
 
-  // Compute which dentists & rooms are busy during the selected time slot
-  const selectedService = (services || []).find((s) => s.id === serviceId);
-  // Parse room capacity from amenities (e.g., "3 Chair" → 3, "1 Bed" → 1)
-  const getRoomCapacity = (room) => {
-    if (!room.amenities || room.amenities.length === 0) return 1;
-    const match = room.amenities[0].match(/^(\d+)/);
+  // Compute which dentists & chairs are busy during the selected time slot
+  const selectedTreatment = (treatments || []).find((s) => s.id === treatmentId);
+  // Parse chair capacity from amenities (e.g., "3 Chair" → 3, "1 Bed" → 1)
+  const getChairCapacity = (chair) => {
+    if (!chair.amenities || chair.amenities.length === 0) return 1;
+    const match = chair.amenities[0].match(/^(\d+)/);
     return match ? parseInt(match[1], 10) : 1;
   };
 
   const busyResources = useMemo(() => {
-    if (!bookingDate || !bookingTime) return { dentistIds: new Set(), roomBookingCounts: new Map() };
-    const durationMin = selectedService?.duration_minutes || 60;
+    if (!bookingDate || !bookingTime) return { dentistIds: new Set(), chairBookingCounts: new Map() };
+    const durationMin = selectedTreatment?.duration_minutes || 60;
     const [sh, sm] = bookingTime.split(':').map(Number);
     const slotStart = sh * 60 + sm;
     const slotEnd = slotStart + durationMin;
 
     const busyDentists = new Set();
-    const roomBookingCounts = new Map();
+    const chairBookingCounts = new Map();
 
     for (const b of bookings) {
       // calendarData.bookings uses raw DB format (snake_case)
@@ -282,8 +281,8 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
         const [eh, em] = endStr.split(':').map(Number);
         bEnd = eh * 60 + em;
       } else {
-        // Fallback: use service duration
-        const svc = (services || []).find((s) => s.id === b.service_id);
+        // Fallback: use treatment duration
+        const svc = (treatments || []).find((s) => s.id === b.treatment_id);
         bEnd = bStart + (svc?.duration_minutes || 60);
       }
 
@@ -295,12 +294,12 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
         } else if (b.dentist_id) {
           busyDentists.add(b.dentist_id);
         }
-        if (b.room_id) roomBookingCounts.set(b.room_id, (roomBookingCounts.get(b.room_id) || 0) + 1);
+        if (b.chair_id) chairBookingCounts.set(b.chair_id, (chairBookingCounts.get(b.chair_id) || 0) + 1);
       }
     }
 
-    return { dentistIds: busyDentists, roomBookingCounts };
-  }, [bookings, bookingDate, bookingTime, selectedService, services]);
+    return { dentistIds: busyDentists, chairBookingCounts };
+  }, [bookings, bookingDate, bookingTime, selectedTreatment, treatments]);
 
   // Autofocus name field when panel opens
   useEffect(() => {
@@ -321,7 +320,7 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
     setPeople((prev) => {
       const next = prev.slice(0, peopleCount);
       while (next.length < peopleCount) {
-        next.push({ name: '', phone: '', countryCode: '+977', email: '', gender: '', dentistId: '', serviceId: '', roomId: '' });
+        next.push({ name: '', phone: '', countryCode: '+977', email: '', gender: '', dentistId: '', treatmentId: '', chairId: '' });
       }
       return next;
     });
@@ -418,12 +417,12 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
     }
   }, [timeDropdownOpen]);
 
-  // Same mode → one shared service; Different mode → every person must pick one.
-  const groupServiceValid = serviceMode === 'same'
-    ? !!groupServiceId
-    : (people.length > 0 && people.every((p) => !!p.serviceId));
+  // Same mode → one shared treatment; Different mode → every person must pick one.
+  const groupTreatmentValid = treatmentMode === 'same'
+    ? !!groupTreatmentId
+    : (people.length > 0 && people.every((p) => !!p.treatmentId));
   const groupValid = bookingMode !== 'group'
-    || (people[0]?.name?.trim() && people[0]?.phone?.replace(/\D/g, '') && groupServiceValid);
+    || (people[0]?.name?.trim() && people[0]?.phone?.replace(/\D/g, '') && groupTreatmentValid);
 
   const buildGroupPeople = () => {
     // Blank "other" persons inherit the booking contact's credentials.
@@ -440,15 +439,15 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
         : (idx === 0 ? null : leadPhone) || null,
       customerEmail: p.email?.trim() || (idx === 0 ? null : leadEmail) || null,
       customerGender: p.gender || (idx === 0 ? null : lead.gender) || null,
-      serviceId: serviceMode === 'same' ? groupServiceId : p.serviceId,
+      treatmentId: treatmentMode === 'same' ? groupTreatmentId : p.treatmentId,
       dentistIds: p.dentistId ? [p.dentistId] : null,
-      roomId: groupType === 'couple' ? (groupRoomId || null) : (p.roomId || null),
+      chairId: groupType === 'couple' ? (groupChairId || null) : (p.chairId || null),
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (bookingMode === 'group' ? !groupValid : (!serviceId || !customerName.trim())) return;
+    if (bookingMode === 'group' ? !groupValid : (!treatmentId || !customerName.trim())) return;
     // Synchronous re-entry guard: the `submitting` state disables the button
     // only after a re-render, so a fast double-click can fire two submits and
     // create duplicate bookings. The ref blocks the second call immediately.
@@ -465,7 +464,7 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
           bookingTime,
         }
       : {
-          serviceId,
+          treatmentId,
           customerName: customerName.trim(),
           customerPhone: customerPhone.replace(/\D/g, '')
             ? customerCountryCode + customerPhone.replace(/\D/g, '')
@@ -474,7 +473,7 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
           customerGender: customerGender || null,
           specialRequests: specialRequests.trim() || null,
           dentistIds: selectedDentistIds.length > 0 ? selectedDentistIds : null,
-          roomId: roomId || null,
+          chairId: chairId || null,
           bookingDate,
           bookingTime,
           referringCustomerId: (!isExistingCustomer && referringCustomerId) || undefined,
@@ -586,7 +585,7 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
               </div>
             </div>
             <div className="flex items-center gap-1.5 mt-1.5">
-              <Icon name={slotInfo.colType === 'room' ? 'DoorOpen' : slotInfo.colType === 'dentist' ? 'User' : 'LayoutGrid'} size={14} className="text-text-secondary" />
+              <Icon name={slotInfo.colType === 'chair' ? 'DoorOpen' : slotInfo.colType === 'dentist' ? 'User' : 'LayoutGrid'} size={14} className="text-text-secondary" />
               <span className="font-body text-sm text-text-secondary">{slotInfo.colName}</span>
             </div>
           </div>
@@ -615,56 +614,56 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
 
             {bookingMode === 'individual' && (
             <>
-            {/* Service */}
+            {/* Treatment */}
             <div>
               <label className="block font-body font-body-medium text-sm text-text-primary mb-1.5">
-                Service <span className="text-error">*</span>
+                Treatment <span className="text-error">*</span>
               </label>
-              {servicesLoading ? (
+              {treatmentsLoading ? (
                 <div className="flex items-center gap-2 py-2">
                   <div className="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full" />
-                  <span className="text-sm text-text-secondary">Loading services...</span>
+                  <span className="text-sm text-text-secondary">Loading treatments...</span>
                 </div>
               ) : (
                 <CustomSelect
-                  value={serviceId}
-                  onChange={(val) => setServiceId(val)}
+                  value={treatmentId}
+                  onChange={(val) => setTreatmentId(val)}
                   options={[
-                    { value: '', label: 'Select a service' },
-                    ...(services || []).map((s) => ({
+                    { value: '', label: 'Select a treatment' },
+                    ...(treatments || []).map((s) => ({
                       value: s.id,
                       label: `${s.name} — ${s.duration_minutes}min — Rs.${s.price_npr}`,
                     })),
                   ]}
-                  placeholder="Select a service"
+                  placeholder="Select a treatment"
                   size="md"
                   searchable
                 />
               )}
             </div>
 
-            {/* Room */}
-            {rooms && rooms.length > 0 && (
+            {/* Chair */}
+            {chairs && chairs.length > 0 && (
               <div>
                 <label className="block font-body font-body-medium text-sm text-text-primary mb-1.5">
-                  Room
+                  Chair
                 </label>
                 <CustomSelect
-                  value={roomId}
+                  value={chairId}
                   onChange={(val) => {
-                    const room = (rooms || []).find(r => r.id === val);
-                    if (room) {
-                      const capacity = getRoomCapacity(room);
-                      const used = busyResources.roomBookingCounts.get(val) || 0;
+                    const chair = (chairs || []).find(r => r.id === val);
+                    if (chair) {
+                      const capacity = getChairCapacity(chair);
+                      const used = busyResources.chairBookingCounts.get(val) || 0;
                       if (used >= capacity) return; // fully packed, block selection
                     }
-                    setRoomId(val);
+                    setChairId(val);
                   }}
                   options={[
-                    { value: '', label: 'No room' },
-                    ...(rooms || []).map((r) => {
-                      const capacity = getRoomCapacity(r);
-                      const used = busyResources.roomBookingCounts.get(r.id) || 0;
+                    { value: '', label: 'No chair' },
+                    ...(chairs || []).map((r) => {
+                      const capacity = getChairCapacity(r);
+                      const used = busyResources.chairBookingCounts.get(r.id) || 0;
                       const remaining = capacity - used;
                       const amenityStr = r.amenities?.join(', ') || '';
                       const isFull = used >= capacity;
@@ -692,7 +691,7 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
                       };
                     }),
                   ]}
-                  placeholder="No room"
+                  placeholder="No chair"
                   size="md"
                   searchable
                 />
@@ -906,20 +905,20 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
               )}
             </div>
 
-            {/* Same | Different service */}
+            {/* Same | Different treatment */}
             <div>
               <label className="block font-body font-body-medium text-sm text-text-primary mb-1.5">
-                Service for the group
+                Treatment for the group
                 <span className="text-error"> *</span>
               </label>
               <div className="flex gap-2">
-                {[['same', 'Same service'], ['different', 'Different services']].map(([val, label]) => (
+                {[['same', 'Same treatment'], ['different', 'Different treatments']].map(([val, label]) => (
                   <button
                     key={val}
                     type="button"
-                    onClick={() => setServiceMode(val)}
+                    onClick={() => setTreatmentMode(val)}
                     className={`px-4 py-2 text-sm border rounded-spa transition-colors ${
-                      serviceMode === val
+                      treatmentMode === val
                         ? 'border-primary bg-primary/10 text-primary font-medium'
                         : 'border-border bg-surface text-text-secondary hover:bg-background'
                     }`}
@@ -928,19 +927,19 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
                   </button>
                 ))}
               </div>
-              {serviceMode === 'same' && (
+              {treatmentMode === 'same' && (
                 <div className="mt-2">
                   <CustomSelect
-                    value={groupServiceId}
-                    onChange={(val) => setGroupServiceId(val)}
+                    value={groupTreatmentId}
+                    onChange={(val) => setGroupTreatmentId(val)}
                     options={[
-                      { value: '', label: <>Select a service <span className="text-error">*</span></>, searchLabel: 'Select a service' },
-                      ...(services || []).map((s) => ({
+                      { value: '', label: <>Select a treatment <span className="text-error">*</span></>, searchLabel: 'Select a treatment' },
+                      ...(treatments || []).map((s) => ({
                         value: s.id,
                         label: `${s.name} — ${s.duration_minutes}min — Rs.${s.price_npr}`,
                       })),
                     ]}
-                    placeholder={<>Select a service <span className="text-error">*</span></>}
+                    placeholder={<>Select a treatment <span className="text-error">*</span></>}
                     size="md"
                     searchable
                   />
@@ -948,19 +947,19 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
               )}
             </div>
 
-            {/* Shared room for couple */}
-            {groupType === 'couple' && rooms && rooms.length > 0 && (
+            {/* Shared chair for couple */}
+            {groupType === 'couple' && chairs && chairs.length > 0 && (
               <div>
                 <label className="block font-body font-body-medium text-sm text-text-primary mb-1.5">
-                  Room <span className="text-xs text-text-secondary font-normal">(shared — needs capacity 2)</span>
+                  Chair <span className="text-xs text-text-secondary font-normal">(shared — needs capacity 2)</span>
                 </label>
                 <CustomSelect
-                  value={groupRoomId}
-                  onChange={(val) => setGroupRoomId(val)}
+                  value={groupChairId}
+                  onChange={(val) => setGroupChairId(val)}
                   options={[
-                    { value: '', label: 'No room' },
-                    ...(rooms || [])
-                      .filter((r) => getRoomCapacity(r) >= 2)
+                    { value: '', label: 'No chair' },
+                    ...(chairs || [])
+                      .filter((r) => getChairCapacity(r) >= 2)
                       .map((r) => {
                         const amenityStr = r.amenities?.join(', ') || '';
                         return {
@@ -975,7 +974,7 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
                         };
                       }),
                   ]}
-                  placeholder="No room"
+                  placeholder="No chair"
                   size="md"
                   searchable
                 />
@@ -1043,22 +1042,22 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
                     ))}
                   </div>
 
-                  {serviceMode === 'different' && (
+                  {treatmentMode === 'different' && (
                     <div>
                       <label className="block text-xs font-body-medium text-text-secondary mb-1">
-                        Service <span className="text-error">*</span>
+                        Treatment <span className="text-error">*</span>
                       </label>
                       <CustomSelect
-                        value={p.serviceId}
-                        onChange={(val) => setPerson(idx, { serviceId: val })}
+                        value={p.treatmentId}
+                        onChange={(val) => setPerson(idx, { treatmentId: val })}
                         options={[
-                          { value: '', label: <>Select a service <span className="text-error">*</span></>, searchLabel: 'Select a service' },
-                          ...(services || []).map((s) => ({
+                          { value: '', label: <>Select a treatment <span className="text-error">*</span></>, searchLabel: 'Select a treatment' },
+                          ...(treatments || []).map((s) => ({
                             value: s.id,
                             label: `${s.name} — ${s.duration_minutes}min — Rs.${s.price_npr}`,
                           })),
                         ]}
-                        placeholder={<>Select a service <span className="text-error">*</span></>}
+                        placeholder={<>Select a treatment <span className="text-error">*</span></>}
                         size="md"
                         searchable
                       />
@@ -1080,18 +1079,18 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
                     searchable
                   />
 
-                  {groupType === 'separate' && rooms && rooms.length > 0 && (
+                  {groupType === 'separate' && chairs && chairs.length > 0 && (
                     <CustomSelect
-                      value={p.roomId}
-                      onChange={(val) => setPerson(idx, { roomId: val })}
+                      value={p.chairId}
+                      onChange={(val) => setPerson(idx, { chairId: val })}
                       options={[
-                        { value: '', label: 'No room' },
-                        ...(rooms || []).map((r) => ({
+                        { value: '', label: 'No chair' },
+                        ...(chairs || []).map((r) => ({
                           value: r.id,
                           label: r.name,
                         })),
                       ]}
-                      placeholder="No room"
+                      placeholder="No chair"
                       size="md"
                       searchable
                     />
@@ -1191,7 +1190,7 @@ const QuickCreatePanel = ({ slotInfo, services, servicesLoading, dentists, rooms
             </button>
             <button
               type="submit"
-              disabled={submitting || (bookingMode === 'group' ? !groupValid : (!serviceId || !customerName.trim()))}
+              disabled={submitting || (bookingMode === 'group' ? !groupValid : (!treatmentId || !customerName.trim()))}
               className="px-4 py-2 text-sm font-body font-body-medium bg-primary text-white rounded-spa hover:bg-primary/90 spa-transition-fast disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {submitting && <div className="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" />}
@@ -1256,22 +1255,19 @@ function isCheckedOutBlockedSlot(checkedOutByDentistAndDate, dentistId, day, hou
 // ── Component ────────────────────────────────────────────────
 
 const OperationalCalendar = ({ branchId }) => {
-  // Industry-specific labels from auth context
-  const { profile } = useAuth();
-  const industry = profile?.organizations?.industries;
-  const staffLabel = industry?.staff_label || 'Dentist';
-  const staffLabelPlural = industry?.staff_label_plural || 'Dentists';
-  const locationLabel = industry?.location_label || 'Room';
-  const locationLabelPlural = industry?.location_label_plural || 'Rooms';
-  const enableRooms = industry?.enable_rooms !== false;
+  const staffLabel = 'Dentist';
+  const staffLabelPlural = 'Dentists';
+  const locationLabel = 'Chair';
+  const locationLabelPlural = 'Chairs';
+  const enableChairs = true;
 
   // View state
   const [currentDate, setCurrentDate] = useState(todayStr());
   const [viewMode, setViewMode] = useState('day'); // day | 4day
-  // Default to staff view if rooms are disabled
-  const [columnMode, setColumnMode] = useState('dentist'); // dentist | room
+  // Default to staff view if chairs are disabled
+  const [columnMode, setColumnMode] = useState('dentist'); // dentist | chair
   const [freezeUnassigned, setFreezeUnassigned] = useState(true);
-  const [showServiceOnly, setShowServiceOnly] = useState(true);
+  const [showTreatmentOnly, setShowTreatmentOnly] = useState(true);
   const [selectedPositions, setSelectedPositions] = useState([]); // empty = all
   const [positionDropdownOpen, setPositionDropdownOpen] = useState(false);
   const positionDropdownRef = useRef(null);
@@ -1286,12 +1282,12 @@ const OperationalCalendar = ({ branchId }) => {
   // Attendance indicators
   const [attendanceMap, setAttendanceMap] = useState({});
 
-  // Available position options for filter (from service staff only)
+  // Available position options for filter (from treatment staff only)
   const calendarPositionOptions = useMemo(() => {
     if (!calendarData?.dentists) return [];
     const positions = new Set();
     calendarData.dentists.forEach(t => {
-      if (t.is_service_staff !== false && t.position) {
+      if (t.is_treatment_staff !== false && t.position) {
         t.position.split('/').forEach(p => positions.add(p.trim()));
       }
     });
@@ -1313,14 +1309,14 @@ const OperationalCalendar = ({ branchId }) => {
       if (!end) return true;
       return currentDate <= end.date;
     });
-    if (showServiceOnly) {
-      list = list.filter(t => t.is_service_staff !== false);
+    if (showTreatmentOnly) {
+      list = list.filter(t => t.is_treatment_staff !== false);
     }
     if (selectedPositions.length > 0) {
       list = list.filter(t => t.position && t.position.split('/').some(p => selectedPositions.includes(p.trim())));
     }
     return list;
-  }, [calendarData?.dentists, showServiceOnly, selectedPositions, attendanceMap, currentDate]);
+  }, [calendarData?.dentists, showTreatmentOnly, selectedPositions, attendanceMap, currentDate]);
 
   // Close position dropdown on outside click
   useEffect(() => {
@@ -1353,11 +1349,11 @@ const OperationalCalendar = ({ branchId }) => {
 
   // Quick-create panel state
   const [quickCreateSlot, setQuickCreateSlot] = useState(null);
-  const [servicesCache, setServicesCache] = useState(null);
-  const [servicesLoading, setServicesLoading] = useState(false);
+  const [treatmentsCache, setTreatmentsCache] = useState(null);
+  const [treatmentsLoading, setTreatmentsLoading] = useState(false);
 
   // Rebook "pick and place" mode
-  // Shape: { booking, customerName, customerPhone, serviceId, serviceName, duration }
+  // Shape: { booking, customerName, customerPhone, treatmentId, treatmentName, duration }
   const [rebookSource, setRebookSource] = useState(null);
   const [rebookFallback, setRebookFallback] = useState(false);
 
@@ -1585,8 +1581,8 @@ const OperationalCalendar = ({ branchId }) => {
     if (calendarData?.dentists) {
       for (const t of calendarData.dentists) map[t.id] = t.name;
     }
-    if (calendarData?.rooms) {
-      for (const r of calendarData.rooms) map[r.id] = r.name;
+    if (calendarData?.chairs) {
+      for (const r of calendarData.chairs) map[r.id] = r.name;
     }
     return map;
   }, [calendarData]);
@@ -1627,7 +1623,7 @@ const OperationalCalendar = ({ branchId }) => {
     // For shared bookings, use the column-specific dentist ID
     const sourceColId = columnMode === 'dentist'
       ? (booking._colDentistId || booking.dentistId || 'unassigned')
-      : (booking.roomId || 'unassigned');
+      : (booking.chairId || 'unassigned');
     const effectiveTargetColId = targetColId || 'unassigned';
 
     const isCrossColumn = sourceColId !== effectiveTargetColId;
@@ -1644,7 +1640,7 @@ const OperationalCalendar = ({ branchId }) => {
     }
 
     // Calculate new end time
-    const durationMinutes = booking.serviceDuration ||
+    const durationMinutes = booking.treatmentDuration ||
       (booking.startTime && booking.endTime
         ? (() => {
             const [sh, sm] = booking.startTime.split(':').map(Number);
@@ -1852,8 +1848,8 @@ const OperationalCalendar = ({ branchId }) => {
             apiParams.newDentistId = targetColId === 'unassigned' ? 'unassigned' : targetColId;
             optimisticFields.dentist_id = targetColId === 'unassigned' ? null : targetColId;
           } else {
-            apiParams.newRoomId = targetColId === 'unassigned' ? 'unassigned' : targetColId;
-            optimisticFields.room_id = targetColId === 'unassigned' ? null : targetColId;
+            apiParams.newChairId = targetColId === 'unassigned' ? 'unassigned' : targetColId;
+            optimisticFields.chair_id = targetColId === 'unassigned' ? null : targetColId;
           }
         }
 
@@ -1918,16 +1914,16 @@ const OperationalCalendar = ({ branchId }) => {
 
       const startTime = `${String(slotInfo.hour).padStart(2, '0')}:${String(slotInfo.minute).padStart(2, '0')}`;
       const dentistId = slotInfo.colType === 'dentist' ? slotInfo.colId : null;
-      const roomId = slotInfo.colType === 'room' ? slotInfo.colId : null;
+      const chairId = slotInfo.colType === 'chair' ? slotInfo.colId : null;
       const result = await createBooking({
         branchId,
-        serviceId: source.serviceId,
+        treatmentId: source.treatmentId,
         date: slotInfo.day,
         startTime,
         customerName: source.customerName,
         customerPhone: source.customerPhone,
         dentistId,
-        roomId,
+        chairId,
       });
       if (result.error) {
         showToast(result.error.message || 'Failed to rebook.', 'error');
@@ -1942,13 +1938,13 @@ const OperationalCalendar = ({ branchId }) => {
 
     // Normal flow — open QuickCreatePanel
     setQuickCreateSlot(slotInfo);
-    if (!servicesCache && !servicesLoading) {
-      setServicesLoading(true);
-      const result = await fetchServices(branchId);
-      if (result.data) setServicesCache(result.data);
-      setServicesLoading(false);
+    if (!treatmentsCache && !treatmentsLoading) {
+      setTreatmentsLoading(true);
+      const result = await fetchTreatments(branchId);
+      if (result.data) setTreatmentsCache(result.data);
+      setTreatmentsLoading(false);
     }
-  }, [servicesCache, servicesLoading, rebookSource, branchId, refreshCalendar, calendarData]);
+  }, [treatmentsCache, treatmentsLoading, rebookSource, branchId, refreshCalendar, calendarData]);
 
   const handleQuickCreateClose = useCallback(() => {
     setQuickCreateSlot(null);
@@ -1978,8 +1974,8 @@ const OperationalCalendar = ({ branchId }) => {
     if (!date || !startTime) return 'Date and time are required.';
 
     // Group booking: one booking per person, all sharing one booking_group_id.
-    // Created sequentially so each room-capacity check sees prior group members
-    // (matters for a Couple sharing one room, and Separate rooms running low).
+    // Created sequentially so each chair-capacity check sees prior group members
+    // (matters for a Couple sharing one chair, and Separate chairs running low).
     if (formData.mode === 'group') {
       const people = formData.people || [];
       if (people.length === 0) return 'Add at least one person.';
@@ -1989,7 +1985,7 @@ const OperationalCalendar = ({ branchId }) => {
         const person = people[i];
         const result = await createBooking({
           branchId,
-          serviceId: person.serviceId,
+          treatmentId: person.treatmentId,
           date,
           startTime,
           customerName: person.customerName,
@@ -1998,7 +1994,7 @@ const OperationalCalendar = ({ branchId }) => {
           customerGender: person.customerGender,
           specialRequests: formData.specialRequests,
           dentistIds: person.dentistIds,
-          roomId: person.roomId || 'none',
+          chairId: person.chairId || 'none',
           bookingGroupId: groupId,
         });
         if (result.error) {
@@ -2016,7 +2012,7 @@ const OperationalCalendar = ({ branchId }) => {
 
     const result = await createBooking({
       branchId,
-      serviceId: formData.serviceId,
+      treatmentId: formData.treatmentId,
       date,
       startTime,
       customerName: formData.customerName,
@@ -2025,7 +2021,7 @@ const OperationalCalendar = ({ branchId }) => {
       customerGender: formData.customerGender,
       specialRequests: formData.specialRequests,
       dentistIds: formData.dentistIds || (formData.dentistId ? [formData.dentistId] : null),
-      roomId: formData.roomId || 'none',
+      chairId: formData.chairId || 'none',
       referringCustomerId: formData.referringCustomerId,
       referringRewardType: formData.referringRewardType,
       referringRewardAmount: formData.referringRewardAmount,
@@ -2046,8 +2042,8 @@ const OperationalCalendar = ({ branchId }) => {
       booking,
       customerName: booking.customerName,
       customerPhone: booking.customerPhone,
-      serviceId: booking.serviceId,
-      serviceName: booking.service,
+      treatmentId: booking.treatmentId,
+      treatmentName: booking.treatment,
       duration: booking.duration,
     });
     setModalOpen(false);
@@ -2077,14 +2073,14 @@ const OperationalCalendar = ({ branchId }) => {
     setSelectedBooking(transformBooking(result.data));
     setModalLoading(false);
 
-    // Pre-fetch services for "Add Another Service" / edit mode
-    if (!servicesCache && !servicesLoading) {
-      setServicesLoading(true);
-      const svcResult = await fetchServices(branchId);
-      if (svcResult.data) setServicesCache(svcResult.data);
-      setServicesLoading(false);
+    // Pre-fetch treatments for "Add Another Treatment" / edit mode
+    if (!treatmentsCache && !treatmentsLoading) {
+      setTreatmentsLoading(true);
+      const svcResult = await fetchTreatments(branchId);
+      if (svcResult.data) setTreatmentsCache(svcResult.data);
+      setTreatmentsLoading(false);
     }
-  }, [servicesCache, servicesLoading]);
+  }, [treatmentsCache, treatmentsLoading]);
 
   const handleModalClose = useCallback(() => {
     setModalOpen(false);
@@ -2110,9 +2106,9 @@ const OperationalCalendar = ({ branchId }) => {
     showToast(`Status updated to ${newStatus}`);
   };
 
-  const handleAssignDentist = async (bookingId, dentistIds, notes, roomId) => {
+  const handleAssignDentist = async (bookingId, dentistIds, notes, chairId) => {
     const ids = Array.isArray(dentistIds) ? dentistIds : (dentistIds ? [dentistIds] : []);
-    const result = await assignDentist({ bookingId, dentistIds: ids, roomId: roomId !== undefined ? (roomId || null) : undefined });
+    const result = await assignDentist({ bookingId, dentistIds: ids, chairId: chairId !== undefined ? (chairId || null) : undefined });
     if (result.error) {
       showToast(result.error.message || `Failed to assign ${staffLabel.toLowerCase()}.`, 'error');
       return;
@@ -2221,8 +2217,8 @@ const OperationalCalendar = ({ branchId }) => {
     return { error: null };
   };
 
-  // ── Dentist/room column reorder ────────────────────────────
-  // Gates both onDentistReorder and onRoomReorder below. Branch-scoped:
+  // ── Dentist/chair column reorder ────────────────────────────
+  // Gates both onDentistReorder and onChairReorder below. Branch-scoped:
   // staff can rearrange columns for their own branch only.
   const canReorderDentists = ['staff', 'manager', 'admin'].includes(profile?.role);
 
@@ -2251,28 +2247,28 @@ const OperationalCalendar = ({ branchId }) => {
     }
   }, [branchId, refreshCalendar]);
 
-  // ── Room column reorder ───────────────────────────────────
-  const handleRoomReorder = useCallback(async (orderedIds) => {
+  // ── Chair column reorder ───────────────────────────────────
+  const handleChairReorder = useCallback(async (orderedIds) => {
     if (!branchId) return;
-    // Optimistic: reorder rooms array in local state
+    // Optimistic: reorder chairs array in local state
     setCalendarData(prev => {
       if (!prev) return prev;
-      const roomMap = {};
-      prev.rooms.forEach(r => { roomMap[r.id] = r; });
+      const chairMap = {};
+      prev.chairs.forEach(r => { chairMap[r.id] = r; });
       const reordered = orderedIds
-        .map(id => roomMap[id])
+        .map(id => chairMap[id])
         .filter(Boolean);
-      // Append any rooms not in orderedIds (safety)
-      prev.rooms.forEach(r => {
+      // Append any chairs not in orderedIds (safety)
+      prev.chairs.forEach(r => {
         if (!orderedIds.includes(r.id)) reordered.push(r);
       });
-      return { ...prev, rooms: reordered };
+      return { ...prev, chairs: reordered };
     });
 
     // Persist to DB
-    const { error } = await updateRoomOrder({ branchId, orderedIds });
+    const { error } = await updateChairOrder({ branchId, orderedIds });
     if (error) {
-      console.error('[Calendar] Failed to persist room order:', error.message);
+      console.error('[Calendar] Failed to persist chair order:', error.message);
       refreshCalendar();
     }
   }, [branchId, refreshCalendar]);
@@ -2282,7 +2278,7 @@ const OperationalCalendar = ({ branchId }) => {
   const dentistsForModal = useMemo(() =>
     calendarData
       ? calendarData.dentists
-          .filter(t => t.is_service_staff !== false && !attendanceMap[t.id])
+          .filter(t => t.is_treatment_staff !== false && !attendanceMap[t.id])
           .map(t => ({
             id: t.id,
             name: t.name,
@@ -2487,12 +2483,12 @@ const OperationalCalendar = ({ branchId }) => {
                 onDateSelect={setCurrentDate}
               />
 
-              {/* View By toggle - only show if rooms are enabled, otherwise just show staff */}
+              {/* View By toggle - only show if chairs are enabled, otherwise just show staff */}
               <div className="mt-4 pt-4 border-t border-border">
                 <div className="font-caption font-semibold text-[10px] text-text-secondary uppercase tracking-wider mb-2">
                   View By
                 </div>
-                {enableRooms ? (
+                {enableChairs ? (
                   <div className="flex border border-border rounded-spa overflow-hidden">
                     <button
                       onClick={() => setColumnMode('dentist')}
@@ -2506,9 +2502,9 @@ const OperationalCalendar = ({ branchId }) => {
                       <span>{staffLabel}</span>
                     </button>
                     <button
-                      onClick={() => setColumnMode('room')}
+                      onClick={() => setColumnMode('chair')}
                       className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-body font-body-medium spa-transition-fast border-l border-border ${
-                        columnMode === 'room'
+                        columnMode === 'chair'
                           ? 'bg-primary text-white'
                           : 'text-text-primary hover:bg-background'
                       }`}
@@ -2546,7 +2542,7 @@ const OperationalCalendar = ({ branchId }) => {
               {/* Resource count */}
               {calendarData && (
                 <div className="mt-4 pt-4 border-t border-border">
-                  {columnMode === 'dentist' || !enableRooms ? (
+                  {columnMode === 'dentist' || !enableChairs ? (
                     <>
                       <div className="font-caption font-semibold text-[10px] text-text-secondary uppercase tracking-wider mb-2">
                         {staffLabelPlural}
@@ -2558,16 +2554,16 @@ const OperationalCalendar = ({ branchId }) => {
                       <label className="flex items-center gap-2 mt-2 cursor-pointer">
                         <button
                           type="button"
-                          onClick={() => setShowServiceOnly(prev => !prev)}
+                          onClick={() => setShowTreatmentOnly(prev => !prev)}
                           className={`relative inline-flex h-5 w-9 items-center rounded-full spa-transition-fast ${
-                            showServiceOnly ? 'bg-primary' : 'bg-border'
+                            showTreatmentOnly ? 'bg-primary' : 'bg-border'
                           }`}
                         >
                           <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white spa-transition-fast transform ${
-                            showServiceOnly ? 'translate-x-4' : 'translate-x-0.5'
+                            showTreatmentOnly ? 'translate-x-4' : 'translate-x-0.5'
                           }`} />
                         </button>
-                        <span className="font-caption text-xs text-text-secondary">Service staff only</span>
+                        <span className="font-caption text-xs text-text-secondary">Treatment staff only</span>
                       </label>
                       {Object.keys(attendanceMap).length > 0 && (
                         <div className="mt-1.5 space-y-1">
@@ -2592,7 +2588,7 @@ const OperationalCalendar = ({ branchId }) => {
                       </div>
                       <div className="flex items-center gap-1.5 text-sm text-text-primary font-body">
                         <Icon name="DoorOpen" size={14} className="text-text-secondary" />
-                        <span>{calendarData.rooms?.length || 0} active</span>
+                        <span>{calendarData.chairs?.length || 0} active</span>
                       </div>
                     </>
                   )}
@@ -2605,7 +2601,7 @@ const OperationalCalendar = ({ branchId }) => {
               {calendarData ? (
                 <CalendarGrid
                   dentists={filteredDentists}
-                  rooms={calendarData.rooms || []}
+                  chairs={calendarData.chairs || []}
                   bookings={calendarData.bookings}
                   branchHours={calendarData.branchHours}
                   attendanceMap={attendanceMap}
@@ -2622,7 +2618,7 @@ const OperationalCalendar = ({ branchId }) => {
                   freezeUnassigned={freezeUnassigned}
                   onToggleFreezeUnassigned={() => setFreezeUnassigned(prev => !prev)}
                   onDentistReorder={canReorderDentists ? handleDentistReorder : undefined}
-                  onRoomReorder={canReorderDentists ? handleRoomReorder : undefined}
+                  onChairReorder={canReorderDentists ? handleChairReorder : undefined}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full">
@@ -2640,7 +2636,7 @@ const OperationalCalendar = ({ branchId }) => {
         <DragOverlay>
           {activeDragBooking && (() => {
             // Calculate preview time based on hovered slot
-            const duration = activeDragBooking.serviceDuration ||
+            const duration = activeDragBooking.treatmentDuration ||
               (activeDragBooking.startTime && activeDragBooking.endTime
                 ? (() => {
                     const [sh, sm] = activeDragBooking.startTime.split(':').map(Number);
@@ -2667,7 +2663,7 @@ const OperationalCalendar = ({ branchId }) => {
                   {activeDragBooking.customerName}
                 </div>
                 <div className="font-body text-[11px] text-text-secondary">
-                  {activeDragBooking.serviceName}
+                  {activeDragBooking.treatmentName}
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   <span className="font-caption text-[10px] text-text-secondary">
@@ -2700,7 +2696,7 @@ const OperationalCalendar = ({ branchId }) => {
               {rebookSource.customerName}
             </div>
             <div className="font-body text-[11px] text-text-secondary">
-              {rebookSource.serviceName}
+              {rebookSource.treatmentName}
             </div>
             <div className="flex items-center justify-between mt-1">
               <span className="font-caption text-[10px] text-text-secondary">
@@ -2730,8 +2726,8 @@ const OperationalCalendar = ({ branchId }) => {
         onClose={handleModalClose}
         booking={selectedBooking}
         dentists={dentistsForModal}
-        rooms={calendarData?.rooms || []}
-        services={servicesCache || []}
+        chairs={calendarData?.chairs || []}
+        treatments={treatmentsCache || []}
         onUpdateStatus={handleStatusUpdate}
         onAssignDentist={handleAssignDentist}
         onRecordPayment={handleRecordPayment}
@@ -2759,10 +2755,10 @@ const OperationalCalendar = ({ branchId }) => {
       {/* Quick Create Panel */}
       <QuickCreatePanel
         slotInfo={quickCreateSlot}
-        services={servicesCache}
-        servicesLoading={servicesLoading}
-        dentists={(calendarData?.dentists || []).filter(t => t.is_service_staff !== false && !attendanceMap[t.id])}
-        rooms={calendarData?.rooms || []}
+        treatments={treatmentsCache}
+        treatmentsLoading={treatmentsLoading}
+        dentists={(calendarData?.dentists || []).filter(t => t.is_treatment_staff !== false && !attendanceMap[t.id])}
+        chairs={calendarData?.chairs || []}
         bookings={calendarData?.bookings || []}
         onClose={handleQuickCreateClose}
         onSubmit={handleQuickCreateSubmit}

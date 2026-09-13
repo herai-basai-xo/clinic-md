@@ -5,7 +5,7 @@ import useMeasuredHeightVar from 'hooks/useMeasuredHeightVar';
 const ProgressIndicator = ({ currentStep, totalSteps }) => {
   const steps = [
     { id: 1, label: 'Branch', icon: 'MapPin' },
-    { id: 2, label: 'Service', icon: 'Sparkles' },
+    { id: 2, label: 'Treatment', icon: 'Sparkles' },
     { id: 3, label: 'Date & Time', icon: 'Calendar' },
     { id: 4, label: 'Details', icon: 'User' },
     { id: 5, label: 'Confirm', icon: 'CheckCircle' }

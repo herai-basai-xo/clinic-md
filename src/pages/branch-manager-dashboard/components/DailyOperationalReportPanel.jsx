@@ -367,9 +367,9 @@ const DailyOperationalReportPanel = ({ branchId }) => {
                     <tr className="bg-background">
                       <th className="text-left px-4 py-3 font-medium text-text-secondary">Booking #</th>
                       <th className="text-left px-4 py-3 font-medium text-text-secondary">Customer</th>
-                      <th className="text-left px-4 py-3 font-medium text-text-secondary">Service</th>
+                      <th className="text-left px-4 py-3 font-medium text-text-secondary">Treatment</th>
                       <th className="text-left px-4 py-3 font-medium text-text-secondary">Dentist</th>
-                      <th className="text-left px-4 py-3 font-medium text-text-secondary">Room</th>
+                      <th className="text-left px-4 py-3 font-medium text-text-secondary">Chair</th>
                       <th className="text-right px-4 py-3 font-medium text-text-secondary">Amount</th>
                       <th className="text-center px-4 py-3 font-medium text-text-secondary">Payment</th>
                       <th className="text-center px-4 py-3 font-medium text-text-secondary">Status</th>
@@ -385,13 +385,13 @@ const DailyOperationalReportPanel = ({ branchId }) => {
                           {b.customerName}
                         </td>
                         <td className="px-4 py-3 text-text-secondary">
-                          {b.serviceName}
+                          {b.treatmentName}
                         </td>
                         <td className="px-4 py-3 text-text-secondary">
                           {b.dentistName}
                         </td>
                         <td className="px-4 py-3 text-text-secondary">
-                          {b.roomName}
+                          {b.chairName}
                         </td>
                         <td className="px-4 py-3 text-right whitespace-nowrap">
                           <div className="font-semibold text-text-primary">
@@ -423,7 +423,7 @@ const DailyOperationalReportPanel = ({ branchId }) => {
             </div>
           )}
 
-          {/* Top Performer (service staff) */}
+          {/* Top Performer (treatment staff) */}
           {topPerformer && (
             <div className="bg-surface rounded-spa p-5 border border-border border-l-4 border-l-accent">
               <div className="flex items-center justify-between gap-4">
@@ -598,7 +598,7 @@ const DailyOperationalReportPanel = ({ branchId }) => {
                     <tr className="bg-background">
                       <th className="text-left px-4 py-3 font-medium text-text-secondary">Booking #</th>
                       <th className="text-left px-4 py-3 font-medium text-text-secondary">Customer</th>
-                      <th className="text-left px-4 py-3 font-medium text-text-secondary">Service</th>
+                      <th className="text-left px-4 py-3 font-medium text-text-secondary">Treatment</th>
                       <th className="text-right px-4 py-3 font-medium text-text-secondary">Amount Due</th>
                       <th className="text-center px-4 py-3 font-medium text-text-secondary">Status</th>
                     </tr>
@@ -608,7 +608,7 @@ const DailyOperationalReportPanel = ({ branchId }) => {
                       <tr key={i} className="hover:bg-background/50 transition-colors">
                         <td className="px-4 py-3 font-medium text-text-primary">{u.bookingNumber}</td>
                         <td className="px-4 py-3 text-text-primary">{u.customerName}</td>
-                        <td className="px-4 py-3 text-text-secondary">{u.serviceName}</td>
+                        <td className="px-4 py-3 text-text-secondary">{u.treatmentName}</td>
                         <td className="px-4 py-3 text-right font-semibold text-warning">{formatNPR(u.finalAmount)}</td>
                         <td className="px-4 py-3 text-center">
                           <StatusBadge status={u.status} />

@@ -1,6 +1,6 @@
 // Shared real-availability helpers for the customer booking flow — used by both
 // DateTimeSelection (full multi-day grid) and AvailableTodayPanel (same-day quick picks), so the
-// two stay consistent about what "available" means (room capacity + gender headcount).
+// two stay consistent about what "available" means (chair capacity + gender headcount).
 
 export const START_HOUR = 10;
 export const END_HOUR = 20;
@@ -32,11 +32,11 @@ export function minutesToTime12(mins) {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-// Bucket every booking's full [start, start+duration) span into 30-min slots, per room and per
-// gender — so a candidate slot can be checked against the ENTIRE span a service would occupy,
+// Bucket every booking's full [start, start+duration) span into 30-min slots, per chair and per
+// gender — so a candidate slot can be checked against the ENTIRE span a treatment would occupy,
 // not just the exact clicked half-hour.
 export function buildOccupancy(bookings) {
-  const byRoom = {}; // date -> roomId -> Map(slotStartMinutes -> count)
+  const byChair = {}; // date -> chairId -> Map(slotStartMinutes -> count)
   const byGender = {}; // date -> Map(slotStartMinutes -> { male, female })
 
   for (const b of bookings || []) {
@@ -52,10 +52,10 @@ export function buildOccupancy(bookings) {
 
     for (let slotMin = gridStart; slotMin < endMin; slotMin += 30) {
 
-      if (b.room_id) {
-        byRoom[date] = byRoom[date] || {};
-        byRoom[date][b.room_id] = byRoom[date][b.room_id] || new Map();
-        const map = byRoom[date][b.room_id];
+      if (b.chair_id) {
+        byChair[date] = byChair[date] || {};
+        byChair[date][b.chair_id] = byChair[date][b.chair_id] || new Map();
+        const map = byChair[date][b.chair_id];
         map.set(slotMin, (map.get(slotMin) || 0) + 1);
       }
 
@@ -68,5 +68,5 @@ export function buildOccupancy(bookings) {
     }
   }
 
-  return { byRoom, byGender };
+  return { byChair, byGender };
 }

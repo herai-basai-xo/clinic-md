@@ -79,7 +79,7 @@ const PackageListPanel = () => {
         p.guestName.toLowerCase().includes(q) ||
         (p.guestInfo || '').toLowerCase().includes(q) ||
         p.packageTypeName.toLowerCase().includes(q) ||
-        p.serviceName.toLowerCase().includes(q) ||
+        p.treatmentName.toLowerCase().includes(q) ||
         p.issuedByName.toLowerCase().includes(q)
       );
     }
@@ -166,7 +166,7 @@ const PackageListPanel = () => {
           <Icon name="Search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
           <input
             type="text"
-            placeholder="Search by guest, guest info, package type, or service..."
+            placeholder="Search by guest, guest info, package type, or treatment..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-2 bg-surface border border-border rounded-spa text-sm font-body text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-primary/30"
@@ -216,7 +216,7 @@ const PackageListPanel = () => {
                   <th className="text-left px-2.5 py-2 font-body font-body-medium text-[11px] text-text-secondary">Guest Name</th>
                   <th className="text-left px-2.5 py-2 font-body font-body-medium text-[11px] text-text-secondary">Guest Info</th>
                   <th className="text-left px-2.5 py-2 font-body font-body-medium text-[11px] text-text-secondary">Package Type</th>
-                  <th className="text-left px-2.5 py-2 font-body font-body-medium text-[11px] text-text-secondary">Service</th>
+                  <th className="text-left px-2.5 py-2 font-body font-body-medium text-[11px] text-text-secondary">Treatment</th>
                   <th className="text-left px-2.5 py-2 font-body font-body-medium text-[11px] text-text-secondary whitespace-nowrap">Branch</th>
                   <th className="text-left px-2.5 py-2 font-body font-body-medium text-[11px] text-text-secondary whitespace-nowrap">Issued By</th>
                   <th className="text-left px-2.5 py-2 font-body font-body-medium text-[11px] text-text-secondary whitespace-nowrap">Expiry</th>
@@ -245,7 +245,7 @@ const PackageListPanel = () => {
                         <span className="font-body font-body-normal text-xs text-text-secondary">{p.packageTypeName}</span>
                       </td>
                       <td className="px-2.5 py-1.5">
-                        <span className="font-body font-body-normal text-xs text-text-secondary">{p.serviceName}</span>
+                        <span className="font-body font-body-normal text-xs text-text-secondary">{p.treatmentName}</span>
                       </td>
                       <td className="px-2.5 py-1.5 whitespace-nowrap">
                         <span className="font-body font-body-normal text-xs text-text-secondary">{p.branchName}</span>

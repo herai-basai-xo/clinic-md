@@ -2,15 +2,15 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Icon from '../../../components/AppIcon';
 import FilterBar from '../../../components/ui/FilterBar';
 import { PERIOD_PRESETS, getPeriodRange, getTodayISO } from '../../../utils/periodPresets';
-import { getServiceRevenueByBranch } from '../../../services/api';
+import { getTreatmentRevenueByBranch } from '../../../services/api';
 
 function formatNPR(amount) {
   return `NPR ${Number(amount || 0).toLocaleString('en-IN')}`;
 }
 
-const EMPTY_DATA = { branches: [], services: [], branchTotals: {}, grandTotalRevenue: 0, grandTotalCount: 0 };
+const EMPTY_DATA = { branches: [], treatments: [], branchTotals: {}, grandTotalRevenue: 0, grandTotalCount: 0 };
 
-const ServiceRevenueReportPanel = ({ branchId }) => {
+const TreatmentRevenueReportPanel = ({ branchId }) => {
   const today = getTodayISO();
   const [data, setData] = useState(EMPTY_DATA);
   const [loading, setLoading] = useState(true);
@@ -50,9 +50,9 @@ const ServiceRevenueReportPanel = ({ branchId }) => {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data: result, error: err } = await getServiceRevenueByBranch({ branchId, from: range.from, to: range.to });
+    const { data: result, error: err } = await getTreatmentRevenueByBranch({ branchId, from: range.from, to: range.to });
     if (err) {
-      setError(err.message || 'Failed to load service revenue.');
+      setError(err.message || 'Failed to load treatment revenue.');
     } else {
       setData(result || EMPTY_DATA);
     }
@@ -72,15 +72,15 @@ const ServiceRevenueReportPanel = ({ branchId }) => {
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return data.services;
-    return data.services.filter(s => s.serviceName.toLowerCase().includes(q));
-  }, [data.services, searchQuery]);
+    if (!q) return data.treatments;
+    return data.treatments.filter(s => s.treatmentName.toLowerCase().includes(q));
+  }, [data.treatments, searchQuery]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
     const dir = sortDir === 'asc' ? 1 : -1;
     arr.sort((a, b) => {
-      if (sortKey === 'name') return dir * a.serviceName.localeCompare(b.serviceName);
+      if (sortKey === 'name') return dir * a.treatmentName.localeCompare(b.treatmentName);
       return dir * (a.totalRevenue - b.totalRevenue);
     });
     return arr;
@@ -106,20 +106,20 @@ const ServiceRevenueReportPanel = ({ branchId }) => {
   const handleExportCSV = () => {
     if (!filtered.length) return;
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const header = ['Service', 'Branch', 'Revenue', 'Bookings'];
+    const header = ['Treatment', 'Branch', 'Revenue', 'Bookings'];
     let csv = header.join(',') + '\n';
     sorted.forEach((s) => {
       data.branches.forEach((b) => {
         const cell = s.byBranch[b.id];
         if (!cell) return;
-        csv += [esc(s.serviceName), esc(b.name), esc(cell.revenue), esc(cell.count)].join(',') + '\n';
+        csv += [esc(s.treatmentName), esc(b.name), esc(cell.revenue), esc(cell.count)].join(',') + '\n';
       });
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'service-revenue-report.csv';
+    link.download = 'treatment-revenue-report.csv';
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -138,7 +138,7 @@ const ServiceRevenueReportPanel = ({ branchId }) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-heading font-heading-semibold text-lg text-text-primary">Service Revenue</h3>
+          <h3 className="font-heading font-heading-semibold text-lg text-text-primary">Treatment Revenue</h3>
           <p className="font-body text-sm text-text-secondary">
             {loading
               ? 'Loading…'
@@ -159,7 +159,7 @@ const ServiceRevenueReportPanel = ({ branchId }) => {
       {/* Filters */}
       <FilterBar
         count={{ value: data.grandTotalCount, label: data.grandTotalCount === 1 ? 'Booking' : 'Bookings' }}
-        search={{ value: searchQuery, onChange: setSearchQuery, placeholder: 'Search by service…' }}
+        search={{ value: searchQuery, onChange: setSearchQuery, placeholder: 'Search by treatment…' }}
         presets={presetItems}
         dateRange={{
           from: customFrom,
@@ -188,15 +188,15 @@ const ServiceRevenueReportPanel = ({ branchId }) => {
         {loading ? (
           <div className="py-12 text-center">
             <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-3" />
-            <p className="font-body text-sm text-text-secondary">Loading service revenue...</p>
+            <p className="font-body text-sm text-text-secondary">Loading treatment revenue...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-12 text-center">
             <Icon name="PieChart" size={32} className="text-text-tertiary mx-auto mb-3" />
             <p className="font-body text-sm text-text-secondary">
-              {data.services.length === 0
+              {data.treatments.length === 0
                 ? 'No paid bookings in this period.'
-                : 'No services match the current filters.'}
+                : 'No treatments match the current filters.'}
             </p>
           </div>
         ) : (
@@ -206,7 +206,7 @@ const ServiceRevenueReportPanel = ({ branchId }) => {
                 <tr className="bg-background border-b border-border">
                   <th className="text-left px-4 py-3">
                     <button type="button" onClick={() => handleSort('name')} className="inline-flex items-center gap-1 font-body font-body-medium text-sm text-text-secondary hover:text-text-primary whitespace-nowrap">
-                      <span>Service</span>{sortIcon('name')}
+                      <span>Treatment</span>{sortIcon('name')}
                     </button>
                   </th>
                   <th className="text-right px-4 py-3">
@@ -222,7 +222,7 @@ const ServiceRevenueReportPanel = ({ branchId }) => {
               </thead>
               <tbody>
                 {sorted.map((s) => {
-                  const key = s.serviceName;
+                  const key = s.treatmentName;
                   const isOpen = expanded.has(key);
                   const branchRows = data.branches.filter(b => s.byBranch[b.id]);
                   return (
@@ -232,7 +232,7 @@ const ServiceRevenueReportPanel = ({ branchId }) => {
                         onClick={() => toggleExpand(key)}
                       >
                         <td className="px-4 py-3">
-                          <span className="font-body font-body-medium text-sm text-text-primary">{s.serviceName}</span>
+                          <span className="font-body font-body-medium text-sm text-text-primary">{s.treatmentName}</span>
                         </td>
                         <td className="px-4 py-3 text-right font-data font-data-medium text-sm text-success font-semibold whitespace-nowrap">
                           {formatNPR(s.totalRevenue)}
@@ -289,4 +289,4 @@ const ServiceRevenueReportPanel = ({ branchId }) => {
   );
 };
 
-export default ServiceRevenueReportPanel;
+export default TreatmentRevenueReportPanel;

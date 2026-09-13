@@ -4,22 +4,22 @@ import Button from '../../../../components/ui/Button';
 import Input from '../../../../components/ui/Input';
 import { useIndustry } from '../../../../hooks/useIndustry';
 import {
-  fetchRoomsForManagement,
-  createRoom,
-  updateRoom,
-  toggleRoomActive,
-  deleteRoom,
+  fetchChairsForManagement,
+  createChair,
+  updateChair,
+  toggleChairActive,
+  deleteChair,
 } from '../../../../services/api';
 
-const RoomManagementPanel = ({ branchId }) => {
-  const { enableRooms, locationLabel, locationLabelPlural } = useIndustry();
-  const [rooms, setRooms] = useState([]);
+const ChairManagementPanel = ({ branchId }) => {
+  const { enableChairs, locationLabel, locationLabelPlural } = useIndustry();
+  const [chairs, setChairs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAmenity, setSelectedAmenity] = useState('All');
   const [showModal, setShowModal] = useState(false);
-  const [editingRoom, setEditingRoom] = useState(null);
+  const [editingChair, setEditingChair] = useState(null);
   const [formName, setFormName] = useState('');
   const [formAmenities, setFormAmenities] = useState('');
   const [formFloor, setFormFloor] = useState('');
@@ -32,41 +32,41 @@ const RoomManagementPanel = ({ branchId }) => {
 
   const allUniqueAmenities = useMemo(() => {
     const amenities = new Set();
-    rooms.forEach(r => {
+    chairs.forEach(r => {
       if (r.amenities) {
         r.amenities.forEach(a => amenities.add(a));
       }
     });
     return ['All', ...Array.from(amenities).sort()];
-  }, [rooms]);
+  }, [chairs]);
 
-  const filteredRooms = useMemo(() => {
-    const filtered = rooms.filter(room => {
-      const matchesSearch = room.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesAmenity = selectedAmenity === 'All' || (room.amenities && room.amenities.includes(selectedAmenity));
+  const filteredChairs = useMemo(() => {
+    const filtered = chairs.filter(chair => {
+      const matchesSearch = chair.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesAmenity = selectedAmenity === 'All' || (chair.amenities && chair.amenities.includes(selectedAmenity));
       return matchesSearch && matchesAmenity;
     });
     return filtered;
-  }, [rooms, searchQuery, selectedAmenity]);
+  }, [chairs, searchQuery, selectedAmenity]);
 
-  const loadRooms = useCallback(async () => {
+  const loadChairs = useCallback(async () => {
     if (!branchId) return;
     setLoading(true);
     setError(null);
-    const result = await fetchRoomsForManagement(branchId);
+    const result = await fetchChairsForManagement(branchId);
     
     if (result.error) {
-      setError(result.error.message || 'Failed to load rooms.');
+      setError(result.error.message || 'Failed to load chairs.');
     } else {
-      setRooms(result.data || []);
+      setChairs(result.data || []);
     }
     setLoading(false);
   }, [branchId]);
 
-  useEffect(() => { loadRooms(); }, [loadRooms, branchId]);
+  useEffect(() => { loadChairs(); }, [loadChairs, branchId]);
 
   const handleOpenCreate = () => {
-    setEditingRoom(null);
+    setEditingChair(null);
     setFormName('');
     setFormAmenities('');
     setFormFloor('');
@@ -75,19 +75,19 @@ const RoomManagementPanel = ({ branchId }) => {
     setShowModal(true);
   };
 
-  const handleOpenEdit = (room) => {
-    setEditingRoom(room);
-    setFormName(room.name);
-    setFormAmenities(room.amenities ? room.amenities.join(', ') : '');
-    setFormFloor(room.floor || '');
-    setFormCapacity(String(room.capacity ?? 1));
+  const handleOpenEdit = (chair) => {
+    setEditingChair(chair);
+    setFormName(chair.name);
+    setFormAmenities(chair.amenities ? chair.amenities.join(', ') : '');
+    setFormFloor(chair.floor || '');
+    setFormCapacity(String(chair.capacity ?? 1));
     setFormError(null);
     setShowModal(true);
   };
 
   const handleSave = async () => {
     if (!formName.trim()) {
-      setFormError('Room name is required.');
+      setFormError('Chair name is required.');
       return;
     }
     const capacityValue = parseInt(formCapacity, 10);
@@ -100,16 +100,16 @@ const RoomManagementPanel = ({ branchId }) => {
     const amenitiesArray = formAmenities.split(',').map(s => s.trim()).filter(Boolean);
     const floorValue = formFloor.trim() || null;
     let result;
-    if (editingRoom) {
-      result = await updateRoom({ roomId: editingRoom.id, name: formName.trim(), amenities: amenitiesArray, floor: floorValue, capacity: capacityValue });
+    if (editingChair) {
+      result = await updateChair({ chairId: editingChair.id, name: formName.trim(), amenities: amenitiesArray, floor: floorValue, capacity: capacityValue });
     } else {
-      result = await createRoom({ name: formName.trim(), branchId, amenities: amenitiesArray, floor: floorValue, capacity: capacityValue });
+      result = await createChair({ name: formName.trim(), branchId, amenities: amenitiesArray, floor: floorValue, capacity: capacityValue });
     }
     if (result.error) {
       setFormError(result.error.message || 'Operation failed.');
     } else {
       setShowModal(false);
-      await loadRooms();
+      await loadChairs();
     }
     setSaving(false);
   };
@@ -118,17 +118,17 @@ const RoomManagementPanel = ({ branchId }) => {
     if (!confirmDelete) return;
     setDeleting(true);
     setError(null);
-    const result = await deleteRoom({ roomId: confirmDelete.id });
+    const result = await deleteChair({ chairId: confirmDelete.id });
     if (result.error) {
-      setError(result.error.code === 'HAS_BOOKINGS' ? 'Cannot delete room with history.' : result.error.message);
+      setError(result.error.code === 'HAS_BOOKINGS' ? 'Cannot delete chair with history.' : result.error.message);
     } else {
-      await loadRooms();
+      await loadChairs();
     }
     setConfirmDelete(null);
     setDeleting(false);
   };
 
-  if (!enableRooms) return null;
+  if (!enableChairs) return null;
 
   if (loading) {
     return (
@@ -144,7 +144,7 @@ const RoomManagementPanel = ({ branchId }) => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="font-heading font-heading-semibold text-lg text-text-primary">{locationLabel} Management</h3>
-          <p className="font-body text-sm text-text-secondary">{rooms.length} {locationLabelPlural} configured</p>
+          <p className="font-body text-sm text-text-secondary">{chairs.length} {locationLabelPlural} configured</p>
         </div>
         <Button variant="primary" size="sm" iconName="Plus" onClick={handleOpenCreate}>
           Add {locationLabel}
@@ -199,34 +199,34 @@ const RoomManagementPanel = ({ branchId }) => {
             </tr>
           </thead>
           <tbody>
-            {filteredRooms.length === 0 ? (
+            {filteredChairs.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-text-secondary text-sm">
                   No {locationLabelPlural} found.
                 </td>
               </tr>
             ) : (
-              filteredRooms.map((room) => (
-                <tr key={room.id} className="border-b border-border last:border-b-0 hover:bg-background/50">
-                  <td className="px-4 py-3 font-medium text-sm">{room.name}</td>
-                  <td className="px-4 py-3 text-sm text-text-secondary">{room.floor || '—'}</td>
+              filteredChairs.map((chair) => (
+                <tr key={chair.id} className="border-b border-border last:border-b-0 hover:bg-background/50">
+                  <td className="px-4 py-3 font-medium text-sm">{chair.name}</td>
+                  <td className="px-4 py-3 text-sm text-text-secondary">{chair.floor || '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
-                      {room.amenities?.map((a, i) => (
+                      {chair.amenities?.map((a, i) => (
                         <span key={i} className="px-2 py-0.5 rounded bg-primary/5 text-primary text-[10px] uppercase font-bold">{a}</span>
                       )) || <span className="text-text-tertiary italic text-[10px]">No features added</span>}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-text-secondary">{room.capacity ?? 1}</td>
+                  <td className="px-4 py-3 text-sm text-text-secondary">{chair.capacity ?? 1}</td>
                   <td className="px-4 py-3">
-                    <span className={"px-2 py-0.5 rounded text-xs " + (room.is_active ? 'bg-success/10 text-success' : 'bg-gray-100 text-gray-500')}>
-                      {room.is_active ? 'Active' : 'Inactive'}
+                    <span className={"px-2 py-0.5 rounded text-xs " + (chair.is_active ? 'bg-success/10 text-success' : 'bg-gray-100 text-gray-500')}>
+                      {chair.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => handleOpenEdit(room)} className="p-1 hover:text-primary"><Icon name="Pencil" size={16} /></button>
-                      <button onClick={() => setConfirmDelete(room)} className="p-1 hover:text-error"><Icon name="Trash2" size={16} /></button>
+                      <button onClick={() => handleOpenEdit(chair)} className="p-1 hover:text-primary"><Icon name="Pencil" size={16} /></button>
+                      <button onClick={() => setConfirmDelete(chair)} className="p-1 hover:text-error"><Icon name="Trash2" size={16} /></button>
                     </div>
                   </td>
                 </tr>
@@ -239,7 +239,7 @@ const RoomManagementPanel = ({ branchId }) => {
       {showModal && (
         <div className="fixed inset-0 z-modal-overlay bg-black/50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
           <div className="bg-surface rounded-spa-lg w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold mb-4">{editingRoom ? 'Edit' : 'Add'} {locationLabel}</h3>
+            <h3 className="text-lg font-bold mb-4">{editingChair ? 'Edit' : 'Add'} {locationLabel}</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">{locationLabel} Name</label>
@@ -269,4 +269,4 @@ const RoomManagementPanel = ({ branchId }) => {
   );
 };
 
-export default RoomManagementPanel;
+export default ChairManagementPanel;
