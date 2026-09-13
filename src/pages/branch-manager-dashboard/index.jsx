@@ -42,7 +42,6 @@ import StatusLegend from '../../components/ui/StatusLegend';
 import PendingDiscountsPanel from './components/PendingDiscountsPanel';
 import DiscountsPanel from './components/DiscountsPanel';
 import AttendanceReportPanel from './components/AttendanceReportPanel';
-import TransferReportPanel from './components/TransferReportPanel';
 import OutstandingReportPanel from './components/Outstanding/OutstandingReportPanel';
 import ReferralsReportPanel from './components/Referrals/ReferralsReportPanel';
 import CustomerReferralsReportPanel from './components/Referrals/CustomerReferralsReportPanel';
@@ -633,7 +632,6 @@ const BranchManagerDashboard = () => {
               {viewMode === 'performance' && <DentistPerformancePanel branchId={branchId} />}
               {viewMode === 'discounts' && <DiscountsPanel branchId={branchId} />}
               {viewMode === 'attendance-report' && <AttendanceReportPanel branchId={branchId} />}
-              {viewMode === 'transfer-report' && <TransferReportPanel />}
               {viewMode === 'outstanding' && <OutstandingReportPanel branchId={branchId} />}
               {viewMode === 'referrals' && <ReferralsReportPanel branchId={branchId} />}
               {viewMode === 'customer-referrals' && CUSTOMER_REFERRALS_ENABLED && <CustomerReferralsReportPanel branchId={branchId} />}

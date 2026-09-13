@@ -1,71 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Icon from '../../../../components/AppIcon';
 import CustomSelect from '../../../../components/ui/CustomSelect';
-import Select from '../../../../components/ui/Select';
-import Input from '../../../../components/ui/Input';
-import Button from '../../../../components/ui/Button';
 import FilterBar from '../../../../components/ui/FilterBar';
-import { useIndustry } from '../../../../hooks/useIndustry';
 import {
   fetchAttendance,
-  fetchAttendanceByDentistIds,
   fetchAttendanceSummary,
   markAttendance,
-  transferDentist,
-  fetchPendingTransfers,
-  cancelScheduledTransfer,
-  fetchAllBranches,
-  extendStaffTransfer,
-  revertStaffTransferNow,
-  rescheduleStaffTransferReturn,
-  fetchDentistTransferStatus,
 } from '../../../../services/api';
-
-function formatPrettyDate(d) {
-  if (!d) return '—';
-  // d is a YYYY-MM-DD string; parse as local to avoid TZ shift.
-  const [y, m, day] = d.split('-').map(Number);
-  return new Date(y, m - 1, day).toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', year: 'numeric',
-  });
-}
-
-const DURATION_UNIT_OPTIONS = [
-  { value: 'minute', label: 'Minute' },
-  { value: 'hour', label: 'Hour' },
-  { value: 'day', label: 'Day' },
-  { value: 'week', label: 'Week' },
-  { value: 'month', label: 'Month' },
-];
-
-// Client-side estimate only, for the modal's preview line — the server independently
-// computes the authoritative revert_at (migration-145's transfer_dentist()).
-function computeRevertPreview(dateStr, timeStr, value, unit) {
-  if (!dateStr || !timeStr || !value || !unit) return null;
-  const start = new Date(`${dateStr}T${timeStr}`);
-  if (Number.isNaN(start.getTime())) return null;
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  let revert;
-  if (unit === 'month') {
-    // Match Postgres's `timestamp + interval 'n months'` semantics (clamp to the last valid day
-    // of the target month), not JS Date.setMonth()'s overflow-into-next-month behavior — e.g.
-    // Jan 31 + 1 month is Feb 28 server-side, not Mar 3. The server (transfer_dentist()) is
-    // the actual source of truth for revert_at; this is just the preview shown before confirming.
-    const targetMonthIndex = start.getMonth() + n;
-    const targetYear = start.getFullYear() + Math.floor(targetMonthIndex / 12);
-    const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
-    const lastDayOfTargetMonth = new Date(targetYear, normalizedMonth + 1, 0).getDate();
-    const clampedDay = Math.min(start.getDate(), lastDayOfTargetMonth);
-    revert = new Date(targetYear, normalizedMonth, clampedDay, start.getHours(), start.getMinutes(), start.getSeconds());
-  } else {
-    const msPerUnit = { minute: 60000, hour: 3600000, day: 86400000, week: 604800000 };
-    revert = new Date(start.getTime() + n * msPerUnit[unit]);
-  }
-  return revert.toLocaleString('en-GB', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
-  });
-}
 
 const ATTENDANCE_OPTIONS = [
   { value: '', label: 'Not Marked' },
@@ -90,7 +31,6 @@ const STAFF_TYPE_OPTIONS = [
   { value: 'all', label: 'All Staff' },
   { value: 'treatment', label: 'Treatment Staff' },
   { value: 'support', label: 'Support Staff' },
-  { value: 'transferred', label: 'Transferred' },
 ];
 
 function SummaryCard({ icon, iconBg, iconColor, label, value, highlight }) {
@@ -111,7 +51,6 @@ function SummaryCard({ icon, iconBg, iconColor, label, value, highlight }) {
 
 const AttendancePanel = ({ branchId }) => {
   const today = new Date().toISOString().split('T')[0];
-  const { staffLabel } = useIndustry();
 
   const [selectedDate, setSelectedDate] = useState(today);
   const [dentists, setDentists] = useState([]);
@@ -120,33 +59,6 @@ const AttendancePanel = ({ branchId }) => {
   const [error, setError] = useState(null);
   const [dayLocked, setDayLocked] = useState(false);
   const [toast, setToast] = useState(null);
-
-  // Transfer feature
-  const [orgBranches, setOrgBranches] = useState([]);
-  const [pendingByDentist, setPendingByDentist] = useState({});
-  const [transferStatusByDentist, setTransferStatusByDentist] = useState({});
-  const [extendDurationUnit, setExtendDurationUnit] = useState('');
-  const [extendDurationValue, setExtendDurationValue] = useState('');
-  const [extendError, setExtendError] = useState(null);
-  const [extending, setExtending] = useState(false);
-  const [revertError, setRevertError] = useState(null);
-  const [reverting, setReverting] = useState(false);
-  const [useCustomReturnTime, setUseCustomReturnTime] = useState(false);
-  const [customReturnDate, setCustomReturnDate] = useState('');
-  const [customReturnTime, setCustomReturnTime] = useState('');
-  const [transferTarget, setTransferTarget] = useState(null); // { dentistId, dentistName }
-  const [transferMode, setTransferMode] = useState('temporary'); // 'temporary' | 'permanent'
-  const [transferToBranch, setTransferToBranch] = useState('');
-  const [transferStartDate, setTransferStartDate] = useState('');
-  const [transferStartTime, setTransferStartTime] = useState('');
-  const [transferDurationUnit, setTransferDurationUnit] = useState('');
-  const [transferDurationValue, setTransferDurationValue] = useState('');
-  const [transferNote, setTransferNote] = useState('');
-  const [transferError, setTransferError] = useState(null);
-  const [transferring, setTransferring] = useState(false);
-  const [cancellingTransfer, setCancellingTransfer] = useState(null);
-  const [cancellingActive, setCancellingActive] = useState(false);
-  const [cancelActiveError, setCancelActiveError] = useState(null);
 
   // Track local edits per dentist: { [dentistId]: { status, checkInTime, checkOutTime, notes, dirty } }
   const [edits, setEdits] = useState({});
@@ -162,24 +74,8 @@ const AttendancePanel = ({ branchId }) => {
 
   const hasActiveFilters = searchQuery.trim().length > 0 || statusFilter !== 'all' || staffTypeFilter !== 'all';
 
-  // An incoming transfer whose revert_at has already passed but the server-side cron
-  // (apply_due_staff_reverts(), every 5 min) hasn't ticked yet — branch_id still points here in
-  // the DB, but the staffer is due to leave. Hide them from this branch's own table immediately
-  // rather than waiting out that window; they'll disappear from the DB-driven side (calendar,
-  // origin's list, etc.) once the cron actually processes it.
-  const isIncomingTransferOverdue = useCallback((dentistId) => {
-    const status = transferStatusByDentist[dentistId];
-    return !!(
-      status?.applied && !status?.reverted && status?.revertAt
-      && status?.toBranchId === branchId
-      && new Date(status.revertAt) <= new Date()
-    );
-  }, [transferStatusByDentist, branchId]);
-
   const filteredDentists = useMemo(() => {
-    if (staffTypeFilter === 'transferred') return [];
     return dentists.filter((t) => {
-      if (isIncomingTransferOverdue(t.dentistId)) return false;
       const matchesSearch = !searchQuery.trim()
         || (t.dentistName || '').toLowerCase().includes(searchQuery.toLowerCase().trim());
       const currentStatus = edits[t.dentistId]?.status ?? (t.status || '');
@@ -188,69 +84,7 @@ const AttendancePanel = ({ branchId }) => {
         || (staffTypeFilter === 'treatment' ? t.isTreatmentStaff : !t.isTreatmentStaff);
       return matchesSearch && matchesStatus && matchesType;
     });
-  }, [dentists, edits, searchQuery, statusFilter, staffTypeFilter, isIncomingTransferOverdue]);
-
-  const isTransferredDentist = useCallback((dentistId) => {
-    const status = transferStatusByDentist[dentistId];
-    const activeIncomingTransfer = status?.applied && !status?.reverted && status?.revertAt && status?.toBranchId === branchId;
-    return !!pendingByDentist[dentistId] || !!activeIncomingTransfer;
-  }, [pendingByDentist, transferStatusByDentist, branchId]);
-
-  // Staff transferred (or being transferred) AWAY from this branch — both already-active
-  // transfers (branch_id has moved, so they're absent from `dentists`) and scheduled-but-
-  // not-yet-started ones (branch_id hasn't moved yet, but the transfer already exists). Both
-  // show up here as soon as the transfer is created, each cancellable from this same list.
-  const transferredOutBase = useMemo(() => {
-    const active = Object.values(transferStatusByDentist)
-      .filter((s) => s.applied && !s.reverted && s.revertAt && s.fromBranchId === branchId && s.toBranchId !== branchId)
-      .map((s) => ({ ...s, isPending: false }));
-    const pending = Object.values(pendingByDentist).map((p) => ({
-      id: p.id,
-      dentistId: p.dentistId,
-      dentistName: p.dentistName,
-      toBranch: p.toBranch,
-      effectiveDate: p.effectiveDate,
-      startTime: p.startTime,
-      revertAt: p.revertAt,
-      isPending: true,
-    }));
-    return [...active, ...pending];
-  }, [transferStatusByDentist, pendingByDentist, branchId]);
-
-  // Today's check-in/check-out for transferred-out staff — attendance is global per
-  // (dentist_id, date), not branch-scoped, so it still exists even once they're off this
-  // branch's own fetchAttendance() result.
-  const [transferredAttendance, setTransferredAttendance] = useState({});
-
-  useEffect(() => {
-    const ids = transferredOutBase.map((s) => s.dentistId);
-    if (ids.length === 0) {
-      setTransferredAttendance({});
-      return;
-    }
-    let cancelled = false;
-    fetchAttendanceByDentistIds({ dentistIds: ids, date: selectedDate }).then(({ data }) => {
-      if (!cancelled) setTransferredAttendance(data || {});
-    });
-    return () => { cancelled = true; };
-  }, [transferredOutBase, selectedDate]);
-
-  const transferredOutList = useMemo(
-    () => transferredOutBase.map((s) => ({ ...s, attendance: transferredAttendance[s.dentistId] || null })),
-    [transferredOutBase, transferredAttendance]
-  );
-
-  const filteredTransferredOut = useMemo(() => {
-    if (staffTypeFilter !== 'transferred') return [];
-    if (!searchQuery.trim()) return transferredOutList;
-    const q = searchQuery.toLowerCase().trim();
-    return transferredOutList.filter((s) => (s.dentistName || '').toLowerCase().includes(q));
-  }, [transferredOutList, searchQuery, staffTypeFilter]);
-
-  const transferredCount = useMemo(
-    () => dentists.filter((t) => isTransferredDentist(t.dentistId)).length + transferredOutList.length,
-    [dentists, isTransferredDentist, transferredOutList]
-  );
+  }, [dentists, edits, searchQuery, statusFilter, staffTypeFilter]);
 
   const allFilteredSelected = filteredDentists.length > 0
     && filteredDentists.every((t) => selectedIds.includes(t.dentistId));
@@ -272,22 +106,6 @@ const AttendancePanel = ({ branchId }) => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  useEffect(() => {
-    fetchAllBranches().then(({ data }) => setOrgBranches(data || []));
-  }, []);
-
-  const loadPendingTransfers = useCallback(async () => {
-    if (!branchId) return;
-    const [{ data }, { data: statusMap }] = await Promise.all([
-      fetchPendingTransfers(branchId),
-      fetchDentistTransferStatus(branchId),
-    ]);
-    const map = {};
-    (data || []).forEach(t => { map[t.dentistId] = t; });
-    setPendingByDentist(map);
-    setTransferStatusByDentist(statusMap || {});
-  }, [branchId]);
-
   const loadData = useCallback(async () => {
     if (!branchId) return;
     setLoading(true);
@@ -297,7 +115,6 @@ const AttendancePanel = ({ branchId }) => {
     const [attendanceResult, summaryResult] = await Promise.all([
       fetchAttendance({ branchId, date: selectedDate }),
       fetchAttendanceSummary({ branchId, date: selectedDate }),
-      loadPendingTransfers(),
     ]);
 
     if (attendanceResult.error) {
@@ -328,7 +145,7 @@ const AttendancePanel = ({ branchId }) => {
     }
 
     setLoading(false);
-  }, [branchId, selectedDate, loadPendingTransfers]);
+  }, [branchId, selectedDate]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -500,218 +317,7 @@ const AttendancePanel = ({ branchId }) => {
     }
   };
 
-  const openTransfer = (t) => {
-    const latest = transferStatusByDentist[t.dentistId] || null;
-    const activeTransfer = latest && latest.applied && !latest.reverted && latest.revertAt
-      && (latest.toBranchId === branchId || latest.fromBranchId === branchId)
-      ? latest
-      : null;
-    const completedTransfer = !activeTransfer && latest && latest.reverted && latest.fromBranchId === branchId
-      ? latest
-      : null;
-
-    setTransferTarget({ dentistId: t.dentistId, dentistName: t.dentistName, activeTransfer, completedTransfer });
-    setTransferMode('temporary');
-    setTransferToBranch('');
-    setTransferStartDate(selectedDate);
-    setTransferStartTime('');
-    setTransferDurationUnit('');
-    setTransferDurationValue('');
-    setTransferNote('');
-    setTransferError(null);
-    setExtendDurationUnit('');
-    setExtendDurationValue('');
-    setExtendError(null);
-    setRevertError(null);
-    setUseCustomReturnTime(false);
-    setCustomReturnDate('');
-    setCustomReturnTime('');
-    setCancellingActive(false);
-    setCancelActiveError(null);
-  };
-
-  const isExtendFormComplete = !!extendDurationUnit && !!extendDurationValue && Number(extendDurationValue) > 0;
-
-  const handleExtendTransfer = async () => {
-    if (!isExtendFormComplete) {
-      setExtendError('Enter a valid extra duration.');
-      return;
-    }
-    setExtending(true);
-    setExtendError(null);
-
-    const result = await extendStaffTransfer({
-      transferId: transferTarget.activeTransfer.id,
-      additionalValue: Number(extendDurationValue),
-      additionalUnit: extendDurationUnit,
-    });
-
-    if (result.error) {
-      setExtendError(result.error.message || 'Failed to extend transfer.');
-      setExtending(false);
-      return;
-    }
-
-    const name = transferTarget.dentistName;
-    setTransferTarget(null);
-    setExtending(false);
-    showToast(`Extended ${name}'s transfer — now returns ${new Date(result.data.revertAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}.`);
-    await loadData();
-  };
-
-  // One control for changing an active transfer's return: pick any date/time — a moment already
-  // past means "they came back then" (revertStaffTransferNow), a future moment means "reschedule
-  // their return to then" (rescheduleStaffTransferReturn). Works from either branch's view.
-  const handleUpdateReturnTime = async () => {
-    if (!customReturnDate || !customReturnTime) {
-      setRevertError('Enter a date and time.');
-      return;
-    }
-    const picked = new Date(`${customReturnDate}T${customReturnTime}`);
-    if (Number.isNaN(picked.getTime())) {
-      setRevertError('Enter a valid date and time.');
-      return;
-    }
-
-    setReverting(true);
-    setRevertError(null);
-
-    const isFuture = picked > new Date();
-    const result = isFuture
-      ? await rescheduleStaffTransferReturn({ transferId: transferTarget.activeTransfer.id, newRevertAt: picked })
-      : await revertStaffTransferNow({ transferId: transferTarget.activeTransfer.id, revertedAt: picked });
-
-    if (result.error) {
-      const prefix = isFuture ? /^reschedule_staff_transfer_return:\s*/ : /^revert_staff_transfer_now:\s*/;
-      setRevertError(result.error.message?.replace(prefix, '') || 'Failed to update return time.');
-      setReverting(false);
-      return;
-    }
-
-    const name = transferTarget.dentistName;
-    setTransferTarget(null);
-    setReverting(false);
-    showToast(isFuture
-      ? `${name}'s return rescheduled to ${picked.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}.`
-      : `${name} is back — now bookable at ${transferTarget.activeTransfer.fromBranch}.`);
-    await loadData();
-  };
-
-  // Origin branch cancelling an active transfer they initiated — one click, right now. If the
-  // dentist is still booked at the destination branch, revert_staff_transfer_now() (server)
-  // blocks it and explains the conflicting booking's end time; the destination branch's manager
-  // then has to mark them returned once that booking finishes.
-  const handleCancelTransferNow = async () => {
-    setCancellingActive(true);
-    setCancelActiveError(null);
-
-    const result = await revertStaffTransferNow({
-      transferId: transferTarget.activeTransfer.id,
-      revertedAt: null,
-    });
-
-    if (result.error) {
-      setCancelActiveError(result.error.message?.replace(/^revert_staff_transfer_now:\s*/, '') || 'Failed to cancel transfer.');
-      setCancellingActive(false);
-      return;
-    }
-
-    const name = transferTarget.dentistName;
-    setTransferTarget(null);
-    setCancellingActive(false);
-    showToast(`${name}'s transfer cancelled — back at this branch now.`);
-    await loadData();
-  };
-
-  const isPermanentTransfer = transferMode === 'permanent';
-
-  const isTransferFormComplete = isPermanentTransfer
-    ? !!transferToBranch && !!transferStartDate
-    : !!transferToBranch &&
-      !!transferStartDate &&
-      !!transferStartTime &&
-      !!transferDurationUnit &&
-      !!transferDurationValue &&
-      Number(transferDurationValue) > 0;
-
-  const handleTransfer = async () => {
-    if (!transferToBranch) {
-      setTransferError('Select a destination branch.');
-      return;
-    }
-    if (!transferStartDate) {
-      setTransferError('Select a start date.');
-      return;
-    }
-    if (!isPermanentTransfer) {
-      if (!transferStartTime) {
-        setTransferError('Select a start time.');
-        return;
-      }
-      if (!transferDurationUnit) {
-        setTransferError('Select a duration unit.');
-        return;
-      }
-      if (!transferDurationValue || Number(transferDurationValue) <= 0) {
-        setTransferError('Enter a valid duration.');
-        return;
-      }
-    }
-
-    setTransferring(true);
-    setTransferError(null);
-
-    const isFuture = transferStartDate > today;
-    const result = await transferDentist({
-      dentistId: transferTarget.dentistId,
-      toBranchId: transferToBranch,
-      permanent: isPermanentTransfer,
-      startTime: isPermanentTransfer ? null : transferStartTime,
-      durationValue: isPermanentTransfer ? null : Number(transferDurationValue),
-      durationUnit: isPermanentTransfer ? null : transferDurationUnit,
-      note: transferNote.trim() || null,
-      effectiveDate: transferStartDate,
-    });
-
-    if (result.error) {
-      setTransferError(result.error.message || 'Transfer failed.');
-      setTransferring(false);
-      return;
-    }
-
-    const name = transferTarget.dentistName;
-    const revertPreview = isPermanentTransfer
-      ? null
-      : computeRevertPreview(transferStartDate, transferStartTime, transferDurationValue, transferDurationUnit);
-    setTransferTarget(null);
-    setTransferring(false);
-    showToast(
-      isFuture
-        ? `Transfer scheduled for ${name} on ${formatPrettyDate(transferStartDate)}${revertPreview ? `, returns around ${revertPreview}` : ''}.`
-        : `${name} transferred${revertPreview ? `, returns around ${revertPreview}` : isPermanentTransfer ? ' permanently.' : '.'}`
-    );
-    await loadData();
-  };
-
-  const handleCancelTransfer = async (transferId) => {
-    setCancellingTransfer(transferId);
-    const { error: cancelError } = await cancelScheduledTransfer(transferId);
-    setCancellingTransfer(null);
-    if (cancelError) {
-      showToast(cancelError.message || 'Failed to cancel transfer.', 'error');
-      return;
-    }
-    showToast('Scheduled transfer cancelled.');
-    await loadPendingTransfers();
-  };
-
   const dirtyCount = Object.values(edits).filter(e => e.dirty && e.status).length;
-
-  const isOriginCancelView = !!(
-    transferTarget?.activeTransfer
-    && transferTarget.activeTransfer.fromBranchId === branchId
-    && transferTarget.activeTransfer.toBranchId !== branchId
-  );
 
   // ── Loading state ──────────────────────────────────────────
   if (loading) {
@@ -812,13 +418,6 @@ const AttendancePanel = ({ branchId }) => {
             value={summary.leaveCount}
           />
           <SummaryCard
-            icon="ArrowRightLeft"
-            iconBg="bg-[#B45309]/10"
-            iconColor="text-[#B45309]"
-            label="Transferred"
-            value={transferredCount}
-          />
-          <SummaryCard
             icon="Percent"
             iconBg="bg-primary/10"
             iconColor="text-primary"
@@ -849,8 +448,8 @@ const AttendancePanel = ({ branchId }) => {
           },
         ]}
         resultCount={hasActiveFilters ? {
-          filtered: filteredDentists.length + filteredTransferredOut.length,
-          total: dentists.length + transferredOutList.length,
+          filtered: filteredDentists.length,
+          total: dentists.length,
         } : undefined}
         hasActiveFilters={hasActiveFilters}
         onClear={() => { setSearchQuery(''); setStatusFilter('all'); setStaffTypeFilter('all'); }}
@@ -909,68 +508,18 @@ const AttendancePanel = ({ branchId }) => {
           <span className="font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide text-center">Action</span>
         </div>
 
-        {dentists.length === 0 && transferredOutList.length === 0 ? (
+        {dentists.length === 0 ? (
           <div className="p-8 text-center">
             <Icon name="Users" size={32} className="text-text-tertiary mx-auto mb-3" />
             <p className="font-body text-sm text-text-tertiary">No active staff found for this branch.</p>
           </div>
-        ) : filteredDentists.length === 0 && filteredTransferredOut.length === 0 ? (
+        ) : filteredDentists.length === 0 ? (
           <div className="p-8 text-center">
             <Icon name="SearchX" size={32} className="text-text-tertiary mx-auto mb-3" />
             <p className="font-body text-sm text-text-tertiary">No staff match the current filters.</p>
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {filteredTransferredOut.map(s => (
-              <div
-                key={s.id}
-                className="grid grid-cols-1 md:grid-cols-[1fr_140px_110px_110px_1fr_120px] gap-3 px-5 py-3 items-center bg-[#B45309]/5"
-              >
-                {/* Staff name + transfer badge */}
-                <div className="flex items-center space-x-2 min-w-0">
-                  <span className="w-4 h-4 flex-shrink-0" />
-                  <div className="w-7 h-7 rounded-full bg-[#B45309]/10 flex items-center justify-center flex-shrink-0">
-                    <Icon name="ArrowRightLeft" size={14} className="text-[#B45309]" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="font-body font-body-medium text-sm text-text-primary truncate block">{s.dentistName}</span>
-                    <span className="font-caption text-[11px] text-[#B45309]">
-                      {s.isPending
-                        ? `Transfer → ${s.toBranch} on ${formatPrettyDate(s.effectiveDate)}`
-                        : <>Transferred to {s.toBranch} · back {new Date(s.revertAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</>}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Status */}
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-caption font-caption-medium bg-[#B45309]/10 text-[#B45309] w-fit">
-                  {s.isPending ? 'Scheduled' : 'Transferred'}
-                </span>
-
-                {/* Check-in / Check-out — attendance is global per day, so it still shows even
-                    though they're no longer in this branch's own dentist roster */}
-                <span className="font-data text-sm text-text-primary">{s.attendance?.checkInTime || '—'}</span>
-                <span className="font-data text-sm text-text-primary">{s.attendance?.checkOutTime || '—'}</span>
-
-                {/* Notes */}
-                <span className="font-body text-sm text-text-tertiary truncate">
-                  {s.isPending ? `Not yet started` : `At ${s.toBranch} since ${formatPrettyDate(s.effectiveDate)}`}
-                </span>
-
-                {/* Action */}
-                <div className="flex justify-center items-center">
-                  <button
-                    onClick={() => s.isPending
-                      ? handleCancelTransfer(s.id)
-                      : openTransfer({ dentistId: s.dentistId, dentistName: s.dentistName })}
-                    disabled={s.isPending && cancellingTransfer === s.id}
-                    className="inline-flex items-center justify-center h-8 px-3 rounded-spa bg-surface border border-[#B45309]/30 text-[#B45309] hover:bg-[#B45309]/10 spa-transition-fast font-body font-body-medium text-xs whitespace-nowrap disabled:opacity-50"
-                  >
-                    Cancel Transfer
-                  </button>
-                </div>
-              </div>
-            ))}
             {filteredDentists.map(t => {
               const edit = edits[t.dentistId] || {};
               const isSaving = saving[t.dentistId];
@@ -993,10 +542,8 @@ const AttendancePanel = ({ branchId }) => {
                       disabled={dayLocked}
                       className="w-4 h-4 rounded border-border text-primary focus:ring-primary/30 cursor-pointer disabled:cursor-not-allowed flex-shrink-0"
                     />
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      isTransferredDentist(t.dentistId) ? 'bg-[#B45309]/10' : 'bg-primary/10'
-                    }`}>
-                      <Icon name="User" size={14} className={isTransferredDentist(t.dentistId) ? 'text-[#B45309]' : 'text-primary'} />
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 bg-primary/10">
+                      <Icon name="User" size={14} className="text-primary" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -1077,20 +624,6 @@ const AttendancePanel = ({ branchId }) => {
                         <Icon name="Check" size={16} />
                       )}
                     </button>
-                    <button
-                      onClick={() => openTransfer(t)}
-                      disabled={!!pendingByDentist[t.dentistId]}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-spa bg-background text-text-secondary hover:bg-accent/10 hover:text-accent spa-transition-fast disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-background disabled:hover:text-text-secondary"
-                      title={
-                        pendingByDentist[t.dentistId]
-                          ? 'A transfer is already scheduled'
-                          : transferStatusByDentist[t.dentistId]?.applied && !transferStatusByDentist[t.dentistId]?.reverted && transferStatusByDentist[t.dentistId]?.toBranchId === branchId
-                            ? 'View active transfer / add extra time'
-                            : `Transfer ${staffLabel.toLowerCase()}`
-                      }
-                    >
-                      <Icon name="ArrowRightLeft" size={16} />
-                    </button>
                   </div>
                 </div>
               );
@@ -1098,405 +631,6 @@ const AttendancePanel = ({ branchId }) => {
           </div>
         )}
       </div>
-
-      {/* Transfer Modal */}
-      {transferTarget && (
-        <div className="fixed inset-0 z-modal-overlay bg-black/50 flex items-center justify-center p-4" onClick={() => !transferring && !extending && !reverting && setTransferTarget(null)}>
-          <div className="bg-surface rounded-spa-lg spa-shadow-modal w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h3 className="font-heading font-heading-semibold text-lg text-text-primary">
-                {isOriginCancelView ? 'Cancel Transfer' : transferTarget.activeTransfer ? `Active Transfer — ${staffLabel}` : `Transfer ${staffLabel}`}
-              </h3>
-              <button onClick={() => !transferring && !extending && !reverting && !cancellingActive && setTransferTarget(null)} className="p-1 rounded hover:bg-background">
-                <Icon name="X" size={20} className="text-text-secondary" />
-              </button>
-            </div>
-
-            {transferTarget.activeTransfer && isOriginCancelView ? (
-              <>
-                {/* ORIGIN branch cancelling a transfer it initiated — simple one-click return,
-                    no Add Extra Time (only the destination manager may extend). */}
-                <p className="font-body text-sm text-text-secondary">
-                  <span className="font-body-medium text-text-primary">"{transferTarget.dentistName}"</span> is currently transferred to{' '}
-                  <span className="font-body-medium text-text-primary">{transferTarget.activeTransfer.toBranch}</span>.
-                </p>
-
-                <div className="bg-primary/5 rounded-spa p-3 space-y-1.5 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Since</span>
-                    <span className="font-body-medium text-text-primary">
-                      {formatPrettyDate(transferTarget.activeTransfer.effectiveDate)} {transferTarget.activeTransfer.startTime?.slice(0, 5)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Scheduled return</span>
-                    <span className="font-body-medium text-accent">
-                      {new Date(transferTarget.activeTransfer.revertAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
-                    </span>
-                  </div>
-                </div>
-
-                {cancelActiveError && (
-                  <div className="flex items-center gap-2 p-3 bg-error/10 border border-error/20 rounded-spa text-error text-sm">
-                    <Icon name="AlertCircle" size={16} />
-                    <span>{cancelActiveError}</span>
-                  </div>
-                )}
-
-                <p className="font-caption text-xs text-text-tertiary">
-                  Cancelling brings {transferTarget.dentistName} back to this branch right now. If they're still
-                  booked at {transferTarget.activeTransfer.toBranch}, {transferTarget.activeTransfer.toBranch}'s manager
-                  will need to mark them returned once that booking finishes.
-                </p>
-
-                <div className="border border-border rounded-spa p-3 space-y-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={useCustomReturnTime}
-                      onChange={(e) => {
-                        setUseCustomReturnTime(e.target.checked);
-                        setRevertError(null);
-                        if (e.target.checked && !customReturnDate) {
-                          const now = new Date();
-                          const pad = (n) => String(n).padStart(2, '0');
-                          setCustomReturnDate(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);
-                          setCustomReturnTime(`${pad(now.getHours())}:${pad(now.getMinutes())}`);
-                        }
-                      }}
-                      disabled={reverting}
-                      className="w-4 h-4 rounded border-border text-primary focus:ring-primary/30 cursor-pointer"
-                    />
-                    <span className="font-body font-body-medium text-sm text-text-primary">
-                      Or pick a specific return time
-                    </span>
-                  </label>
-                  {useCustomReturnTime && (
-                    <div className="space-y-2 pt-1">
-                      <p className="font-caption text-xs text-text-tertiary">
-                        A past moment means they've already come back; a future one reschedules when they will.
-                      </p>
-                      {revertError && (
-                        <div className="flex items-center gap-2 p-2 bg-error/10 border border-error/20 rounded-spa text-error text-xs">
-                          <Icon name="AlertCircle" size={14} />
-                          <span>{revertError}</span>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="block font-body font-body-medium text-sm text-text-primary">Date</label>
-                          <input
-                            type="date"
-                            value={customReturnDate}
-                            onChange={(e) => setCustomReturnDate(e.target.value)}
-                            disabled={reverting}
-                            className="w-full px-2 py-1.5 rounded-spa border border-border bg-surface font-data font-data-normal text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="block font-body font-body-medium text-sm text-text-primary">Time</label>
-                          <input
-                            type="time"
-                            value={customReturnTime}
-                            onChange={(e) => setCustomReturnTime(e.target.value)}
-                            disabled={reverting}
-                            className="w-full px-2 py-1.5 rounded-spa border border-border bg-surface font-data font-data-normal text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button variant="outline" size="sm" onClick={handleUpdateReturnTime} loading={reverting}>
-                          {customReturnDate && customReturnTime && new Date(`${customReturnDate}T${customReturnTime}`) > new Date()
-                            ? 'Set New Return Time'
-                            : 'Mark Returned Early'}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button variant="ghost" size="sm" onClick={() => setTransferTarget(null)} disabled={cancellingActive}>Close</Button>
-                  <Button variant="primary" size="sm" onClick={handleCancelTransferNow} loading={cancellingActive} disabled={reverting}>
-                    Cancel Transfer
-                  </Button>
-                </div>
-              </>
-            ) : transferTarget.activeTransfer ? (
-              <>
-                {/* ACTIVE: show current transfer details + Add Extra Time. Cannot start a
-                    new transfer for this staffer until this one resolves (server-enforced). */}
-                <p className="font-body text-sm text-text-secondary">
-                  <span className="font-body-medium text-text-primary">"{transferTarget.dentistName}"</span> is currently transferred here from{' '}
-                  <span className="font-body-medium text-text-primary">{transferTarget.activeTransfer.fromBranch}</span>.
-                </p>
-
-                <div className="bg-primary/5 rounded-spa p-3 space-y-1.5 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Destination branch</span>
-                    <span className="font-body-medium text-text-primary">{transferTarget.activeTransfer.toBranch}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Start</span>
-                    <span className="font-body-medium text-text-primary">
-                      {formatPrettyDate(transferTarget.activeTransfer.effectiveDate)} {transferTarget.activeTransfer.startTime?.slice(0, 5)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Current return</span>
-                    <span className="font-body-medium text-accent">
-                      {new Date(transferTarget.activeTransfer.revertAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Status</span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-caption font-caption-medium bg-success/10 text-success">
-                      <Icon name="CheckCircle" size={11} /> Active
-                    </span>
-                  </div>
-                </div>
-
-                {(extendError || revertError) && (
-                  <div className="flex items-center gap-2 p-3 bg-error/10 border border-error/20 rounded-spa text-error text-sm">
-                    <Icon name="AlertCircle" size={16} />
-                    <span>{extendError || revertError}</span>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Select
-                    label="Add Extra Time"
-                    placeholder="Select unit..."
-                    options={DURATION_UNIT_OPTIONS}
-                    value={extendDurationUnit}
-                    onChange={setExtendDurationUnit}
-                  />
-                  <div className="space-y-1">
-                    <label className="block font-body font-body-medium text-sm text-text-primary">Amount</label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={extendDurationValue}
-                      onChange={(e) => setExtendDurationValue(e.target.value)}
-                      placeholder="e.g. 2"
-                    />
-                  </div>
-                </div>
-
-                <div className="border border-border rounded-spa p-3 space-y-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={useCustomReturnTime}
-                      onChange={(e) => {
-                        setUseCustomReturnTime(e.target.checked);
-                        setRevertError(null);
-                        if (e.target.checked && !customReturnDate) {
-                          const now = new Date();
-                          // Use local date/time components for both fields — toISOString() is UTC and
-                          // can land on a different calendar day than toTimeString()'s local time near
-                          // midnight (e.g. Nepal is UTC+5:45), silently defaulting to the wrong day.
-                          const pad = (n) => String(n).padStart(2, '0');
-                          setCustomReturnDate(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);
-                          setCustomReturnTime(`${pad(now.getHours())}:${pad(now.getMinutes())}`);
-                        }
-                      }}
-                      disabled={reverting}
-                      className="w-4 h-4 rounded border-border text-primary focus:ring-primary/30 cursor-pointer"
-                    />
-                    <span className="font-body font-body-medium text-sm text-text-primary">
-                      Or pick a specific return time
-                    </span>
-                  </label>
-                  {useCustomReturnTime && (
-                    <div className="space-y-2 pt-1">
-                      <p className="font-caption text-xs text-text-tertiary">
-                        A past moment means they've already come back; a future one reschedules when they will
-                        (e.g. needed for less time than originally planned).
-                      </p>
-                      {revertError && (
-                        <div className="flex items-center gap-2 p-2 bg-error/10 border border-error/20 rounded-spa text-error text-xs">
-                          <Icon name="AlertCircle" size={14} />
-                          <span>{revertError}</span>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="block font-body font-body-medium text-sm text-text-primary">Date</label>
-                          <input
-                            type="date"
-                            value={customReturnDate}
-                            onChange={(e) => setCustomReturnDate(e.target.value)}
-                            disabled={reverting}
-                            className="w-full px-2 py-1.5 rounded-spa border border-border bg-surface font-data font-data-normal text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="block font-body font-body-medium text-sm text-text-primary">Time</label>
-                          <input
-                            type="time"
-                            value={customReturnTime}
-                            onChange={(e) => setCustomReturnTime(e.target.value)}
-                            disabled={reverting}
-                            className="w-full px-2 py-1.5 rounded-spa border border-border bg-surface font-data font-data-normal text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button variant="outline" size="sm" onClick={handleUpdateReturnTime} loading={reverting} disabled={extending}>
-                          {customReturnDate && customReturnTime && new Date(`${customReturnDate}T${customReturnTime}`) > new Date()
-                            ? 'Set New Return Time'
-                            : 'Mark Returned Early'}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button variant="ghost" size="sm" onClick={() => setTransferTarget(null)} disabled={extending || reverting}>Close</Button>
-                  <Button variant="primary" size="sm" onClick={handleExtendTransfer} loading={extending} disabled={!isExtendFormComplete || reverting}>
-                    Add Extra Time
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                {transferTarget.completedTransfer && (
-                  <div className="bg-background rounded-spa border border-border p-3 space-y-1 text-sm">
-                    <p className="font-body font-body-medium text-text-primary flex items-center gap-1.5">
-                      <Icon name="CheckCircle" size={14} className="text-success" /> Transfer completed
-                    </p>
-                    <p className="font-body text-text-secondary">
-                      Returned to <span className="font-body-medium">{transferTarget.completedTransfer.fromBranch}</span> from{' '}
-                      {transferTarget.completedTransfer.toBranch} at{' '}
-                      {transferTarget.completedTransfer.revertedAt
-                        ? new Date(transferTarget.completedTransfer.revertedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })
-                        : '—'}.
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex rounded-spa border border-border p-0.5 bg-background w-fit">
-                  <button
-                    type="button"
-                    onClick={() => setTransferMode('temporary')}
-                    className={`px-3 py-1.5 rounded text-sm font-body font-body-medium transition-colors ${
-                      transferMode === 'temporary' ? 'bg-primary text-white' : 'text-text-secondary hover:text-text-primary'
-                    }`}
-                  >
-                    Temporary
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTransferMode('permanent')}
-                    className={`px-3 py-1.5 rounded text-sm font-body font-body-medium transition-colors ${
-                      transferMode === 'permanent' ? 'bg-primary text-white' : 'text-text-secondary hover:text-text-primary'
-                    }`}
-                  >
-                    Permanent
-                  </button>
-                </div>
-
-                <p className="font-body text-sm text-text-secondary">
-                  {isPermanentTransfer ? (
-                    <>Move <span className="font-body-medium text-text-primary">"{transferTarget.dentistName}"</span> to another branch permanently. They'll stay there until transferred again.</>
-                  ) : (
-                    <>Move <span className="font-body-medium text-text-primary">"{transferTarget.dentistName}"</span> to another branch for a set duration. They'll automatically return to their current branch once it elapses.</>
-                  )}
-                </p>
-
-                {transferError && (
-                  <div className="flex items-center gap-2 p-3 bg-error/10 border border-error/20 rounded-spa text-error text-sm">
-                    <Icon name="AlertCircle" size={16} />
-                    <span>{transferError}</span>
-                  </div>
-                )}
-
-                <Select
-                  label="Destination Branch"
-                  placeholder="Select a branch..."
-                  options={orgBranches
-                    .filter(b => b.id !== branchId)
-                    .map(b => ({ value: b.id, label: b.name }))}
-                  value={transferToBranch}
-                  onChange={setTransferToBranch}
-                />
-
-                <div className={isPermanentTransfer ? '' : 'grid grid-cols-2 gap-3'}>
-                  <div className="space-y-1">
-                    <label className="block font-body font-body-medium text-sm text-text-primary">Start Date</label>
-                    <input
-                      type="date"
-                      value={transferStartDate}
-                      onChange={(e) => setTransferStartDate(e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-spa border border-border bg-surface font-data font-data-normal text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                  </div>
-                  {!isPermanentTransfer && (
-                    <div className="space-y-1">
-                      <label className="block font-body font-body-medium text-sm text-text-primary">Transfer Time</label>
-                      <input
-                        type="time"
-                        value={transferStartTime}
-                        onChange={(e) => setTransferStartTime(e.target.value)}
-                        className="w-full px-2 py-1.5 rounded-spa border border-border bg-surface font-data font-data-normal text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {!isPermanentTransfer && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <Select
-                      label="Duration Unit"
-                      placeholder="Select unit..."
-                      options={DURATION_UNIT_OPTIONS}
-                      value={transferDurationUnit}
-                      onChange={setTransferDurationUnit}
-                    />
-                    <div className="space-y-1">
-                      <label className="block font-body font-body-medium text-sm text-text-primary">Duration</label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={transferDurationValue}
-                        onChange={(e) => setTransferDurationValue(e.target.value)}
-                        placeholder="e.g. 2"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {!isPermanentTransfer && isTransferFormComplete && (
-                  <p className="font-caption text-xs text-text-tertiary">
-                    Will automatically move back to the current branch around{' '}
-                    <span className="font-body-medium text-text-secondary">
-                      {computeRevertPreview(transferStartDate, transferStartTime, transferDurationValue, transferDurationUnit)}
-                    </span>.
-                  </p>
-                )}
-
-                <div className="space-y-1">
-                  <label className="block font-body font-body-medium text-sm text-text-primary">Note (optional)</label>
-                  <Input
-                    value={transferNote}
-                    onChange={(e) => setTransferNote(e.target.value)}
-                    placeholder="Reason for transfer..."
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button variant="ghost" size="sm" onClick={() => setTransferTarget(null)} disabled={transferring}>Cancel</Button>
-                  <Button variant="primary" size="sm" onClick={handleTransfer} loading={transferring} disabled={!isTransferFormComplete}>
-                    {transferTarget.completedTransfer ? 'Transfer Dentist Again' : (transferStartDate > today ? 'Schedule Transfer' : 'Transfer')}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Toast */}
       {toast && (

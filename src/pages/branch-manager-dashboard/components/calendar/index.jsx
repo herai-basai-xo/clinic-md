@@ -27,7 +27,6 @@ import {
 } from '../../../../services/api';
 import { transformBooking, toDbStatus } from '../../../../services/bookingTransformers';
 import { isAfterCheckout } from '../../../../services/dentistBranchWindow';
-import { getTransferWindowPhase, isWithinTransferDaySlice } from '../../../../services/transferSlotWindow';
 import CustomSelect from '../../../../components/ui/CustomSelect';
 import CountryCodeSelect, { parsePhone } from '../../../../components/ui/CountryCodeSelect';
 import CustomerAutocomplete from '../../../../components/ui/CustomerAutocomplete';
@@ -1219,29 +1218,6 @@ function toKathmanduParts(isoString) {
   };
 }
 
-// Whether a specific (day, hour, minute) slot is blocked for a transferred dentist — matches
-// the CalendarGrid fill exactly, so nothing that LOOKS bookable silently rejects on click.
-// transferredOut: blocked WHILE the transfer window is active (they're away).
-// transferredIn: blocked OUTSIDE the transfer window (they're only actually visiting for that
-// slice, even though branch_id points here for the whole active period).
-function isTransferBlockedSlot(dentist, day, hour, minute) {
-  if (!dentist?.transferredOut && !dentist?.transferredIn) return false;
-  const start = toKathmanduParts(dentist.transferStartAt);
-  const end = toKathmanduParts(dentist.returnsAt);
-  if (!end) return true; // unknown revert time — block conservatively
-
-  const phase = getTransferWindowPhase(day, start, end);
-  if (dentist.transferredOut) {
-    if (phase !== 'during') return false;
-    return isWithinTransferDaySlice(day, hour, minute, start, end);
-  }
-  // transferredIn: blocked before arrival or outside the visiting slice; never after they've
-  // already returned home ('before' and 'after' are NOT symmetric for this direction).
-  if (phase === 'before') return true;
-  if (phase === 'after') return false;
-  return !isWithinTransferDaySlice(day, hour, minute, start, end);
-}
-
 // Whether a (day, hour, minute) slot for a dentist falls at/after their recorded
 // check-out for that specific day. `checkedOutByDentistAndDate` is the
 // "<dentistId>_<date>" -> raw check_out_time map from getCalendarBookings.
@@ -1299,16 +1275,6 @@ const OperationalCalendar = ({ branchId }) => {
     if (!calendarData?.dentists) return [];
     let list = calendarData.dentists;
     list = list.filter(t => !attendanceMap[t.id]);
-    // A transferredIn/transferredOut column whose window has already closed as of the day
-    // being viewed is a ghost — the staffer is already back where they belong (or the DB just
-    // hasn't caught up yet via the cron), so don't render them here at all rather than an
-    // empty/fully-bookable column with a stale "Visiting"/"Transferred" badge.
-    list = list.filter(t => {
-      if (!t.transferredIn && !t.transferredOut) return true;
-      const end = toKathmanduParts(t.returnsAt);
-      if (!end) return true;
-      return currentDate <= end.date;
-    });
     if (showTreatmentOnly) {
       list = list.filter(t => t.is_treatment_staff !== false);
     }
@@ -1656,16 +1622,7 @@ const OperationalCalendar = ({ branchId }) => {
     setOverSlotData(null);
     setDragGrabOffset(0);
 
-    // Block dragging a booking onto a dentist column that's currently transferred
-    // out to another branch (migration-145) — column stays visible, but not bookable
-    // here until they're auto-reverted. Server-side (assignDentist/rescheduleBooking)
-    // enforces this too; this is just the earlier, friendlier UX pre-emption.
     if (columnMode === 'dentist' && isCrossColumn) {
-      const targetDentist = calendarData?.dentists?.find(th => th.id === effectiveTargetColId);
-      if (isTransferBlockedSlot(targetDentist, newDate, hour, minute)) {
-        showToast('This dentist is temporarily transferred to another branch during this time and is not bookable here right now.', 'error');
-        return;
-      }
       if (isCheckedOutBlockedSlot(calendarData?.checkedOutByDentistAndDate, effectiveTargetColId, newDate, hour, minute)) {
         showToast('This dentist has already checked out for the day and is not bookable after their check-out time.', 'error');
         return;
@@ -1891,15 +1848,7 @@ const OperationalCalendar = ({ branchId }) => {
   // ── Quick-create handlers ──────────────────────────────────
 
   const handleEmptySlotClick = useCallback(async (slotInfo) => {
-    // Block new bookings on a dentist column that's currently transferred out to
-    // another branch (migration-145) — the column stays visible, but isn't bookable
-    // here until they're auto-reverted back.
     if (slotInfo.colType === 'dentist') {
-      const t = calendarData?.dentists?.find(th => th.id === slotInfo.colId);
-      if (isTransferBlockedSlot(t, slotInfo.day, slotInfo.hour, slotInfo.minute)) {
-        showToast('This dentist is temporarily transferred to another branch during this time and is not bookable here right now.', 'error');
-        return;
-      }
       if (isCheckedOutBlockedSlot(calendarData?.checkedOutByDentistAndDate, slotInfo.colId, slotInfo.day, slotInfo.hour, slotInfo.minute)) {
         showToast('This dentist has already checked out for the day and is not bookable after their check-out time.', 'error');
         return;
@@ -2525,7 +2474,7 @@ const OperationalCalendar = ({ branchId }) => {
                 <div className="font-caption font-semibold text-[10px] text-text-secondary uppercase tracking-wider mb-2">
                   Status
                 </div>
-                <StatusLegend showPayment showTransferBlocked compact />
+                <StatusLegend showPayment compact />
               </div>
 
               {/* Drag hint */}

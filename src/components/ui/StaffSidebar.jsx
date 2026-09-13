@@ -197,13 +197,6 @@ const StaffSidebar = ({ userRole: propRole, userName: propName, branchName: prop
           roles: ['manager', 'admin', 'admin_viewer']
         },
         {
-          id: 'transfer-report',
-          label: 'Transfer Report',
-          icon: 'ArrowRightLeft',
-          path: `${basePath}?view=transfer-report`,
-          roles: ['manager', 'admin', 'admin_viewer']
-        },
-        {
           id: 'outstanding',
           label: 'Outstanding Report',
           icon: 'AlertCircle',

@@ -207,7 +207,7 @@ export async function fetchDentists(branchId, { date } = {}) {
     // Not branch-scoped: absentIds below is only matched against the
     // branch-scoped `dentists` list, and dentist_attendance is keyed by
     // (dentist_id, date) globally — filtering here would risk missing a
-    // status marked before a same-day transfer.
+    // status marked at a different branch earlier the same day.
     let attendancePromise;
     if (date) {
       attendancePromise = supabase
@@ -3909,7 +3909,7 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
     // Not branch-scoped: dentist_attendance is keyed by (dentist_id, date)
     // globally, and absentIds below is only matched against the branch-scoped
     // `dentists` list, so filtering here would just risk missing a status
-    // marked before a same-day transfer.
+    // marked at a different branch earlier the same day.
     const attendanceQuery = supabase
       .from('dentist_attendance')
       .select('dentist_id, status')
@@ -4239,7 +4239,6 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
         .order('name'),
       // Dentists who've already checked out (for real, not just marked absent/leave) on
       // some date in this range — the calendar blocks the rest of that day's column for
-      // them, same as a transfer-out window, so a booking can't be dropped onto someone
       // who's already gone home. Only Present/Half-day rows can have a check_out_time.
       supabase
         .from('dentist_attendance')
@@ -6722,8 +6721,8 @@ export async function fetchAttendance({ branchId, date }) {
 
     // Parallel: active dentists + attendance records. Attendance is one record per
     // (dentist_id, date) globally — not scoped by branch_id — so it's fetched unfiltered
-    // by branch (a status marked at a dentist's prior branch, before a same-day transfer,
-    // still shows up here) and joined in-memory against the branch-scoped dentist list below.
+    // by branch (a status marked at a dentist's prior branch earlier the same day still
+    // shows up here) and joined in-memory against the branch-scoped dentist list below.
     let dentistsQuery = supabase
       .from('dentists')
       .select('id, name, is_treatment_staff')
@@ -6770,9 +6769,8 @@ export async function fetchAttendance({ branchId, date }) {
 
 /**
  * Fetch today's attendance record for an arbitrary set of dentist IDs, regardless of their
- * current branch_id — for staff who've been transferred OUT of the branch viewing them (they no
- * longer match a branch-scoped fetchAttendance() query, but they may still have checked in
- * earlier today before the transfer took effect, or at their new branch since).
+ * current branch_id — for staff who no longer match a branch-scoped fetchAttendance() query
+ * (e.g. moved to a different branch) but may still have checked in earlier today.
  */
 export async function fetchAttendanceByDentistIds({ dentistIds, date }) {
   try {
@@ -6920,7 +6918,7 @@ export async function fetchAttendanceSummary({ branchId, date }) {
 
     // Attendance is keyed by (dentist_id, date) globally, not branch_id, so it's fetched
     // unfiltered by branch (in parallel with the dentist list) and joined in-memory against
-    // the resolved dentist_id set — a status marked pre-transfer still counts this way.
+    // the resolved dentist_id set — a status marked at a prior branch still counts this way.
     let dentistsQuery = supabase
       .from('dentists')
       .select('id')
@@ -6986,7 +6984,7 @@ export async function fetchAttendanceReport({ branchId, startDate, endDate }) {
 
     // Attendance is keyed by (dentist_id, date) globally, not branch_id, so it's fetched
     // unfiltered by branch (in parallel with the dentist list) and joined in-memory against
-    // the resolved dentist_id set — a status marked pre-transfer still counts this way.
+    // the resolved dentist_id set — a status marked at a prior branch still counts this way.
     let dentistsQuery = supabase
       .from('dentists')
       .select('id, name, is_treatment_staff')
@@ -7249,7 +7247,7 @@ export async function getDentistPerformance({ branchId, fromDate, toDate }) {
     bookingsQuery = withBranch(bookingsQuery, branchId);
     // Not branch-scoped: already filtered to this branch's dentistIds above,
     // and dentist_attendance is keyed by (dentist_id, date) globally — an
-    // extra branch_id filter here would drop rows marked before a same-day transfer.
+    // extra branch_id filter here would drop rows marked at a different branch earlier the same day.
     const attendanceQuery = supabase
       .from('dentist_attendance')
       .select('dentist_id, status, check_in_time, check_out_time')
@@ -7366,7 +7364,7 @@ export async function getDentistOverview({ branchId, dentistId, fromDate, toDate
     // non-overall path) — not from the dentist's live branch_id. The bookings/attendance
     // queries below are scoped by branchId via withBranch(); deriving dayWindowMinutes from the
     // dentist's current branch instead would silently use the wrong operating window if the
-    // dentist has since been transferred elsewhere.
+    // dentist has since moved to a different branch.
     const { data: branch, error: bErr } = await supabase
       .from('branches')
       .select('open_time, close_time')
@@ -7561,7 +7559,7 @@ export async function getDentistAttendanceDetail({ branchId, dentistId, fromDate
 
     // Branch hours come from the branchId PARAM (resolveBranchId), matching what the attendance
     // query below is scoped to via withBranch() — not the dentist's live branch_id, which
-    // could point elsewhere if they've since been transferred (see getDentistOverview).
+    // could point elsewhere if they've since moved to a different branch (see getDentistOverview).
     const { data: branch, error: bErr } = await supabase
       .from('branches')
       .select('open_time, close_time')
