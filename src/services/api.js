@@ -1832,6 +1832,47 @@ export async function assignDentist({ bookingId, dentistIds = [], chairId }) {
   }
 }
 
+export async function createTreatmentNote({ bookingId, customerId, dentistId, note }) {
+  try {
+    if (!note || !note.trim()) {
+      return { data: null, error: { code: 'EMPTY_NOTE', message: 'Note text is required.' } };
+    }
+
+    const { data, error } = await supabase
+      .from('treatment_notes')
+      .insert({
+        booking_id: bookingId || null,
+        customer_id: customerId || null,
+        dentist_id: dentistId || null,
+        note: note.trim(),
+      })
+      .select('id, note, created_at')
+      .single();
+
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    console.error('[API] createTreatmentNote error:', error.message);
+    return { data: null, error };
+  }
+}
+
+export async function fetchTreatmentNotesForCustomer(customerId) {
+  try {
+    const { data, error } = await supabase
+      .from('treatment_notes')
+      .select('id, note, created_at, dentist:dentists(id, name)')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data || [], error: null };
+  } catch (error) {
+    console.error('[API] fetchTreatmentNotesForCustomer error:', error.message);
+    return { data: [], error };
+  }
+}
+
 export async function fetchRelatedUnpaidBookings({ customerName, date, excludeBookingId }) {
   try {
     const { data, error } = await supabase
@@ -6176,6 +6217,22 @@ export async function fetchCustomerProfile(customerId) {
 
     const all = bookings || [];
 
+    // 2b. Treatment notes left by dentists across this customer's appointments
+    const { data: treatmentNoteRows, error: notesError } = await supabase
+      .from('treatment_notes')
+      .select('id, note, created_at, dentist:dentists(id, name)')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false });
+
+    if (notesError) throw notesError;
+
+    const treatmentNotes = (treatmentNoteRows || []).map(n => ({
+      id: n.id,
+      note: n.note,
+      createdAt: n.created_at,
+      dentistName: n.dentist?.name || 'Unknown',
+    }));
+
     // 3. Compute aggregates
     let totalVisits = all.length;
     let completedVisits = 0;
@@ -6283,6 +6340,7 @@ export async function fetchCustomerProfile(customerId) {
           loyaltyTier,
         },
         history,
+        treatmentNotes,
       },
       error: null,
     };

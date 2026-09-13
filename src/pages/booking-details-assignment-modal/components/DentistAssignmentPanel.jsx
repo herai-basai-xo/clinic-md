@@ -244,15 +244,15 @@ const DentistAssignmentPanel = ({
         </div>
       </div>
 
-      {/* Assignment Notes */}
+      {/* Treatment Notes — saved to the customer's treatment history on assignment */}
       <div className="space-y-2">
         <label className="font-body font-body-medium text-sm text-text-primary">
-          Assignment Notes
+          Treatment Notes
         </label>
         <textarea
           value={assignmentNotes}
           onChange={(e) => setAssignmentNotes(e.target.value)}
-          placeholder="Add any special instructions or notes for the dentist..."
+          placeholder="Add treatment notes — saved to the patient's history..."
           rows={3}
           className="w-full px-3 py-2 border border-border rounded-spa bg-surface text-text-primary focus:ring-2 focus:ring-primary focus:border-primary spa-transition-fast resize-none"
         />

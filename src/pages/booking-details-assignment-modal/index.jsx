@@ -10,7 +10,7 @@ import BookingTimelinePanel from './components/BookingTimelinePanel';
 import CustomerCommunicationPanel from './components/CustomerCommunicationPanel';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBranch } from '../../contexts/BranchContext';
-import { fetchBookingById, fetchDentists, recordPayment, updateBookingStatus, assignDentist, fetchDueHolderNames } from '../../services/api';
+import { fetchBookingById, fetchDentists, recordPayment, updateBookingStatus, assignDentist, fetchDueHolderNames, createTreatmentNote } from '../../services/api';
 import { transformBooking, toDbStatus } from '../../services/bookingTransformers';
 
 const BookingDetailsAssignmentModal = () => {
@@ -127,11 +127,19 @@ const BookingDetailsAssignmentModal = () => {
     setIsLoading(true);
     setActionError(null);
 
-    const result = await assignDentist({ bookingId: booking.bookingId, dentistId });
+    const result = await assignDentist({ bookingId: booking.bookingId, dentistIds: dentistId ? [dentistId] : [] });
 
     if (result.error) {
       showActionError(result.error.message || 'Failed to assign dentist.');
     } else {
+      if (notes && notes.trim() && dentistId) {
+        await createTreatmentNote({
+          bookingId: booking.bookingId,
+          customerId: booking.customerId,
+          dentistId,
+          note: notes,
+        });
+      }
       await loadBooking();
     }
     setIsLoading(false);

@@ -180,6 +180,27 @@ const CustomerProfileModal = ({ customerId, onClose }) => {
                 </div>
               )}
 
+              {/* Treatment Notes */}
+              {data.treatmentNotes && data.treatmentNotes.length > 0 && (
+                <div>
+                  <h4 className="font-body font-body-medium text-sm text-text-primary mb-3">
+                    Treatment Notes ({data.treatmentNotes.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {data.treatmentNotes.map((n) => (
+                      <div key={n.id} className="bg-background rounded-spa p-3">
+                        <p className="font-body text-sm text-text-primary whitespace-pre-wrap">{n.note}</p>
+                        <div className="flex items-center space-x-2 text-xs text-text-secondary mt-2">
+                          <span>{n.dentistName}</span>
+                          <span className="text-text-tertiary">{'·'}</span>
+                          <span>{new Date(n.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Booking History */}
               <div>
                 <h4 className="font-body font-body-medium text-sm text-text-primary mb-3">
