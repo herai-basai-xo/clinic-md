@@ -537,6 +537,80 @@ CREATE FUNCTION public.find_customer_for_booking(p_org_id uuid, p_phone text DEF
   LIMIT 1;
 $$;
 
+-- Anon has no raw INSERT...RETURNING or UPDATE visibility on customers (no SELECT
+-- policy, by design — customer PII must not be publicly readable). The public
+-- booking flow needs to find-or-create a customer record as an unauthenticated
+-- visitor, so this SECURITY DEFINER function does the find/update/insert
+-- server-side and returns only the id, without ever exposing a broad SELECT
+-- policy to the anon role.
+CREATE FUNCTION public.upsert_customer_for_booking(
+    p_org_id uuid,
+    p_branch_id uuid,
+    p_full_name text,
+    p_phone text DEFAULT NULL::text,
+    p_email text DEFAULT NULL::text,
+    p_gender text DEFAULT NULL::text
+) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_id uuid;
+  v_existing_gender text;
+BEGIN
+  SELECT c.id, c.gender INTO v_id, v_existing_gender
+  FROM public.customers c
+  WHERE c.org_id = p_org_id
+    AND (
+      (p_phone IS NOT NULL AND c.phone = p_phone)
+      OR (p_email IS NOT NULL AND c.email = p_email)
+    )
+  ORDER BY (c.phone = p_phone) DESC NULLS LAST
+  LIMIT 1;
+
+  IF v_id IS NOT NULL THEN
+    UPDATE public.customers
+    SET full_name = p_full_name,
+        phone = COALESCE(p_phone, phone),
+        email = COALESCE(p_email, email),
+        gender = CASE WHEN v_existing_gender IS NULL THEN COALESCE(p_gender, gender) ELSE gender END
+    WHERE id = v_id;
+    RETURN v_id;
+  END IF;
+
+  BEGIN
+    INSERT INTO public.customers (org_id, branch_id, full_name, phone, email, gender)
+    VALUES (p_org_id, p_branch_id, p_full_name, p_phone, p_email, p_gender)
+    RETURNING id INTO v_id;
+  EXCEPTION WHEN unique_violation THEN
+    -- Lost a race against customers_org_nphone_uniq — the winner is now visible.
+    SELECT c.id INTO v_id
+    FROM public.customers c
+    WHERE c.org_id = p_org_id
+      AND (
+        (p_phone IS NOT NULL AND c.phone = p_phone)
+        OR (p_email IS NOT NULL AND c.email = p_email)
+      )
+    ORDER BY (c.phone = p_phone) DESC NULLS LAST
+    LIMIT 1;
+  END;
+
+  RETURN v_id;
+END;
+$$;
+
+-- Anon has no SELECT policy on bookings (by design — booking data must not be
+-- publicly readable). createBooking() generates the id client-side and inserts
+-- without RETURNING, then reads the DB-computed fields (final_amount,
+-- booking_number, end_time, ...) back through this narrow, id-scoped RPC.
+CREATE FUNCTION public.public_get_booking_by_id(p_booking_id uuid)
+    RETURNS SETOF public.bookings
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT * FROM public.bookings WHERE id = p_booking_id;
+$$;
+
 CREATE TABLE public.daily_reports (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     branch_id uuid NOT NULL,
@@ -1714,8 +1788,14 @@ CREATE TABLE public.chairs (
     CONSTRAINT chairs_capacity_check CHECK ((capacity > 0))
 );
 
+-- SECURITY DEFINER is required for correctness, not just defense-in-depth: this
+-- function's own capacity-counting SELECT is otherwise subject to the RLS of
+-- whichever role triggered it. The anon role (public booking flow) has no
+-- SELECT policy on bookings, so under SECURITY INVOKER this query would see
+-- zero existing rows and the capacity check would silently never fire for
+-- anonymous customers — the exact case double-booking prevention matters most.
 CREATE FUNCTION public.check_chair_capacity() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
@@ -1990,8 +2070,11 @@ CREATE TABLE public.dentists (
     CONSTRAINT dentists_gender_check CHECK ((gender = ANY (ARRAY['Male'::text, 'Female'::text])))
 );
 
+-- SECURITY DEFINER for the same reason as check_chair_capacity(): its counting
+-- query must see all bookings regardless of the invoking role's RLS, or the
+-- cap would silently never apply to anonymous customer-facing inserts.
 CREATE FUNCTION public.check_branch_online_capacity() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
@@ -4820,7 +4903,12 @@ CREATE TRIGGER trg_organizations_updated_at BEFORE UPDATE ON public.organization
 
 CREATE TRIGGER trg_payment_update_booking_status AFTER INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION public.update_booking_payment_status();
 
-CREATE TRIGGER trg_chair_capacity_check BEFORE INSERT OR UPDATE OF chair_id, date, start_time, treatment_id, status ON public.bookings FOR EACH ROW EXECUTE FUNCTION public.check_chair_capacity();
+-- Named to sort alphabetically AFTER trg_compute_datetimes: Postgres fires
+-- same-event BEFORE triggers in trigger-name order, and this function reads
+-- NEW.start_datetime/end_datetime, which trg_compute_datetimes computes.
+-- (The original "room" naming happened to sort after "compute" too — renaming
+-- to "chair" would silently invert that order and disable the overlap check.)
+CREATE TRIGGER trg_verify_chair_capacity BEFORE INSERT OR UPDATE OF chair_id, date, start_time, treatment_id, status ON public.bookings FOR EACH ROW EXECUTE FUNCTION public.check_chair_capacity();
 
 CREATE TRIGGER trg_set_membership_number BEFORE INSERT ON public.memberships FOR EACH ROW EXECUTE FUNCTION public.set_membership_number();
 
@@ -5231,3 +5319,29 @@ ALTER TABLE ONLY public.treatment_notes
 ALTER TABLE ONLY public.treatment_notes
     ADD CONSTRAINT treatment_notes_dentist_id_fkey FOREIGN KEY (dentist_id) REFERENCES public.dentists(id) ON DELETE SET NULL;
 
+
+-- ============================================================================
+-- Role grants
+-- ============================================================================
+-- A fresh Supabase project sets these up automatically, but a schema created
+-- via DROP SCHEMA public CASCADE + this file's CREATE statements does not —
+-- discovered the hard way while standing up staging. Every table/RPC access
+-- from the anon/authenticated roles depends on this running once per project.
+
+GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
+
+GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, service_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO postgres, service_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated;

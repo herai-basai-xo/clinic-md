@@ -4527,9 +4527,9 @@ export async function createBooking({
       const phone = toE164(customerPhone);
       const email = customerEmail?.trim().toLowerCase() || null;
 
-      // Try to find existing customer by phone or email across the whole org.
-      // Goes through the find_customer_for_booking RPC (not a direct table SELECT) —
-      // anon has no raw SELECT grant on customers, see migration-072.
+      // Anon has no raw SELECT/INSERT/UPDATE visibility on customers (no SELECT
+      // policy, by design — customer PII must not be publicly readable). Both
+      // RPCs are SECURITY DEFINER and return only the fields needed here.
       let existingCustomer = null;
       if (orgId && (phone || email)) {
         const { data } = await supabase
@@ -4537,49 +4537,20 @@ export async function createBooking({
           .maybeSingle();
         existingCustomer = data;
       }
+      isNewCustomer = !existingCustomer;
 
-      if (existingCustomer) {
-        customerId = existingCustomer.id;
-        // Update name if changed. Backfill gender onto the profile only when it's
-        // not already set — a booking-time pick shouldn't clobber a previously
-        // confirmed value (e.g. from membership enrollment).
-        await supabase
-          .from('customers')
-          .update({
-            full_name: customerName,
-            phone: phone || undefined,
-            email: email || undefined,
-            gender: (!existingCustomer.gender && customerGender) ? customerGender : undefined,
-          })
-          .eq('id', customerId);
-      } else {
-        // Create new customer record (org-wide identity; branch_id kept as origin)
-        const { data: newCustomer, error: insertCustErr } = await supabase
-          .from('customers')
-          .insert({
-            org_id: orgId,
-            branch_id: resolvedBranchId,
-            full_name: customerName,
-            phone: phone || null,
-            email: email || null,
-            gender: customerGender || null,
-          })
-          .select('id')
-          .single();
-        if (newCustomer) {
-          customerId = newCustomer.id;
-          isNewCustomer = true;
-        } else if (insertCustErr?.code === '23505' && orgId && phone) {
-          // Lost a race against customers_org_nphone_uniq — re-fetch the winner
-          const { data } = await supabase
-            .from('customers')
-            .select('id')
-            .eq('org_id', orgId)
-            .eq('phone', phone)
-            .limit(1)
-            .maybeSingle();
-          if (data) customerId = data.id;
-        }
+      if (orgId) {
+        const { data: upsertedId, error: upsertErr } = await supabase
+          .rpc('upsert_customer_for_booking', {
+            p_org_id: orgId,
+            p_branch_id: resolvedBranchId,
+            p_full_name: customerName,
+            p_phone: phone || null,
+            p_email: email || null,
+            p_gender: customerGender || null,
+          });
+        if (upsertErr) throw upsertErr;
+        customerId = upsertedId;
       }
     } catch (custErr) {
       // Non-blocking: booking still proceeds without customer link
@@ -4637,12 +4608,22 @@ export async function createBooking({
       dentistNameSnapshot = primary?.name || null;
     }
 
-    // 7. Insert booking — triggers compute end_time, datetimes, final_amount, booking_number
+    // 7. Insert booking — triggers compute end_time, datetimes, final_amount, booking_number.
     // Capture who created it (null for anonymous customer self-booking).
+    //
+    // Anon has no SELECT policy on bookings (by design — booking data must not be
+    // publicly readable), so `.insert(...).select()` would fail the same way the
+    // customers insert did: RETURNING is subject to SELECT-policy visibility even
+    // though the INSERT itself is allowed. Generate the id client-side so the
+    // insert doesn't need to return anything, then fetch the DB-computed fields
+    // (final_amount, booking_number, end_time, ...) back via a narrow SECURITY
+    // DEFINER RPC scoped to this exact id.
+    const bookingId = crypto.randomUUID();
     const { data: { user: authUser } } = await supabase.auth.getUser();
-    const { data: booking, error: insertError } = await supabase
+    const { error: insertError } = await supabase
       .from('bookings')
       .insert({
+        id: bookingId,
         branch_id: resolvedBranchId,
         chair_id: availableChair?.id || null,
         treatment_id: treatmentId,
@@ -4668,9 +4649,7 @@ export async function createBooking({
         treatment_price_snapshot: Number(treatment.price_npr),
         chair_name_snapshot: availableChair?.name || null,
         dentist_name_snapshot: dentistNameSnapshot,
-      })
-      .select()
-      .single();
+      });
 
     if (insertError) {
       if (insertError.code === '23P01') {
@@ -4684,6 +4663,11 @@ export async function createBooking({
       }
       throw insertError;
     }
+
+    const { data: booking, error: fetchBookingErr } = await supabase
+      .rpc('public_get_booking_by_id', { p_booking_id: bookingId })
+      .single();
+    if (fetchBookingErr) throw fetchBookingErr;
 
     // 7a2. Log customer-to-customer referral, if staff supplied one for a genuinely
     // new customer. Non-blocking — a referral logging failure must not fail the booking.
