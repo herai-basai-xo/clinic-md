@@ -27,6 +27,7 @@ import {
 } from '../../../../services/api';
 import { transformBooking, toDbStatus } from '../../../../services/bookingTransformers';
 import { isAfterCheckout } from '../../../../services/dentistBranchWindow';
+import { useAuth } from '../../../../contexts/AuthContext';
 import CustomSelect from '../../../../components/ui/CustomSelect';
 import CountryCodeSelect, { parsePhone } from '../../../../components/ui/CountryCodeSelect';
 import CustomerAutocomplete from '../../../../components/ui/CustomerAutocomplete';
@@ -1231,6 +1232,7 @@ function isCheckedOutBlockedSlot(checkedOutByDentistAndDate, dentistId, day, hou
 // ── Component ────────────────────────────────────────────────
 
 const OperationalCalendar = ({ branchId }) => {
+  const { profile } = useAuth();
   const staffLabel = 'Dentist';
   const staffLabelPlural = 'Dentists';
   const locationLabel = 'Chair';
