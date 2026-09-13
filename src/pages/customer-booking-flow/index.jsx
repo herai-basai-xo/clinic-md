@@ -28,6 +28,7 @@ const CustomerBookingFlow = () => {
   const [selectedTreatment, setSelectedTreatment] = useState(null);
   const [selectedDateTime, setSelectedDateTime] = useState({ date: '', time: '' });
   const [genderPreference, setGenderPreference] = useState('no-preference');
+  const [specialtyPreference, setSpecialtyPreference] = useState('any');
   const [customerInfo, setCustomerInfo] = useState({
     firstName: '',
     lastName: '',
@@ -91,10 +92,11 @@ const CustomerBookingFlow = () => {
       selectedTreatment,
       selectedDateTime,
       genderPreference,
+      specialtyPreference,
       customerInfo
     };
     localStorage.setItem('bookingFlow', JSON.stringify(bookingState));
-  }, [currentStep, selectedBranch, selectedTreatment, selectedDateTime, genderPreference, customerInfo]);
+  }, [currentStep, selectedBranch, selectedTreatment, selectedDateTime, genderPreference, specialtyPreference, customerInfo]);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -108,6 +110,7 @@ const CustomerBookingFlow = () => {
           setSelectedTreatment(parsed.selectedTreatment);
           setSelectedDateTime(parsed.selectedDateTime || { date: '', time: '' });
           setGenderPreference(parsed.genderPreference || 'no-preference');
+          setSpecialtyPreference(parsed.specialtyPreference || 'any');
           // Merge into prev rather than replacing outright — if the
           // customer-profile prefill effect already landed (e.g. profile
           // was already resolved at mount from an in-app navigation), a
@@ -223,6 +226,11 @@ const CustomerBookingFlow = () => {
     setSelectedDateTime({ date: '', time: '' }); // Reset time when preference changes
   };
 
+  const handleSpecialtyPreferenceChange = (specialty) => {
+    setSpecialtyPreference(specialty);
+    setSelectedDateTime({ date: '', time: '' }); // Reset time when preference changes
+  };
+
   const handleCustomerInfoChange = (info) => {
     setCustomerInfo(info);
   };
@@ -234,6 +242,7 @@ const CustomerBookingFlow = () => {
       selectedTreatment,
       selectedDateTime,
       genderPreference,
+      specialtyPreference,
       customerInfo,
       bookingDate: new Date().toISOString(),
       status: 'confirmed'
@@ -309,9 +318,11 @@ const CustomerBookingFlow = () => {
             selectedBranch={selectedBranch}
             genderPreference={genderPreference}
             onGenderPreferenceChange={handleGenderPreferenceChange}
+            specialtyPreference={specialtyPreference}
+            onSpecialtyPreferenceChange={handleSpecialtyPreferenceChange}
           />
         );
-      
+
       case 4:
         return (
           <CustomerForm

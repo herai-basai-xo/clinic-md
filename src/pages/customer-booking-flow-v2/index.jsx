@@ -47,6 +47,7 @@ const CustomerBookingFlowV2 = () => {
   const [selectedTreatment, setSelectedTreatment] = useState(null);
   const [selectedDateTime, setSelectedDateTime] = useState({ date: '', time: '' });
   const [genderPreference, setGenderPreference] = useState('no-preference');
+  const [specialtyPreference, setSpecialtyPreference] = useState('any');
   const [customerInfo, setCustomerInfo] = useState({
     firstName: '',
     lastName: '',
@@ -108,10 +109,11 @@ const CustomerBookingFlowV2 = () => {
       selectedTreatment,
       selectedDateTime,
       genderPreference,
+      specialtyPreference,
       customerInfo
     };
     localStorage.setItem('bookingFlowV2', JSON.stringify(bookingState));
-  }, [currentStep, selectedBranch, selectedTreatment, selectedDateTime, genderPreference, customerInfo]);
+  }, [currentStep, selectedBranch, selectedTreatment, selectedDateTime, genderPreference, specialtyPreference, customerInfo]);
 
   useEffect(() => {
     const savedState = localStorage.getItem('bookingFlowV2');
@@ -124,6 +126,7 @@ const CustomerBookingFlowV2 = () => {
           setSelectedTreatment(parsed.selectedTreatment);
           setSelectedDateTime(parsed.selectedDateTime || { date: '', time: '' });
           setGenderPreference(parsed.genderPreference || 'no-preference');
+          setSpecialtyPreference(parsed.specialtyPreference || 'any');
           // A draft's saved phone may be a bare national number or (from an older
           // build) a full E.164 string — split defensively so the number box only
           // ever holds the national part.
@@ -267,6 +270,11 @@ const CustomerBookingFlowV2 = () => {
     setSelectedDateTime({ date: '', time: '' }); // Reset time when preference changes
   };
 
+  const handleSpecialtyPreferenceChange = (specialty) => {
+    setSpecialtyPreference(specialty);
+    setSelectedDateTime({ date: '', time: '' }); // Reset time when preference changes
+  };
+
   const handleCustomerInfoChange = (info) => {
     setCustomerInfo(info);
   };
@@ -278,6 +286,7 @@ const CustomerBookingFlowV2 = () => {
       selectedTreatment,
       selectedDateTime,
       genderPreference,
+      specialtyPreference,
       customerInfo,
       bookingDate: new Date().toISOString(),
       status: 'confirmed'
@@ -336,6 +345,8 @@ const CustomerBookingFlowV2 = () => {
             onDateTimeSelect={handleDateTimeSelect}
             genderPreference={genderPreference}
             onGenderPreferenceChange={handleGenderPreferenceChange}
+            specialtyPreference={specialtyPreference}
+            onSpecialtyPreferenceChange={handleSpecialtyPreferenceChange}
             onContinue={handleNext}
             canContinue={!!selectedDateTime.date && !!selectedDateTime.time}
           />

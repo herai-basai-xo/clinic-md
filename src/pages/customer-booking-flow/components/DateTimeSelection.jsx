@@ -15,34 +15,42 @@ import {
 
 const WINDOW_DAYS = 14; // matches the 14 date-chips rendered below — one fetch covers all of them
 
-const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedTreatment, selectedBranch, genderPreference, onGenderPreferenceChange }) => {
+const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedTreatment, selectedBranch, genderPreference, onGenderPreferenceChange, specialtyPreference, onSpecialtyPreferenceChange }) => {
   const { enableStaffGender, enableChairs, staffLabel } = useTenant();
   const [selectedDate, setSelectedDate] = useState(selectedDateTime?.date || '');
   const [selectedTime, setSelectedTime] = useState(selectedDateTime?.time || '');
   const [dentistCounts, setDentistCounts] = useState({ male: 0, female: 0 });
+  const [availableSpecialties, setAvailableSpecialties] = useState([]);
   const [availabilityWindow, setAvailabilityWindow] = useState(null); // days 0..13
   const [extendedWindow, setExtendedWindow] = useState(null); // days 14..29, fetched on demand
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [loadingExtended, setLoadingExtended] = useState(false);
 
-  // Fetch dentist counts for the selected branch (once) — advisory gender signal only; real
-  // availability is gated by chair capacity below.
+  // Fetch dentist counts for the selected branch (once) — advisory gender/specialty signal only;
+  // real availability is gated by chair capacity below.
   useEffect(() => {
     if (!selectedBranch?.id) return;
     async function fetchDentistCounts() {
       const { data } = await supabase
         .from('dentists')
-        .select('gender')
+        .select('gender, specialties')
         .eq('branch_id', selectedBranch.id)
         .eq('is_active', true);
       if (data) {
-        const male = data.filter(t => t.gender?.toLowerCase() === 'male').length;
-        const female = data.filter(t => t.gender?.toLowerCase() === 'female').length;
+        const inSpecialty = (t) =>
+          specialtyPreference === 'any' || (t.specialties || []).includes(specialtyPreference);
+        const relevant = data.filter(inSpecialty);
+        const male = relevant.filter(t => t.gender?.toLowerCase() === 'male').length;
+        const female = relevant.filter(t => t.gender?.toLowerCase() === 'female').length;
         setDentistCounts({ male, female });
+
+        const specialties = new Set();
+        data.forEach((t) => (t.specialties || []).forEach((s) => specialties.add(s)));
+        setAvailableSpecialties(Array.from(specialties).sort());
       }
     }
     fetchDentistCounts();
-  }, [selectedBranch?.id]);
+  }, [selectedBranch?.id, specialtyPreference]);
 
   // Generate next 30 days (date-chip strip)
   const dates = useMemo(() => {
@@ -245,6 +253,40 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedTreatme
             Showing real availability for <span className="font-body font-body-medium text-text-primary">{selectedTreatment.name}</span>
             {' '}({selectedTreatment.durationMinutes || 60} min) — a slot is only shown open if a chair is free for the entire duration.
           </span>
+        </div>
+      )}
+
+      {/* Specialty filter — only shown when the branch has more than one distinct specialty */}
+      {availableSpecialties.length > 1 && (
+        <div className="bg-surface rounded-spa-lg border border-border p-6">
+          <h3 className="font-heading font-heading-medium text-lg text-text-primary mb-4">
+            {staffLabel} Specialty
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => onSpecialtyPreferenceChange('any')}
+              className={`px-3 py-1.5 rounded-spa border text-sm font-body font-body-medium spa-transition-fast ${
+                specialtyPreference === 'any'
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-border text-text-secondary hover:border-primary/50'
+              }`}
+            >
+              Any Specialty
+            </button>
+            {availableSpecialties.map((specialty) => (
+              <button
+                key={specialty}
+                onClick={() => onSpecialtyPreferenceChange(specialty)}
+                className={`px-3 py-1.5 rounded-spa border text-sm font-body font-body-medium spa-transition-fast ${
+                  specialtyPreference === specialty
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border text-text-secondary hover:border-primary/50'
+                }`}
+              >
+                {specialty}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

@@ -24,6 +24,8 @@ const TreatmentBookingPanel = ({
   onDateTimeSelect,
   genderPreference,
   onGenderPreferenceChange,
+  specialtyPreference,
+  onSpecialtyPreferenceChange,
   onContinue,
   canContinue,
 }) => {
@@ -77,6 +79,8 @@ const TreatmentBookingPanel = ({
               selectedBranch={selectedBranch}
               genderPreference={genderPreference}
               onGenderPreferenceChange={onGenderPreferenceChange}
+              specialtyPreference={specialtyPreference}
+              onSpecialtyPreferenceChange={onSpecialtyPreferenceChange}
             />
           </div>
 

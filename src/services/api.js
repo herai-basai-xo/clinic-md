@@ -1,10 +1,9 @@
 import { supabase, supabaseCustomer } from '../lib/supabase';
 import { transformMembership, transformMemberships, toTitleCase } from './bookingTransformers';
-import { dedupeTransfersByKey, sortTransfersByTime } from './transferDedup';
 import { capture } from '../lib/analytics';
 import { MEMBERSHIP_ENABLED, CUSTOMER_REFERRALS_ENABLED, VOUCHER_ENABLED } from '../lib/featureFlags';
 import { toE164, samePhone } from '../utils/phone';
-import { computeDentistBranchAt, toKathmanduDate, isAfterCheckout, resolveOrphanTransferWindow } from './dentistBranchWindow';
+import { isAfterCheckout } from './dentistBranchWindow';
 
 // Sentinel "branch" meaning "all branches in the admin's org" (the Overall view).
 // Admin RLS is already org-scoped, so dropping the per-branch filter for this value
@@ -1725,28 +1724,9 @@ export async function assignDentist({ bookingId, dentistIds = [], chairId }) {
         return { data: null, error: { code: 'DENTIST_INACTIVE', message: `Cannot assign inactive dentist: ${inactive.name}` } };
       }
 
-      // A dentist's live branch_id only reflects the CURRENT moment (flipped by the
-      // apply/revert cron) — it's the wrong thing to check against a booking on a
-      // different date. Reconstruct their expected branch AT THE BOOKING'S DATE/TIME
-      // from the full staff_transfers window history instead (see
-      // dentistBranchWindow.js) so scheduled-but-not-yet-applied and
-      // already-reverted transfer windows are both handled correctly.
-      const atDate = toKathmanduDate(booking.date, booking.start_time);
-      const { data: transferRows } = await supabase
-        .from('staff_transfers')
-        .select('dentist_id, from_branch_id, to_branch_id, is_permanent, effective_date, start_time, revert_at')
-        .in('dentist_id', ids);
-
-      const transfersByDentist = {};
-      (transferRows || []).forEach(t => {
-        (transfersByDentist[t.dentist_id] ||= []).push(t);
-      });
-
-      const wrongBranch = (dentistsData || []).find(t =>
-        computeDentistBranchAt(transfersByDentist[t.id] || [], t.branch_id, atDate) !== booking.branch_id
-      );
+      const wrongBranch = (dentistsData || []).find(t => t.branch_id !== booking.branch_id);
       if (wrongBranch) {
-        return { data: null, error: { code: 'INVALID_DENTIST', message: `${wrongBranch.name} is not available in this branch at this time (transferred elsewhere for this date).` } };
+        return { data: null, error: { code: 'INVALID_DENTIST', message: `${wrongBranch.name} is not available in this branch.` } };
       }
 
       if (booking.date) {
@@ -2744,20 +2724,9 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newD
         if (dentist && !dentist.is_active) {
           return { data: null, error: { code: 'DENTIST_INACTIVE', message: 'Cannot assign an inactive dentist.' } };
         }
-        // A dentist's live branch_id only reflects the CURRENT moment (flipped by
-        // the apply/revert cron) — it's the wrong thing to check against the NEW
-        // date/time being rescheduled to. Reconstruct their expected branch at
-        // newDate/newStartTime from the full staff_transfers window history instead
-        // (see dentistBranchWindow.js).
         if (dentist) {
-          const { data: transferRows } = await supabase
-            .from('staff_transfers')
-            .select('from_branch_id, to_branch_id, is_permanent, effective_date, start_time, revert_at')
-            .eq('dentist_id', newDentistId);
-          const atDate = toKathmanduDate(newDate, newStartTime);
-          const effectiveBranch = computeDentistBranchAt(transferRows || [], dentist.branch_id, atDate);
-          if (effectiveBranch !== booking.branch_id) {
-            return { data: null, error: { code: 'INVALID_DENTIST', message: `${dentist.name} is not available in this branch at this time (transferred elsewhere for this date).` } };
+          if (dentist.branch_id !== booking.branch_id) {
+            return { data: null, error: { code: 'INVALID_DENTIST', message: `${dentist.name} is not available in this branch.` } };
           }
 
           const { data: attRow } = await supabase
@@ -2784,14 +2753,8 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newD
         .single();
 
       if (currentDentist) {
-        const { data: transferRows } = await supabase
-          .from('staff_transfers')
-          .select('from_branch_id, to_branch_id, is_permanent, effective_date, start_time, revert_at')
-          .eq('dentist_id', booking.dentist_id);
-        const atDate = toKathmanduDate(newDate, newStartTime);
-        const effectiveBranch = computeDentistBranchAt(transferRows || [], currentDentist.branch_id, atDate);
-        if (effectiveBranch !== booking.branch_id) {
-          return { data: null, error: { code: 'INVALID_DENTIST', message: `${currentDentist.name} is not available in this branch at this time (transferred elsewhere for this date). Reassign or choose a different date.` } };
+        if (currentDentist.branch_id !== booking.branch_id) {
+          return { data: null, error: { code: 'INVALID_DENTIST', message: `${currentDentist.name} is not available in this branch. Reassign or choose a different date.` } };
         }
 
         const { data: attRow } = await supabase
@@ -4256,12 +4219,9 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
 
     if (branchError) throw branchError;
 
-    // 2. Fetch dentists, chairs, and any staffers currently transferred OUT of this
-    //    branch (they still show as a column here — booking creation is already
-    //    blocked for them since their branch_id now points elsewhere — see migration-145).
+    // 2. Fetch dentists and chairs for this branch.
     const [
-      dentistsResult, chairsResult, transferredOutResult, transferredInResult,
-      revertedOutResult, revertedInResult, checkedOutResult,
+      dentistsResult, chairsResult, checkedOutResult,
     ] = await Promise.all([
       supabase
         .from('dentists')
@@ -4277,70 +4237,6 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
         .eq('is_active', true)
         .order('display_order')
         .order('name'),
-      // is_permanent = false: a Permanent transfer (migration-150) is a plain reassignment
-      // with no revert — the staffer should just appear as a normal column at their new
-      // branch, not as a "transferred out/visiting" overlay. revert_at IS NOT NULL additionally
-      // excludes historical pre-migration-141 rows: `reverted`/`is_permanent` are both
-      // NOT NULL DEFAULT false columns added later, so every legacy row backfills to
-      // reverted=false/is_permanent=false and would otherwise match this filter forever,
-      // showing a permanent phantom "transferred out"/"visiting" column for any staffer who
-      // was ever moved under the old model — revert_at is the one column that's genuinely
-      // NULL on those old rows (they never had a duration), so it's the reliable "this is a
-      // real, still-active temporary window" signal.
-      supabase
-        .from('staff_transfers')
-        .select('id, revert_at, effective_date, start_time, from_display_order, dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_treatment_staff, display_order)')
-        .eq('from_branch_id', resolvedBranchId)
-        .eq('applied', true)
-        .eq('reverted', false)
-        .eq('is_permanent', false)
-        .not('revert_at', 'is', null)
-        .order('effective_date', { ascending: true })
-        .order('start_time', { ascending: true }),
-      // Staffers currently visiting THIS branch on a temporary transfer — they already
-      // appear normally in dentistsResult above (branch_id points here); this tags them
-      // with where they're from + their actual visiting window, so the calendar can block
-      // everything OUTSIDE that window (they're only really here for that slice of time).
-      supabase
-        .from('staff_transfers')
-        .select('dentist_id, revert_at, effective_date, start_time, fromBranch:branches!staff_transfers_from_branch_id_fkey(name), dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_treatment_staff, display_order)')
-        .eq('to_branch_id', resolvedBranchId)
-        .eq('applied', true)
-        .eq('reverted', false)
-        .eq('is_permanent', false)
-        .not('revert_at', 'is', null)
-        .order('effective_date', { ascending: true })
-        .order('start_time', { ascending: true }),
-      // Same two queries again, but for transfers that have ALREADY reverted within the
-      // viewed date range — without this, a transfer's shaded [start, revert_at] window
-      // vanishes from the calendar the instant it reverts, even on the same day it
-      // happened (getTransferBlockRange below is already date/time-range-aware and would
-      // render this correctly — it just never receives the flag once `reverted` flips).
-      // Bounded to [startDate, endDate] so this can't resurrect arbitrarily old transfers.
-      supabase
-        .from('staff_transfers')
-        .select('id, revert_at, effective_date, start_time, from_display_order, dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_treatment_staff, display_order)')
-        .eq('from_branch_id', resolvedBranchId)
-        .eq('applied', true)
-        .eq('reverted', true)
-        .eq('is_permanent', false)
-        .not('revert_at', 'is', null)
-        .gte('effective_date', startDate)
-        .lte('effective_date', endDate)
-        .order('effective_date', { ascending: true })
-        .order('start_time', { ascending: true }),
-      supabase
-        .from('staff_transfers')
-        .select('dentist_id, revert_at, effective_date, start_time, fromBranch:branches!staff_transfers_from_branch_id_fkey(name), dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_treatment_staff, display_order)')
-        .eq('to_branch_id', resolvedBranchId)
-        .eq('applied', true)
-        .eq('reverted', true)
-        .eq('is_permanent', false)
-        .not('revert_at', 'is', null)
-        .gte('effective_date', startDate)
-        .lte('effective_date', endDate)
-        .order('effective_date', { ascending: true })
-        .order('start_time', { ascending: true }),
       // Dentists who've already checked out (for real, not just marked absent/leave) on
       // some date in this range — the calendar blocks the rest of that day's column for
       // them, same as a transfer-out window, so a booking can't be dropped onto someone
@@ -4356,10 +4252,6 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
 
     if (dentistsResult.error) throw dentistsResult.error;
     if (chairsResult.error) throw chairsResult.error;
-    if (transferredOutResult.error) throw transferredOutResult.error;
-    if (transferredInResult.error) throw transferredInResult.error;
-    if (revertedOutResult.error) throw revertedOutResult.error;
-    if (revertedInResult.error) throw revertedInResult.error;
     if (checkedOutResult.error) throw checkedOutResult.error;
 
     // Keyed "<dentistId>_<date>" -> raw check_out_time (timestamptz), so the calendar
@@ -4369,70 +4261,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
       checkedOutByDentistAndDate[`${row.dentist_id}_${row.date}`] = row.check_out_time;
     });
 
-    const activeDentistIds = new Set((dentistsResult.data || []).map(t => t.id));
-    // Each query is individually ordered ascending, but concatenating two separately-ordered
-    // result sets is NOT itself globally sorted (a still-live transfer can be chronologically
-    // AFTER an already-reverted-today one for the same dentist) — sort the combined array
-    // before deduping so "last row per dentist id" reliably means their most recent transfer,
-    // collapsing a round-tripped-more-than-once dentist down to a single calendar column.
-    const dedupedOutRows = dedupeTransfersByKey(
-      sortTransfersByTime([...(transferredOutResult.data || []), ...(revertedOutResult.data || [])]),
-      t => t.dentist?.id
-    );
-    const transferredOutDentists = dedupedOutRows
-      .filter(t => t.dentist && !activeDentistIds.has(t.dentist.id))
-      .map(t => ({
-        ...t.dentist,
-        // dentist.display_order now reflects their DESTINATION branch's ordering
-        // (overwritten the moment the transfer applied) — from_display_order is the
-        // position they held HERE, captured before that overwrite (migration-149).
-        // Falling back to the live value only if that capture is missing (legacy rows).
-        display_order: t.from_display_order ?? t.dentist.display_order,
-        transferredOut: true,
-        returnsAt: t.revert_at,
-        // Kathmandu wall-clock instant the transfer actually took effect — lets the
-        // calendar shade only the real [start, revert_at] window, not the whole day.
-        transferStartAt: t.effective_date && t.start_time ? `${t.effective_date}T${t.start_time}+05:45` : null,
-      }));
-
-    // Same dedup + global sort as the out-side.
-    const inRows = dedupeTransfersByKey(
-      sortTransfersByTime([...(transferredInResult.data || []), ...(revertedInResult.data || [])]),
-      t => t.dentist_id
-    );
-
-    const transferredInById = {};
-    inRows.forEach(t => {
-      transferredInById[t.dentist_id] = {
-        fromBranch: t.fromBranch?.name || null,
-        returnsAt: t.revert_at,
-        transferStartAt: t.effective_date && t.start_time ? `${t.effective_date}T${t.start_time}+05:45` : null,
-      };
-    });
-
-    const normalDentists = (dentistsResult.data || []).map(t =>
-      transferredInById[t.id] ? { ...t, transferredIn: true, ...transferredInById[t.id] } : t
-    );
-
-    // A visitor who has ALREADY reverted home is no longer in dentistsResult (their
-    // branch_id points home again), so transferredInById above can't tag an existing row —
-    // build a real column for them instead, the same way transferredOutDentists already
-    // does for dentists who are away. Without this, a branch's calendar has no record at
-    // all that the visit happened once it's over, even on the same day.
-    const transferredInDentists = inRows
-      .filter(t => t.dentist && !activeDentistIds.has(t.dentist.id))
-      .map(t => ({
-        ...t.dentist,
-        transferredIn: true,
-        fromBranch: t.fromBranch?.name || null,
-        returnsAt: t.revert_at,
-        transferStartAt: t.effective_date && t.start_time ? `${t.effective_date}T${t.start_time}+05:45` : null,
-      }));
-
-    // Slot the transferred-out column back into its ORIGINAL position among the branch's
-    // normal columns (by the preserved origin display_order, then name) instead of always
-    // appending it at the end.
-    const mergedDentists = [...normalDentists, ...transferredOutDentists, ...transferredInDentists]
+    const mergedDentists = (dentistsResult.data || [])
       .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name));
 
     // 3. Fetch bookings in date range, excluding Cancelled and No Show
@@ -4458,9 +4287,8 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
 
     if (bookingsError) throw bookingsError;
 
-    // A PERMANENTLY transferred-out dentist gets no proactive column above (by design —
-    // see the is_permanent=false filter comment), but a booking made before/at the transfer
-    // can still reference them at this branch. Without a column, CalendarGrid's
+    // A dentist who's since been deactivated or moved to a different branch can still be
+    // referenced by a booking made here earlier. Without a column, CalendarGrid's
     // isDentistVisible() can't place it and it silently falls into "Unassigned" (or, for a
     // shared/multi-dentist booking, silently drops that co-dentist's copy entirely — see
     // CalendarGrid.jsx's isDentistVisible skip in the booking_dentists loop). Scan both
@@ -4481,50 +4309,15 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
 
     let finalDentists = mergedDentists;
     if (orphanDentistIds.length > 0) {
-      // Also fetch each orphan dentist's real staff_transfers history so a booking left
-      // behind by a TEMPORARY transfer (already ended, or permanent-looking only because the
-      // normal/temp-transfer queries above don't cover it) can shade its real window instead
-      // of blocking the whole column all day — see resolveOrphanTransferWindow. Only a window
-      // that overlaps [rangeStart, rangeEnd] is adopted (passed below) — an older, already-
-      // stale window must NOT be adopted here, since the Calendar's ghost-column filter drops
-      // any transferred column whose returnsAt date has already passed as of the day being
-      // viewed, which would make the orphan booking vanish instead of shading correctly.
-      const rangeStart = toKathmanduDate(startDate, '00:00:00');
-      const rangeEnd = toKathmanduDate(endDate, '23:59:59');
-
-      const [orphanDentistsResult, orphanTransfersResult] = await Promise.all([
-        supabase
-          .from('dentists')
-          .select('id, name, gender, specialties, position, is_treatment_staff, display_order')
-          .in('id', orphanDentistIds),
-        supabase
-          .from('staff_transfers')
-          .select('dentist_id, from_branch_id, to_branch_id, is_permanent, is_return_leg, revert_at, effective_date, start_time, transferred_at, fromBranch:branches!staff_transfers_from_branch_id_fkey(name)')
-          .in('dentist_id', orphanDentistIds),
-      ]);
+      const orphanDentistsResult = await supabase
+        .from('dentists')
+        .select('id, name, gender, specialties, position, is_treatment_staff, display_order')
+        .in('id', orphanDentistIds);
       if (orphanDentistsResult.error) throw orphanDentistsResult.error;
-      if (orphanTransfersResult.error) throw orphanTransfersResult.error;
-
-      const orphanTransfersByDentist = {};
-      (orphanTransfersResult.data || []).forEach(t => {
-        (orphanTransfersByDentist[t.dentist_id] ??= []).push(t);
-      });
 
       finalDentists = [
         ...mergedDentists,
-        ...(orphanDentistsResult.data || []).map(t => {
-          const transferWindow = resolveOrphanTransferWindow(
-            orphanTransfersByDentist[t.id], resolvedBranchId, rangeStart, rangeEnd
-          );
-          return {
-            ...t,
-            transferredOut: transferWindow ? !!transferWindow.transferredOut : true,
-            transferredIn: transferWindow ? !!transferWindow.transferredIn : false,
-            returnsAt: transferWindow ? transferWindow.returnsAt : null,
-            transferStartAt: transferWindow ? transferWindow.transferStartAt : null,
-            fromBranch: transferWindow?.fromBranch || null,
-          };
-        }),
+        ...(orphanDentistsResult.data || []),
       ].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name));
     }
 
@@ -5509,321 +5302,6 @@ export async function deleteDentist({ dentistId }) {
     return { data: { deleted: true, dentistId, dentistName: dentist.name }, error: null };
   } catch (error) {
     console.error('[API] deleteDentist error:', error.message);
-    return { data: null, error };
-  }
-}
-
-/**
- * Transfer a staffer to another branch in the same org, either Temporary (required
- * duration, auto-reverts) or Permanent (no duration, stays until transferred again).
- * Authorization + the audit row are enforced server-side by the SECURITY DEFINER
- * transfer_dentist() function (migration-039, required-duration form added in
- * migration-145, permanent option restored in migration-150): only an admin, or the
- * manager of the staffer's CURRENT branch, may transfer.
- */
-export async function transferDentist({
-  dentistId,
-  toBranchId,
-  permanent = false,
-  startTime = null,
-  durationValue = null,
-  durationUnit = null,
-  note = null,
-  effectiveDate = null,
-}) {
-  try {
-    const { error: authError } = await getAuthenticatedUser();
-    if (authError) return { data: null, error: authError };
-
-    const { data, error } = await supabase.rpc('transfer_dentist', {
-      p_dentist_id: dentistId,
-      p_to_branch_id: toBranchId,
-      p_start_time: permanent ? null : startTime,
-      p_duration_value: permanent ? null : durationValue,
-      p_duration_unit: permanent ? null : durationUnit,
-      p_note: note,
-      p_effective_date: effectiveDate,
-      p_permanent: permanent,
-    });
-
-    if (error) throw error;
-    capture('staff_transfer_scheduled', {
-      dentist_id: dentistId,
-      to_branch_id: toBranchId,
-      effective_date: effectiveDate,
-      permanent,
-      duration_value: durationValue,
-      duration_unit: durationUnit,
-    });
-    return { data: { transferId: data }, error: null };
-  } catch (error) {
-    console.error('[API] transferDentist error:', error.message);
-    return { data: null, error };
-  }
-}
-
-// Org-wide staff transfer history. RLS scopes rows to the caller's org.
-export async function fetchStaffTransfers() {
-  try {
-    const { error: authError } = await getAuthenticatedUser();
-    if (authError) return { data: null, error: authError };
-
-    const { data, error } = await supabase
-      .from('staff_transfers')
-      .select(`
-        id, transferred_at, effective_date, applied, note,
-        start_time, duration_value, duration_unit, revert_at, reverted, reverted_at, is_permanent,
-        is_return_leg,
-        dentist:dentists!staff_transfers_dentist_id_fkey(name),
-        fromBranch:branches!staff_transfers_from_branch_id_fkey(name),
-        toBranch:branches!staff_transfers_to_branch_id_fkey(name),
-        transferredBy:users!staff_transfers_transferred_by_fkey(full_name)
-      `)
-      .order('transferred_at', { ascending: false });
-
-    if (error) throw error;
-
-    const transfers = (data || []).map(t => ({
-      id: t.id,
-      transferredAt: t.transferred_at,
-      effectiveDate: t.effective_date,
-      applied: t.applied,
-      note: t.note,
-      startTime: t.start_time,
-      durationValue: t.duration_value,
-      durationUnit: t.duration_unit,
-      revertAt: t.revert_at,
-      isPermanent: t.is_permanent,
-      reverted: t.reverted,
-      revertedAt: t.reverted_at,
-      isReturnLeg: t.is_return_leg,
-      dentistName: t.dentist?.name || '—',
-      fromBranch: t.fromBranch?.name || '—',
-      toBranch: t.toBranch?.name || '—',
-      transferredBy: t.transferredBy?.full_name || 'System',
-    }));
-
-    return { data: transfers, error: null };
-  } catch (error) {
-    console.error('[API] fetchStaffTransfers error:', error.message);
-    return { data: null, error };
-  }
-}
-
-// Pending (scheduled, not-yet-applied) transfers. When branchId is given, returns
-// only those moving a staffer OUT of that branch (the source branch's manager view).
-export async function fetchPendingTransfers(branchId = null) {
-  try {
-    const { error: authError } = await getAuthenticatedUser();
-    if (authError) return { data: null, error: authError };
-
-    let query = supabase
-      .from('staff_transfers')
-      .select(`
-        id, transferred_at, effective_date, applied, note, dentist_id,
-        start_time, duration_value, duration_unit, revert_at, reverted, reverted_at, is_permanent,
-        dentist:dentists!staff_transfers_dentist_id_fkey(name),
-        fromBranch:branches!staff_transfers_from_branch_id_fkey(name),
-        toBranch:branches!staff_transfers_to_branch_id_fkey(name),
-        transferredBy:users!staff_transfers_transferred_by_fkey(full_name)
-      `)
-      .eq('applied', false)
-      .order('effective_date', { ascending: true });
-
-    if (branchId && !isOverallBranch(branchId)) {
-      query = query.eq('from_branch_id', branchId);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    const transfers = (data || []).map(t => ({
-      id: t.id,
-      dentistId: t.dentist_id,
-      transferredAt: t.transferred_at,
-      effectiveDate: t.effective_date,
-      applied: t.applied,
-      note: t.note,
-      startTime: t.start_time,
-      durationValue: t.duration_value,
-      durationUnit: t.duration_unit,
-      revertAt: t.revert_at,
-      isPermanent: t.is_permanent,
-      reverted: t.reverted,
-      revertedAt: t.reverted_at,
-      dentistName: t.dentist?.name || '—',
-      fromBranch: t.fromBranch?.name || '—',
-      toBranch: t.toBranch?.name || '—',
-      transferredBy: t.transferredBy?.full_name || 'System',
-    }));
-
-    return { data: transfers, error: null };
-  } catch (error) {
-    console.error('[API] fetchPendingTransfers error:', error.message);
-    return { data: null, error };
-  }
-}
-
-// Cancel a scheduled (not-yet-applied) transfer. Org/role checked server-side.
-export async function cancelScheduledTransfer(transferId) {
-  try {
-    const { error: authError } = await getAuthenticatedUser();
-    if (authError) return { data: null, error: authError };
-
-    const { data, error } = await supabase.rpc('cancel_scheduled_transfer', {
-      p_id: transferId,
-    });
-
-    if (error) throw error;
-    return { data, error: null };
-  } catch (error) {
-    console.error('[API] cancelScheduledTransfer error:', error.message);
-    return { data: null, error };
-  }
-}
-
-/**
- * Push an ACTIVE (applied, not yet reverted) transfer's revert_at further out —
- * "Add Extra Time" — without creating a second transfer row. Only the destination
- * branch's manager (whoever currently has the staffer) or an admin may do this;
- * enforced server-side by extend_staff_transfer() (migration-146). Fails cleanly if
- * the transfer has already auto-reverted (race-safe — checked atomically server-side).
- */
-export async function extendStaffTransfer({ transferId, additionalValue, additionalUnit }) {
-  try {
-    const { error: authError } = await getAuthenticatedUser();
-    if (authError) return { data: null, error: authError };
-
-    const { data, error } = await supabase.rpc('extend_staff_transfer', {
-      p_transfer_id: transferId,
-      p_additional_value: additionalValue,
-      p_additional_unit: additionalUnit,
-    });
-
-    if (error) throw error;
-    capture('staff_transfer_extended', { transfer_id: transferId, additional_value: additionalValue, additional_unit: additionalUnit });
-    return { data: { revertAt: data }, error: null };
-  } catch (error) {
-    console.error('[API] extendStaffTransfer error:', error.message);
-    return { data: null, error };
-  }
-}
-
-/**
- * Move an ACTIVE (applied, not yet reverted) transfer's scheduled return to a new, still-FUTURE
- * date/time — e.g. a 2-day transfer that only turns out to be needed for 1 day, so the manager
- * wants the staffer back tomorrow instead of waiting the full original duration. Distinct from
- * revertStaffTransferNow(), which only records a return that already happened (a past time).
- * The destination branch's manager, the origin branch's manager, or an admin may do this;
- * enforced server-side by reschedule_staff_transfer_return() (migration-165).
- */
-export async function rescheduleStaffTransferReturn({ transferId, newRevertAt }) {
-  try {
-    const { error: authError } = await getAuthenticatedUser();
-    if (authError) return { data: null, error: authError };
-
-    const { data, error } = await supabase.rpc('reschedule_staff_transfer_return', {
-      p_transfer_id: transferId,
-      p_new_revert_at: new Date(newRevertAt).toISOString(),
-    });
-
-    if (error) throw error;
-    capture('staff_transfer_return_rescheduled', { transfer_id: transferId });
-    return { data: { revertAt: data }, error: null };
-  } catch (error) {
-    console.error('[API] rescheduleStaffTransferReturn error:', error.message);
-    return { data: null, error };
-  }
-}
-
-/**
- * End an ACTIVE (applied, not yet reverted) transfer right now — "Mark Returned Early" —
- * instead of waiting for the scheduled revert_at / the apply_due_staff_reverts() cron tick.
- * The destination branch's manager (whoever currently has the staffer), the origin branch's
- * manager, or an admin may do this; enforced server-side by revert_staff_transfer_now()
- * (migration-160, extended by migration-161 to accept an optional custom return timestamp,
- * migration-162 to widen authorization + guard against orphaning a live booking). Fails cleanly
- * if the transfer has already ended (race-safe — checked atomically server-side).
- *
- * @param {string} transferId
- * @param {Date|string} [revertedAt] - When the staffer actually returned, if not "right now".
- *   Must be in the past and before the transfer's scheduled revert_at (validated server-side).
- *   Omit to use the server's current time.
- */
-export async function revertStaffTransferNow({ transferId, revertedAt } = {}) {
-  try {
-    const { error: authError } = await getAuthenticatedUser();
-    if (authError) return { data: null, error: authError };
-
-    const { data, error } = await supabase.rpc('revert_staff_transfer_now', {
-      p_transfer_id: transferId,
-      p_reverted_at: revertedAt ? new Date(revertedAt).toISOString() : null,
-    });
-
-    if (error) throw error;
-    capture('staff_transfer_reverted_early', { transfer_id: transferId, custom_time: !!revertedAt });
-    return { data: { revertedAt: data }, error: null };
-  } catch (error) {
-    console.error('[API] revertStaffTransferNow error:', error.message);
-    return { data: null, error };
-  }
-}
-
-/**
- * For each dentist currently AT branchId, the single most recent staff_transfers
- * row (either direction), used by the Attendance panel to decide what the Transfer
- * button should open: a blank create form, the ACTIVE transfer (destination's view,
- * offering "Add Extra Time"), or a just-COMPLETED summary (origin's view, offering
- * "Transfer Dentist Again").
- */
-export async function fetchDentistTransferStatus(branchId) {
-  try {
-    const { error: authError } = await getAuthenticatedUser();
-    if (authError) return { data: null, error: authError };
-
-    const { data, error } = await supabase
-      .from('staff_transfers')
-      .select(`
-        id, dentist_id, from_branch_id, to_branch_id, transferred_at, effective_date,
-        start_time, duration_value, duration_unit, revert_at, applied, reverted, reverted_at, is_permanent, note,
-        dentist:dentists!staff_transfers_dentist_id_fkey(name),
-        fromBranch:branches!staff_transfers_from_branch_id_fkey(name),
-        toBranch:branches!staff_transfers_to_branch_id_fkey(name)
-      `)
-      .or(`from_branch_id.eq.${branchId},to_branch_id.eq.${branchId}`)
-      .order('transferred_at', { ascending: false });
-
-    if (error) throw error;
-
-    // Keep only the latest row per dentist (data is already ordered newest-first).
-    const map = {};
-    (data || []).forEach(t => {
-      if (map[t.dentist_id]) return;
-      map[t.dentist_id] = {
-        id: t.id,
-        dentistId: t.dentist_id,
-        dentistName: t.dentist?.name || '—',
-        fromBranchId: t.from_branch_id,
-        toBranchId: t.to_branch_id,
-        fromBranch: t.fromBranch?.name || '—',
-        toBranch: t.toBranch?.name || '—',
-        transferredAt: t.transferred_at,
-        effectiveDate: t.effective_date,
-        startTime: t.start_time,
-        durationValue: t.duration_value,
-        durationUnit: t.duration_unit,
-        revertAt: t.revert_at,
-        isPermanent: t.is_permanent,
-        applied: t.applied,
-        reverted: t.reverted,
-        revertedAt: t.reverted_at,
-        note: t.note,
-      };
-    });
-
-    return { data: map, error: null };
-  } catch (error) {
-    console.error('[API] fetchDentistTransferStatus error:', error.message);
     return { data: null, error };
   }
 }
