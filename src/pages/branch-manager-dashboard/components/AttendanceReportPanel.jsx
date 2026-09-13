@@ -76,12 +76,12 @@ const AttendanceGrid = ({ rankedStaff, data }) => {
     [data.startDate, data.endDate]
   );
 
-  // Build lookup: { [therapistId]: { [date]: status } }
+  // Build lookup: { [dentistId]: { [date]: status } }
   const lookup = useMemo(() => {
     const map = {};
     for (const r of (data.dayRecords || [])) {
-      if (!map[r.therapistId]) map[r.therapistId] = {};
-      map[r.therapistId][r.date] = r.status;
+      if (!map[r.dentistId]) map[r.dentistId] = {};
+      map[r.dentistId][r.date] = r.status;
     }
     return map;
   }, [data.dayRecords]);
@@ -161,16 +161,16 @@ const AttendanceGrid = ({ rankedStaff, data }) => {
               </tr>
             ) : (
               rankedStaff.map((s, rowIdx) => {
-                const byDate = lookup[s.therapistId] || {};
+                const byDate = lookup[s.dentistId] || {};
                 return (
                   <tr
-                    key={s.therapistId}
+                    key={s.dentistId}
                     className={`border-b border-border last:border-b-0 ${rowIdx % 2 === 1 ? 'bg-background/30' : ''}`}
                   >
                     {/* Sticky staff name */}
                     <td className={`sticky left-0 z-10 px-4 py-2.5 min-w-[180px] ${rowIdx % 2 === 1 ? 'bg-background/30' : 'bg-surface'}`}>
-                      <p className="font-body font-body-medium text-sm text-text-primary truncate max-w-[160px]" title={s.therapistName}>
-                        {s.therapistName}
+                      <p className="font-body font-body-medium text-sm text-text-primary truncate max-w-[160px]" title={s.dentistName}>
+                        {s.dentistName}
                       </p>
                       <p className="font-caption text-[10px] text-text-tertiary">
                         {s.isServiceStaff ? 'Service' : 'Support'}
@@ -187,7 +187,7 @@ const AttendanceGrid = ({ rankedStaff, data }) => {
                         <td
                           key={iso}
                           className={`px-1 py-2 text-center ${isWeekend ? 'bg-background/20' : ''}`}
-                          title={`${s.therapistName} · ${iso} · ${cell.title}`}
+                          title={`${s.dentistName} · ${iso} · ${cell.title}`}
                         >
                           <span
                             className={`inline-block w-7 h-7 rounded-sm ${cell.bg}`}
@@ -305,11 +305,11 @@ const AttendanceReportPanel = ({ branchId }) => {
     rows.push('PER-STAFF BREAKDOWN');
     rows.push(['Staff', 'Type', 'Present', 'Absent', 'Leave', 'Half Day', 'Days Marked', 'Attendance %'].join(','));
     const sorted = [...staff].sort(
-      (a, b) => b.marked - a.marked || a.therapistName.localeCompare(b.therapistName)
+      (a, b) => b.marked - a.marked || a.dentistName.localeCompare(b.dentistName)
     );
     for (const s of sorted) {
       rows.push([
-        esc(s.therapistName),
+        esc(s.dentistName),
         s.isServiceStaff ? 'Service staff' : 'Support staff',
         s.present,
         s.absent,
@@ -374,9 +374,9 @@ const AttendanceReportPanel = ({ branchId }) => {
   const filteredStaffCount = perStaff.length;
   const q = searchQuery.trim().toLowerCase();
   const searchedStaff = q
-    ? perStaff.filter((s) => (s.therapistName || '').toLowerCase().includes(q))
+    ? perStaff.filter((s) => (s.dentistName || '').toLowerCase().includes(q))
     : perStaff;
-  const rankedStaff = [...searchedStaff].sort((a, b) => b.marked - a.marked || a.therapistName.localeCompare(b.therapistName));
+  const rankedStaff = [...searchedStaff].sort((a, b) => b.marked - a.marked || a.dentistName.localeCompare(b.dentistName));
 
   return (
     <div className="space-y-6">
@@ -509,11 +509,11 @@ const AttendanceReportPanel = ({ branchId }) => {
             <div className="divide-y divide-border">
               {rankedStaff.map(s => (
                 <div
-                  key={s.therapistId}
+                  key={s.dentistId}
                   className="grid grid-cols-2 lg:grid-cols-[1.6fr_90px_90px_90px_110px_110px_110px] gap-2 lg:gap-3 px-5 py-3 lg:items-center"
                 >
                   <div className="min-w-0 col-span-2 lg:col-span-1">
-                    <p className="font-body font-body-medium text-sm text-text-primary truncate">{s.therapistName}</p>
+                    <p className="font-body font-body-medium text-sm text-text-primary truncate">{s.dentistName}</p>
                     <p className="font-caption text-[11px] text-text-tertiary">{s.isServiceStaff ? 'Service staff' : 'Support staff'}</p>
                   </div>
                   <div className="lg:text-center">

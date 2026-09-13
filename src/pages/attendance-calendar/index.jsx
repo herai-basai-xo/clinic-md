@@ -249,27 +249,27 @@ const AttendanceCalendarPage = () => {
       staffType === 'all' ? true : staffType === 'service' ? s.isServiceStaff : !s.isServiceStaff
     );
     const q = searchQuery.trim().toLowerCase();
-    const searched = q ? byType.filter((s) => s.therapistName.toLowerCase().includes(q)) : byType;
-    return [...searched].sort((a, b) => b.marked - a.marked || a.therapistName.localeCompare(b.therapistName));
+    const searched = q ? byType.filter((s) => s.dentistName.toLowerCase().includes(q)) : byType;
+    return [...searched].sort((a, b) => b.marked - a.marked || a.dentistName.localeCompare(b.dentistName));
   }, [data, staffType, searchQuery]);
 
   // Auto-select first staff when entering aggregated mode or when data refreshes
   useEffect(() => {
     if (!isAggregated || staffRows.length === 0) return;
-    const stillPresent = selectedStaffId && staffRows.find((s) => s.therapistId === selectedStaffId);
+    const stillPresent = selectedStaffId && staffRows.find((s) => s.dentistId === selectedStaffId);
     if (!stillPresent) {
-      setSelectedStaffId(staffRows[0].therapistId);
-      setAggSearchInput(staffRows[0].therapistName);
+      setSelectedStaffId(staffRows[0].dentistId);
+      setAggSearchInput(staffRows[0].dentistName);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAggregated, staffRows]);
 
-  // Day-by-day lookup: { [therapistId]: { [date]: status } }
+  // Day-by-day lookup: { [dentistId]: { [date]: status } }
   const lookup = useMemo(() => {
     const map = {};
     for (const r of (data?.dayRecords || [])) {
-      if (!map[r.therapistId]) map[r.therapistId] = {};
-      map[r.therapistId][r.date] = r.status;
+      if (!map[r.dentistId]) map[r.dentistId] = {};
+      map[r.dentistId][r.date] = r.status;
     }
     return map;
   }, [data]);
@@ -283,13 +283,13 @@ const AttendanceCalendarPage = () => {
 
   const selectedStaff = useMemo(() => {
     if (!isAggregated) return null;
-    return staffRows.find((s) => s.therapistId === selectedStaffId) || staffRows[0] || null;
+    return staffRows.find((s) => s.dentistId === selectedStaffId) || staffRows[0] || null;
   }, [isAggregated, selectedStaffId, staffRows]);
 
   const aggFilteredStaff = useMemo(() => {
     const q = aggSearchInput.trim().toLowerCase();
     if (!q) return staffRows;
-    return staffRows.filter((s) => s.therapistName.toLowerCase().includes(q));
+    return staffRows.filter((s) => s.dentistName.toLowerCase().includes(q));
   }, [staffRows, aggSearchInput]);
 
   // Calendar month list derived from the fetched range
@@ -353,7 +353,7 @@ const AttendanceCalendarPage = () => {
     }).join('');
 
     const bodyRows = staffRows.map((s, rowIdx) => {
-      const byDate = lookup[s.therapistId] || {};
+      const byDate = lookup[s.dentistId] || {};
       const rowBg = rowIdx % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
       const dayCells = dates.map((iso) => {
         const st = byDate[iso];
@@ -366,7 +366,7 @@ const AttendanceCalendarPage = () => {
       return `
         <tr>
           <td style="position:sticky;left:0;background:${rowBg};padding:8px 16px;border-right:1px solid #E1E3E5;white-space:nowrap;z-index:1;">
-            <div style="font-weight:600;font-size:13px;color:#111827;">${s.therapistName}</div>
+            <div style="font-weight:600;font-size:13px;color:#111827;">${s.dentistName}</div>
             <div style="font-size:10px;color:#9CA3AF;margin-top:1px;">${s.isServiceStaff ? 'Service' : 'Support'}</div>
           </td>
           ${dayCells}
@@ -464,9 +464,9 @@ const AttendanceCalendarPage = () => {
     const header = ['Staff', ...dates, 'Attendance %'];
     let csv = header.join(',') + '\n';
     staffRows.forEach((s) => {
-      const byDate = lookup[s.therapistId] || {};
+      const byDate = lookup[s.dentistId] || {};
       csv += [
-        esc(s.therapistName),
+        esc(s.dentistName),
         ...dates.map((d) => esc(byDate[d] || '')),
         esc(s.marked > 0 ? `${s.attendanceRate}%` : ''),
       ].join(',') + '\n';
@@ -629,7 +629,7 @@ const AttendanceCalendarPage = () => {
           <span className="h-3 w-px bg-border" />
           {isAggregated && selectedStaff ? (
             <>
-              <span className="font-body-medium text-text-primary">{selectedStaff.therapistName}</span>
+              <span className="font-body-medium text-text-primary">{selectedStaff.dentistName}</span>
               <span className="h-3 w-px bg-border" />
               <span className="text-success font-body-medium">{selectedStaff.present} present</span>
               <span className="text-error font-body-medium">{selectedStaff.absent} absent</span>
@@ -702,18 +702,18 @@ const AttendanceCalendarPage = () => {
                 <div className="absolute z-dropdown top-full mt-1 w-full bg-surface border border-border rounded-spa shadow-spa-elevated max-h-52 overflow-y-auto">
                   {aggFilteredStaff.map((s) => (
                     <button
-                      key={s.therapistId}
+                      key={s.dentistId}
                       onMouseDown={(e) => {
                         e.preventDefault();
-                        setSelectedStaffId(s.therapistId);
-                        setAggSearchInput(s.therapistName);
+                        setSelectedStaffId(s.dentistId);
+                        setAggSearchInput(s.dentistName);
                         setAggDropdownOpen(false);
                       }}
                       className={`w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-background spa-transition-fast ${
-                        s.therapistId === selectedStaff?.therapistId ? 'bg-primary/5' : ''
+                        s.dentistId === selectedStaff?.dentistId ? 'bg-primary/5' : ''
                       }`}
                     >
-                      <span className="font-body text-sm text-text-primary flex-1">{s.therapistName}</span>
+                      <span className="font-body text-sm text-text-primary flex-1">{s.dentistName}</span>
                       <span className="font-caption text-[10px] text-text-tertiary flex-shrink-0">
                         {s.isServiceStaff ? 'Service' : 'Support'}
                       </span>
@@ -756,7 +756,7 @@ const AttendanceCalendarPage = () => {
                     key={`${year}-${month}`}
                     year={year}
                     month={month}
-                    attendanceByDate={selectedStaff ? (lookup[selectedStaff.therapistId] || {}) : {}}
+                    attendanceByDate={selectedStaff ? (lookup[selectedStaff.dentistId] || {}) : {}}
                     today={today}
                     large={calendarMonths.length === 1}
                   />
@@ -854,14 +854,14 @@ const AttendanceCalendarPage = () => {
                       </tr>
                     ) : (
                       staffRows.map((s, rowIdx) => {
-                        const byDate = lookup[s.therapistId] || {};
+                        const byDate = lookup[s.dentistId] || {};
                         const isEven = rowIdx % 2 === 0;
                         const rowBg = isEven ? 'bg-surface' : 'bg-background/40';
                         return (
-                          <tr key={s.therapistId} className={`border-b border-border last:border-b-0 ${rowBg}`}>
+                          <tr key={s.dentistId} className={`border-b border-border last:border-b-0 ${rowBg}`}>
                             <td className={`sticky left-0 z-10 px-5 py-3 min-w-[200px] border-r border-border ${rowBg}`}>
-                              <p className="font-body font-body-medium text-sm text-text-primary truncate max-w-[180px]" title={s.therapistName}>
-                                {s.therapistName}
+                              <p className="font-body font-body-medium text-sm text-text-primary truncate max-w-[180px]" title={s.dentistName}>
+                                {s.dentistName}
                               </p>
                               <p className="font-caption text-[10px] text-text-tertiary mt-0.5">
                                 {s.isServiceStaff ? 'Service' : 'Support'}
@@ -876,7 +876,7 @@ const AttendanceCalendarPage = () => {
                                 <td
                                   key={iso}
                                   className={`px-1 py-2.5 text-center ${isWeekend ? 'bg-background/20' : ''}`}
-                                  title={`${s.therapistName} · ${iso} · ${cell.title}`}
+                                  title={`${s.dentistName} · ${iso} · ${cell.title}`}
                                 >
                                   <span className={`inline-block w-7 h-7 rounded-sm ${cell.bg}`} />
                                 </td>

@@ -11,7 +11,7 @@ const getMockResponse = (message) => {
 
   // Greetings
   if (['hello', 'hi', 'hey'].some(g => lowerMessage.includes(g))) {
-    return "Hi! I'm your AI assistant. I can help you with:\n\n• Finding and managing bookings\n• Understanding your revenue\n• Checking therapist availability\n• Answering questions about Zennly\n\nHow can I help you today?";
+    return "Hi! I'm your AI assistant. I can help you with:\n\n• Finding and managing bookings\n• Understanding your revenue\n• Checking dentist availability\n• Answering questions about Zennly\n\nHow can I help you today?";
   }
 
   // Bookings
@@ -24,9 +24,9 @@ const getMockResponse = (message) => {
     return "I can provide insights on your revenue:\n\n• Today's collections from paid bookings\n• Comparison with yesterday and last week\n• Average revenue per booking\n• Top performing services\n\nWould you like me to analyze any specific period?";
   }
 
-  // Therapists / Staff
-  if (['therapist', 'staff', 'employee', 'team'].some(k => lowerMessage.includes(k))) {
-    return "For therapist and staff management, I can help with:\n\n• Checking therapist availability\n• Viewing utilization rates\n• Seeing who's assigned to upcoming bookings\n• Finding available slots for a specific therapist\n\nWhat do you need to know about your team?";
+  // Dentists / Staff
+  if (['dentist', 'staff', 'employee', 'team'].some(k => lowerMessage.includes(k))) {
+    return "For dentist and staff management, I can help with:\n\n• Checking dentist availability\n• Viewing utilization rates\n• Seeing who's assigned to upcoming bookings\n• Finding available slots for a specific dentist\n\nWhat do you need to know about your team?";
   }
 
   // Schedule / Calendar
@@ -36,7 +36,7 @@ const getMockResponse = (message) => {
 
   // Help
   if (['help', 'what can you', 'how do'].some(k => lowerMessage.includes(k))) {
-    return "I'm here to help you manage Zennly more efficiently! I can assist with:\n\n• **Bookings** - Find, filter, and understand appointment data\n• **Revenue** - Analyze earnings and financial insights\n• **Staff** - Check therapist availability and performance\n• **Schedule** - View calendar and find open slots\n• **Reports** - Summarize daily operations\n\nJust ask me anything in natural language!";
+    return "I'm here to help you manage Zennly more efficiently! I can assist with:\n\n• **Bookings** - Find, filter, and understand appointment data\n• **Revenue** - Analyze earnings and financial insights\n• **Staff** - Check dentist availability and performance\n• **Schedule** - View calendar and find open slots\n• **Reports** - Summarize daily operations\n\nJust ask me anything in natural language!";
   }
 
   // Thank you
@@ -45,7 +45,7 @@ const getMockResponse = (message) => {
   }
 
   // Default
-  return "I understand you're asking about your spa operations. I can help with bookings, revenue, therapist schedules, and more.\n\nCould you be more specific about what you'd like to know? For example:\n• \"Show me today's bookings\"\n• \"How is revenue this week?\"\n• \"Which therapists are available?\"";
+  return "I understand you're asking about your spa operations. I can help with bookings, revenue, dentist schedules, and more.\n\nCould you be more specific about what you'd like to know? For example:\n• \"Show me today's bookings\"\n• \"How is revenue this week?\"\n• \"Which dentists are available?\"";
 };
 
 const AIAssistantPanel = () => {

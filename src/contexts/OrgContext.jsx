@@ -93,8 +93,8 @@ export const OrgProvider = ({ children }) => {
     industryType: org?.industry_type || 'spa',
 
     // Terminology (with spa defaults)
-    staffLabel: industry?.staff_label || 'Therapist',
-    staffLabelPlural: industry?.staff_label_plural || 'Therapists',
+    staffLabel: industry?.staff_label || 'Dentist',
+    staffLabelPlural: industry?.staff_label_plural || 'Dentists',
     locationLabel: industry?.location_label || 'Room',
     locationLabelPlural: industry?.location_label_plural || 'Rooms',
     sessionLabel: industry?.session_label || 'Session',

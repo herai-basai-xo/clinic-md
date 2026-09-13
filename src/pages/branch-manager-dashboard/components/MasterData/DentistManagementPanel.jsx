@@ -20,12 +20,12 @@ import Select from '../../../../components/ui/Select';
 import FilterBar from '../../../../components/ui/FilterBar';
 import { useIndustry } from '../../../../hooks/useIndustry';
 import {
-  fetchTherapistsForManagement,
-  createTherapist,
-  updateTherapist,
-  toggleTherapistActive,
-  deleteTherapist,
-  updateTherapistOrder,
+  fetchDentistsForManagement,
+  createDentist,
+  updateDentist,
+  toggleDentistActive,
+  deleteDentist,
+  updateDentistOrder,
   fetchAllBranches,
   fetchStaffTransfers,
 } from '../../../../services/api';
@@ -35,7 +35,7 @@ const GENDER_OPTIONS = [
   { value: 'Female', label: 'Female' },
 ];
 
-const SortableRow = ({ therapist, disabled, readOnly, showBranch, branchName, onEdit, onDelete, onToggle }) => {
+const SortableRow = ({ dentist, disabled, readOnly, showBranch, branchName, onEdit, onDelete, onToggle }) => {
   const {
     attributes,
     listeners,
@@ -43,7 +43,7 @@ const SortableRow = ({ therapist, disabled, readOnly, showBranch, branchName, on
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: therapist.id, disabled });
+  } = useSortable({ id: dentist.id, disabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -70,25 +70,25 @@ const SortableRow = ({ therapist, disabled, readOnly, showBranch, branchName, on
           </button>
         )}
       </td>
-      <td className="px-4 py-3 font-body font-body-medium text-sm text-text-primary">{therapist.name}</td>
+      <td className="px-4 py-3 font-body font-body-medium text-sm text-text-primary">{dentist.name}</td>
       {showBranch && (
         <td className="px-4 py-3 font-body text-sm text-text-secondary">{branchName || '—'}</td>
       )}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="font-body text-sm text-text-secondary">{therapist.position || '—'}</span>
+          <span className="font-body text-sm text-text-secondary">{dentist.position || '—'}</span>
           <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-            therapist.is_service_staff !== false ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500'
+            dentist.is_service_staff !== false ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500'
           }`}>
-            {therapist.is_service_staff !== false ? 'Service' : 'Support'}
+            {dentist.is_service_staff !== false ? 'Service' : 'Support'}
           </span>
         </div>
       </td>
-      <td className="px-4 py-3 font-body text-sm text-text-secondary hidden sm:table-cell">{therapist.gender}</td>
+      <td className="px-4 py-3 font-body text-sm text-text-secondary hidden sm:table-cell">{dentist.gender}</td>
       <td className="px-4 py-3 hidden md:table-cell">
         <div className="flex flex-wrap gap-1">
-          {(therapist.specialties || []).length > 0 ? (
-            therapist.specialties.map((s, i) => (
+          {(dentist.specialties || []).length > 0 ? (
+            dentist.specialties.map((s, i) => (
               <span key={i} className="inline-flex px-2 py-0.5 rounded text-xs font-caption bg-primary/10 text-primary">
                 {s}
               </span>
@@ -100,11 +100,11 @@ const SortableRow = ({ therapist, disabled, readOnly, showBranch, branchName, on
       </td>
       <td className="px-4 py-3">
         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-caption ${
-          therapist.is_active
+          dentist.is_active
             ? 'bg-success/10 text-success'
             : 'bg-text-secondary/10 text-text-secondary'
         }`}>
-          {therapist.is_active ? 'Active' : 'Inactive'}
+          {dentist.is_active ? 'Active' : 'Inactive'}
         </span>
       </td>
       <td className="px-4 py-3">
@@ -113,28 +113,28 @@ const SortableRow = ({ therapist, disabled, readOnly, showBranch, branchName, on
         ) : (
           <div className="flex items-center justify-end gap-2">
             <button
-              onClick={() => onEdit(therapist)}
+              onClick={() => onEdit(dentist)}
               className="p-1.5 rounded hover:bg-background spa-transition-fast text-text-secondary hover:text-text-primary"
               title="Edit"
             >
               <Icon name="Pencil" size={16} />
             </button>
             <button
-              onClick={() => onDelete(therapist)}
+              onClick={() => onDelete(dentist)}
               className="p-1.5 rounded hover:bg-error/10 spa-transition-fast text-text-secondary hover:text-error"
               title="Delete"
             >
               <Icon name="Trash2" size={16} />
             </button>
             <button
-              onClick={() => onToggle(therapist)}
+              onClick={() => onToggle(dentist)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full spa-transition-fast ${
-                therapist.is_active ? 'bg-success' : 'bg-border'
+                dentist.is_active ? 'bg-success' : 'bg-border'
               }`}
-              title={therapist.is_active ? 'Deactivate' : 'Activate'}
+              title={dentist.is_active ? 'Deactivate' : 'Activate'}
             >
               <span className={`inline-block h-4 w-4 rounded-full bg-white spa-transition-fast transform ${
-                therapist.is_active ? 'translate-x-6' : 'translate-x-1'
+                dentist.is_active ? 'translate-x-6' : 'translate-x-1'
               }`} />
             </button>
           </div>
@@ -144,13 +144,13 @@ const SortableRow = ({ therapist, disabled, readOnly, showBranch, branchName, on
   );
 };
 
-const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
+const DentistManagementPanel = ({ branchId, readOnly = false }) => {
   const { staffLabel, staffLabelPlural } = useIndustry();
-  const [therapists, setTherapists] = useState([]);
+  const [dentists, setDentists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [editingTherapist, setEditingTherapist] = useState(null);
+  const [editingDentist, setEditingDentist] = useState(null);
   const [formData, setFormData] = useState({ name: '', gender: 'Male', positions: [], specialties: '', isServiceStaff: true });
   const [formError, setFormError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -178,22 +178,22 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
   // Individual position names (split compound ones like "Hairdresser/Beautician")
   const allPositionNames = useMemo(() => {
     const names = new Set();
-    therapists.forEach(t => {
+    dentists.forEach(t => {
       if (t.position) t.position.split('/').forEach(p => names.add(p.trim()));
     });
     customPositions.forEach(p => names.add(p));
     return Array.from(names).sort();
-  }, [therapists, customPositions]);
+  }, [dentists, customPositions]);
 
   const positionOptions = useMemo(() => {
     const positions = new Set();
-    therapists.forEach(t => { if (t.position) positions.add(t.position); });
+    dentists.forEach(t => { if (t.position) positions.add(t.position); });
     customPositions.forEach(p => positions.add(p));
     return [
       { value: 'all', label: 'All Positions' },
       ...Array.from(positions).sort().map(p => ({ value: p, label: p })),
     ];
-  }, [therapists, customPositions]);
+  }, [dentists, customPositions]);
 
   const branchNameById = useMemo(() => {
     const map = {};
@@ -203,8 +203,8 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
 
   const hasActiveFilters = searchQuery.trim().length > 0 || selectedPosition !== 'all' || selectedStaffType !== 'all';
 
-  const filteredTherapists = useMemo(() => {
-    return therapists.filter(t => {
+  const filteredDentists = useMemo(() => {
+    return dentists.filter(t => {
       const matchesSearch = !searchQuery.trim() || t.name.toLowerCase().includes(searchQuery.toLowerCase().trim());
       const matchesPosition = selectedPosition === 'all' || t.position === selectedPosition;
       const matchesType = selectedStaffType === 'all'
@@ -212,23 +212,23 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
         || (selectedStaffType === 'support' && t.is_service_staff === false);
       return matchesSearch && matchesPosition && matchesType;
     });
-  }, [therapists, searchQuery, selectedPosition, selectedStaffType]);
+  }, [dentists, searchQuery, selectedPosition, selectedStaffType]);
 
   const isSearching = hasActiveFilters;
 
-  const loadTherapists = useCallback(async () => {
+  const loadDentists = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await fetchTherapistsForManagement(branchId);
+    const result = await fetchDentistsForManagement(branchId);
     if (result.error) {
-      setError(result.error.message || 'Failed to load therapists.');
+      setError(result.error.message || 'Failed to load dentists.');
     } else {
-      setTherapists(result.data || []);
+      setDentists(result.data || []);
     }
     setLoading(false);
   }, [branchId]);
 
-  useEffect(() => { loadTherapists(); }, [loadTherapists]);
+  useEffect(() => { loadDentists(); }, [loadDentists]);
 
   useEffect(() => {
     fetchAllBranches().then(({ data }) => setOrgBranches(data || []));
@@ -246,33 +246,33 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = therapists.findIndex(t => t.id === active.id);
-    const newIndex = therapists.findIndex(t => t.id === over.id);
-    const reordered = arrayMove(therapists, oldIndex, newIndex);
+    const oldIndex = dentists.findIndex(t => t.id === active.id);
+    const newIndex = dentists.findIndex(t => t.id === over.id);
+    const reordered = arrayMove(dentists, oldIndex, newIndex);
 
     // Optimistic update
-    setTherapists(reordered);
+    setDentists(reordered);
 
-    const result = await updateTherapistOrder({
+    const result = await updateDentistOrder({
       branchId,
       orderedIds: reordered.map(t => t.id),
     });
 
     if (result.error) {
       setError('Failed to save order. Reverting...');
-      await loadTherapists();
+      await loadDentists();
     }
   };
 
   const handleOpenCreate = () => {
-    setEditingTherapist(null);
+    setEditingDentist(null);
     setFormData({ name: '', gender: 'Male', positions: [], specialties: '', isServiceStaff: true });
     setFormError(null);
     setShowModal(true);
   };
 
   const handleOpenEdit = (t) => {
-    setEditingTherapist(t);
+    setEditingDentist(t);
     setFormData({
       name: t.name,
       gender: t.gender || 'Male',
@@ -286,7 +286,7 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      setFormError('Therapist name is required.');
+      setFormError('Dentist name is required.');
       return;
     }
 
@@ -299,9 +299,9 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
       .filter(Boolean);
 
     let result;
-    if (editingTherapist) {
-      result = await updateTherapist({
-        therapistId: editingTherapist.id,
+    if (editingDentist) {
+      result = await updateDentist({
+        dentistId: editingDentist.id,
         name: formData.name.trim(),
         gender: formData.gender,
         position: formData.positions.length > 0 ? formData.positions.join('/') : null,
@@ -309,7 +309,7 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
         isServiceStaff: formData.isServiceStaff,
       });
     } else {
-      result = await createTherapist({
+      result = await createDentist({
         name: formData.name.trim(),
         gender: formData.gender,
         position: formData.positions.length > 0 ? formData.positions.join('/') : null,
@@ -323,26 +323,26 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
       setFormError(result.error.message || 'Operation failed.');
     } else {
       setShowModal(false);
-      await loadTherapists();
+      await loadDentists();
     }
     setSaving(false);
   };
 
-  const handleToggle = async (therapist) => {
-    if (therapist.is_active) {
-      setConfirmToggle(therapist);
+  const handleToggle = async (dentist) => {
+    if (dentist.is_active) {
+      setConfirmToggle(dentist);
       return;
     }
-    await executeToggle(therapist, true);
+    await executeToggle(dentist, true);
   };
 
-  const executeToggle = async (therapist, newState) => {
+  const executeToggle = async (dentist, newState) => {
     setError(null);
-    const result = await toggleTherapistActive({ therapistId: therapist.id, isActive: newState });
+    const result = await toggleDentistActive({ dentistId: dentist.id, isActive: newState });
     if (result.error) {
       setError(result.error.message || 'Toggle failed.');
     } else {
-      await loadTherapists();
+      await loadDentists();
     }
     setConfirmToggle(null);
   };
@@ -352,7 +352,7 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
     setDeleting(true);
     setError(null);
 
-    const result = await deleteTherapist({ therapistId: confirmDelete.id });
+    const result = await deleteDentist({ dentistId: confirmDelete.id });
 
     if (result.error) {
       if (result.error.code === 'HAS_BOOKINGS') {
@@ -361,7 +361,7 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
         setError(result.error.message || 'Delete failed.');
       }
     } else {
-      await loadTherapists();
+      await loadDentists();
     }
 
     setConfirmDelete(null);
@@ -376,30 +376,30 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
       setPositionError('A position with this name already exists.');
       return;
     }
-    // Update all therapists that have this position
-    const affected = therapists.filter(t => t.position && t.position.split('/').map(p => p.trim()).includes(oldName));
+    // Update all dentists that have this position
+    const affected = dentists.filter(t => t.position && t.position.split('/').map(p => p.trim()).includes(oldName));
     for (const t of affected) {
       const parts = t.position.split('/').map(p => p.trim());
       const updated = parts.map(p => p === oldName ? trimmed : p).join('/');
-      await updateTherapist({ therapistId: t.id, position: updated });
+      await updateDentist({ dentistId: t.id, position: updated });
     }
     // Update custom positions list
     setCustomPositions(prev => prev.map(p => p === oldName ? trimmed : p));
     setEditingPositionName(null);
     setPositionError(null);
-    await loadTherapists();
+    await loadDentists();
   };
 
   const handleDeletePosition = async (posName) => {
-    // Remove from all therapists that have this position
-    const affected = therapists.filter(t => t.position && t.position.split('/').map(p => p.trim()).includes(posName));
+    // Remove from all dentists that have this position
+    const affected = dentists.filter(t => t.position && t.position.split('/').map(p => p.trim()).includes(posName));
     for (const t of affected) {
       const parts = t.position.split('/').map(p => p.trim()).filter(p => p !== posName);
-      await updateTherapist({ therapistId: t.id, position: parts.length > 0 ? parts.join('/') : null });
+      await updateDentist({ dentistId: t.id, position: parts.length > 0 ? parts.join('/') : null });
     }
     // Remove from custom positions
     setCustomPositions(prev => prev.filter(p => p !== posName));
-    await loadTherapists();
+    await loadDentists();
   };
 
   if (loading) {
@@ -412,8 +412,8 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
   }
 
   const countLabel = isSearching
-    ? `${filteredTherapists.length} of ${therapists.length} ${therapists.length !== 1 ? staffLabelPlural.toLowerCase() : staffLabel.toLowerCase()}`
-    : `${therapists.length} ${therapists.length !== 1 ? staffLabelPlural.toLowerCase() : staffLabel.toLowerCase()} configured`;
+    ? `${filteredDentists.length} of ${dentists.length} ${dentists.length !== 1 ? staffLabelPlural.toLowerCase() : staffLabel.toLowerCase()}`
+    : `${dentists.length} ${dentists.length !== 1 ? staffLabelPlural.toLowerCase() : staffLabel.toLowerCase()} configured`;
 
   return (
     <div className="space-y-4">
@@ -493,7 +493,7 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
               </tr>
             </thead>
             <tbody>
-              {filteredTherapists.length === 0 ? (
+              {filteredDentists.length === 0 ? (
                 <tr>
                   <td colSpan={readOnly ? 8 : 7} className="px-4 py-8 text-center text-text-secondary font-body text-sm">
                     {isSearching
@@ -503,11 +503,11 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
                   </td>
                 </tr>
               ) : (
-                <SortableContext items={filteredTherapists.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                  {filteredTherapists.map((t) => (
+                <SortableContext items={filteredDentists.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                  {filteredDentists.map((t) => (
                     <SortableRow
                       key={t.id}
-                      therapist={t}
+                      dentist={t}
                       disabled={isSearching || readOnly}
                       readOnly={readOnly}
                       showBranch={readOnly}
@@ -530,7 +530,7 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
           <div className="bg-surface rounded-spa-lg spa-shadow-modal w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-heading font-heading-semibold text-lg text-text-primary">
-                {editingTherapist ? `Edit ${staffLabel}` : `Add ${staffLabel}`}
+                {editingDentist ? `Edit ${staffLabel}` : `Add ${staffLabel}`}
               </h3>
               <button onClick={() => setShowModal(false)} className="p-1 rounded hover:bg-background">
                 <Icon name="X" size={20} className="text-text-secondary" />
@@ -623,7 +623,7 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" size="sm" onClick={() => setShowModal(false)}>Cancel</Button>
               <Button variant="primary" size="sm" onClick={handleSave} loading={saving}>
-                {editingTherapist ? 'Save Changes' : `Add ${staffLabel}`}
+                {editingDentist ? 'Save Changes' : `Add ${staffLabel}`}
               </Button>
             </div>
           </div>
@@ -720,7 +720,7 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
                         <td className="px-4 py-3 font-body text-sm text-text-secondary whitespace-nowrap">
                           {new Date(t.transferredAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
-                        <td className="px-4 py-3 font-body font-body-medium text-sm text-text-primary">{t.therapistName}</td>
+                        <td className="px-4 py-3 font-body font-body-medium text-sm text-text-primary">{t.dentistName}</td>
                         <td className="px-4 py-3 font-body text-sm text-text-secondary whitespace-nowrap">
                           {t.fromBranch} <span className="text-text-tertiary">→</span> {t.toBranch}
                         </td>
@@ -766,7 +766,7 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
                 <label className="block font-body font-body-medium text-xs text-text-secondary uppercase">Existing Positions</label>
                 <div className="border border-border rounded-spa bg-background max-h-[180px] overflow-y-auto divide-y divide-border">
                   {allPositionNames.map(pos => {
-                    const staffCount = therapists.filter(t => t.position && t.position.split('/').map(p => p.trim()).includes(pos)).length;
+                    const staffCount = dentists.filter(t => t.position && t.position.split('/').map(p => p.trim()).includes(pos)).length;
                     const isEditing = editingPositionName === pos;
                     return (
                       <div key={pos} className="flex items-center justify-between px-3 py-2 gap-2">
@@ -865,4 +865,4 @@ const TherapistManagementPanel = ({ branchId, readOnly = false }) => {
   );
 };
 
-export default TherapistManagementPanel;
+export default DentistManagementPanel;

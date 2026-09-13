@@ -121,7 +121,7 @@ const TransferReportPanel = () => {
     const q = searchQuery.trim().toLowerCase();
     return transfers.filter(t => {
       const matchesSearch = !q
-        || t.therapistName.toLowerCase().includes(q)
+        || t.dentistName.toLowerCase().includes(q)
         || t.fromBranch.toLowerCase().includes(q)
         || t.toBranch.toLowerCase().includes(q)
         || t.transferredBy.toLowerCase().includes(q);
@@ -147,7 +147,7 @@ const TransferReportPanel = () => {
             : ' (on time)';
       csv += [
         esc(formatTransferTime(t.effectiveDate, t.startTime)),
-        esc(t.therapistName),
+        esc(t.dentistName),
         esc(t.fromBranch),
         esc(t.toBranch),
         esc(formatDateOnly(t.effectiveDate)),
@@ -257,7 +257,7 @@ const TransferReportPanel = () => {
                 {filtered.map(t => (
                   <tr key={t.id} className="border-b border-border last:border-b-0 hover:bg-background/50 spa-transition-fast">
                     <td className="px-4 py-3 font-body text-sm text-text-secondary whitespace-nowrap">{formatTransferTime(t.effectiveDate, t.startTime)}</td>
-                    <td className="px-4 py-3 font-body font-body-medium text-sm text-text-primary">{t.therapistName}</td>
+                    <td className="px-4 py-3 font-body font-body-medium text-sm text-text-primary">{t.dentistName}</td>
                     <td className="px-4 py-3 font-body text-sm text-text-secondary whitespace-nowrap">
                       {t.fromBranch} <span className="text-text-tertiary">→</span> {t.toBranch}
                     </td>

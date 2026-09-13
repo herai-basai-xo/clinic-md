@@ -10,7 +10,7 @@ import {
   getCalendarBookings,
   fetchBookingById,
   updateBookingStatus,
-  assignTherapist,
+  assignDentist,
   recordPayment,
   fetchAttendance,
   LEAVE_LIKE_ATTENDANCE_STATUSES,
@@ -54,7 +54,7 @@ const OperationalCalendar = ({ branchId }) => {
   const [error, setError] = useState(null);
   const [currentRange, setCurrentRange] = useState(null);
 
-  // Attendance indicators: { [therapistId]: 'Absent' | 'Leave' | ... }
+  // Attendance indicators: { [dentistId]: 'Absent' | 'Leave' | ... }
   const [attendanceMap, setAttendanceMap] = useState({});
 
   // In-page modal state
@@ -89,7 +89,7 @@ const OperationalCalendar = ({ branchId }) => {
     if (attResult.data) {
       for (const a of attResult.data) {
         if (a.status === 'Absent' || LEAVE_LIKE_ATTENDANCE_STATUSES.includes(a.status)) {
-          attMap[a.therapistId] = a.status === 'Absent' ? 'Absent' : 'Leave';
+          attMap[a.dentistId] = a.status === 'Absent' ? 'Absent' : 'Leave';
         }
       }
     }
@@ -168,13 +168,13 @@ const OperationalCalendar = ({ branchId }) => {
     showToast(`Status updated to ${newStatus}`);
   };
 
-  const handleAssignTherapist = async (bookingId, therapistIds, notes, roomId) => {
-    const result = await assignTherapist({ bookingId, therapistIds, roomId });
+  const handleAssignDentist = async (bookingId, dentistIds, notes, roomId) => {
+    const result = await assignDentist({ bookingId, dentistIds, roomId });
     if (result.error) {
-      showToast(result.error.message || 'Failed to assign therapist.', 'error');
+      showToast(result.error.message || 'Failed to assign dentist.', 'error');
       return;
     }
-    showToast('Therapist assigned successfully');
+    showToast('Dentist assigned successfully');
   };
 
   const handleRecordPayment = async (bookingId, opts) => {
@@ -200,15 +200,15 @@ const OperationalCalendar = ({ branchId }) => {
   const resources = calendarData
     ? [
         { id: 'unassigned', title: 'Unassigned' },
-        ...calendarData.therapists.map((t) => ({
+        ...calendarData.dentists.map((t) => ({
           id: t.id,
           title: t.name,
         })),
       ]
     : [];
 
-  const therapistsForModal = calendarData
-    ? calendarData.therapists
+  const dentistsForModal = calendarData
+    ? calendarData.dentists
         .filter((t) => !attendanceMap[t.id])
         .map((t) => ({
           id: t.id,
@@ -219,7 +219,7 @@ const OperationalCalendar = ({ branchId }) => {
     : [];
 
   const resourceIdSet = calendarData
-    ? new Set(calendarData.therapists.map((t) => t.id))
+    ? new Set(calendarData.dentists.map((t) => t.id))
     : new Set();
 
   const events = calendarData
@@ -228,21 +228,21 @@ const OperationalCalendar = ({ branchId }) => {
         const start = b.start_datetime || buildDatetime(b.date, b.start_time);
         const end = b.end_datetime || buildDatetime(b.date, b.end_time);
 
-        // Place events by the assigned therapist(s) from the booking_therapists
+        // Place events by the assigned dentist(s) from the booking_dentists
         // junction — the same source the detail popover reads — so the column
         // always matches the popover. Only place into lanes that actually exist
-        // as resources (a therapist may be inactive or filtered out); otherwise
-        // fall back to the legacy therapist_id column, then the Unassigned lane.
+        // as resources (a dentist may be inactive or filtered out); otherwise
+        // fall back to the legacy dentist_id column, then the Unassigned lane.
         // This guarantees every booking renders somewhere and is never dropped.
-        // Multi-therapist bookings render one event per assigned lane.
-        const junctionIds = (b.booking_therapists || [])
-          .map((bt) => bt.therapist_id)
+        // Multi-dentist bookings render one event per assigned lane.
+        const junctionIds = (b.booking_dentists || [])
+          .map((bt) => bt.dentist_id)
           .filter((id) => id && resourceIdSet.has(id));
         let resourceIds;
         if (junctionIds.length > 0) {
           resourceIds = junctionIds;
-        } else if (b.therapist_id && resourceIdSet.has(b.therapist_id)) {
-          resourceIds = [b.therapist_id];
+        } else if (b.dentist_id && resourceIdSet.has(b.dentist_id)) {
+          resourceIds = [b.dentist_id];
         } else {
           resourceIds = ['unassigned'];
         }
@@ -415,7 +415,7 @@ const OperationalCalendar = ({ branchId }) => {
               },
             }}
             resources={resources}
-            resourceAreaHeaderContent="Therapist"
+            resourceAreaHeaderContent="Dentist"
             resourceAreaWidth="180px"
             resourceLabelContent={renderResourceLabel}
             events={events}
@@ -461,9 +461,9 @@ const OperationalCalendar = ({ branchId }) => {
         isOpen={modalOpen && !modalLoading && !!selectedBooking}
         onClose={handleModalClose}
         booking={selectedBooking}
-        therapists={therapistsForModal}
+        dentists={dentistsForModal}
         onUpdateStatus={handleStatusUpdate}
-        onAssignTherapist={handleAssignTherapist}
+        onAssignDentist={handleAssignDentist}
         onRecordPayment={handleRecordPayment}
         userRole={profile?.role || 'staff'}
       />

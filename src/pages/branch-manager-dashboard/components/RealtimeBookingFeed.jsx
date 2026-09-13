@@ -148,12 +148,12 @@ const RealtimeBookingFeed = ({
   const filteredBookings = bookings.filter(booking => {
     if (filter === 'all') return true;
     if (filter === 'pending') return booking.status === 'pending';
-    if (filter === 'unassigned') return !booking.therapist;
+    if (filter === 'unassigned') return !booking.dentist;
     return true;
   });
 
   const pendingCount = bookings.filter(b => b.status === 'pending').length;
-  const unassignedCount = bookings.filter(b => !b.therapist).length;
+  const unassignedCount = bookings.filter(b => !b.dentist).length;
   const connectionConfig = getConnectionStatusConfig();
 
   return (
@@ -266,10 +266,10 @@ const RealtimeBookingFeed = ({
                       <Icon name="IndianRupee" size={12} />
                       <span>{booking.price}</span>
                     </span>
-                    {booking.therapist ? (
+                    {booking.dentist ? (
                       <span className="flex items-center space-x-1">
                         <Icon name="User" size={12} />
-                        <span>{booking.therapist.name}</span>
+                        <span>{booking.dentist.name}</span>
                       </span>
                     ) : (
                       <span className="flex items-center space-x-1 text-amber-600">

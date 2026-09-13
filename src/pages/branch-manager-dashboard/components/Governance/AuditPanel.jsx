@@ -11,7 +11,7 @@ const TABLE_OPTIONS = [
   { value: 'daily_reports', label: 'Daily Reports' },
   { value: 'services', label: 'Services' },
   { value: 'rooms', label: 'Rooms' },
-  { value: 'therapists', label: 'Therapists' },
+  { value: 'dentists', label: 'Dentists' },
 ];
 
 const ACTION_BADGES = {

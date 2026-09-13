@@ -1,13 +1,13 @@
 /**
- * Reconstructs which branch a therapist is expected to physically be at, at a given
+ * Reconstructs which branch a dentist is expected to physically be at, at a given
  * Nepal-local date/time, from their full staff_transfers history.
  *
- * Why this exists: `therapists.branch_id` only reflects the CURRENT moment (it's
+ * Why this exists: `dentists.branch_id` only reflects the CURRENT moment (it's
  * flipped by the apply_due_staff_transfers / apply_due_staff_reverts cron jobs when a
  * transfer's window opens/closes). That makes it the wrong thing to check when
  * assigning or rescheduling a booking to a DIFFERENT date/time — a scheduled future
  * transfer, or a temporary transfer whose window has already opened/closed relative to
- * the booking's date, can disagree with the therapist's *live* branch_id. Every
+ * the booking's date, can disagree with the dentist's *live* branch_id. Every
  * transfer's [start, revert) window is fully known at creation time (migration-145),
  * so this walks the window history directly instead of trusting the live snapshot.
  */
@@ -24,17 +24,17 @@ export function toKathmanduDate(dateStr, timeStr) {
 }
 
 /**
- * @param {Array} transfers - raw staff_transfers rows for one therapist, each with
+ * @param {Array} transfers - raw staff_transfers rows for one dentist, each with
  *   from_branch_id, to_branch_id, is_permanent, effective_date, start_time, revert_at.
  *   Order/applied/reverted flags are irrelevant — the window itself is reconstructed
  *   purely from the timestamps, so completed/reverted transfers are handled the same
  *   as pending ones (this is what keeps legitimate SEQUENTIAL transfers unblocked).
- * @param {string} fallbackBranchId - therapist's current branch_id; used only when
+ * @param {string} fallbackBranchId - dentist's current branch_id; used only when
  *   there's no transfer history at all, or `atDate` predates the earliest transfer.
  * @param {Date} atDate - the moment being validated (a booking's date + start_time).
- * @returns {string} the branch_id the therapist is expected to be at, at atDate.
+ * @returns {string} the branch_id the dentist is expected to be at, at atDate.
  */
-export function computeTherapistBranchAt(transfers, fallbackBranchId, atDate) {
+export function computeDentistBranchAt(transfers, fallbackBranchId, atDate) {
   const windows = (transfers || [])
     .filter((t) => t && t.effective_date)
     .map((t) => ({
@@ -58,8 +58,8 @@ export function computeTherapistBranchAt(transfers, fallbackBranchId, atDate) {
       // duration/revert_at (is_permanent defaults to false on those, but they have no
       // revert mechanism at all, so they're permanent in effect). All three represent
       // a completed/indefinite move, not a still-open temporary window — treating a
-      // missing endAt as "already closed" would send the therapist back to their OLD
-      // branch forever, even though their live therapists.branch_id — and reality —
+      // missing endAt as "already closed" would send the dentist back to their OLD
+      // branch forever, even though their live dentists.branch_id — and reality —
       // has them at the destination branch indefinitely.
       branch = w.toBranchId;
     } else if (atDate < w.endAt) {
@@ -73,7 +73,7 @@ export function computeTherapistBranchAt(transfers, fallbackBranchId, atDate) {
 }
 
 /**
- * Given a therapist's staff_transfers rows (raw DB shape, any applied/reverted status),
+ * Given a dentist's staff_transfers rows (raw DB shape, any applied/reverted status),
  * finds the one relevant to `branchId` and describes it the way the Calendar's orphan-column
  * fallback (getCalendarBookings, api.js) needs: which direction relative to branchId, and the
  * real [start, end] window — instead of the caller's default "unknown window, block the whole
@@ -83,7 +83,7 @@ export function computeTherapistBranchAt(transfers, fallbackBranchId, atDate) {
  * a temporary window" signal already used by the transferredOut/transferredIn queries in
  * getCalendarBookings) that touch branchId on either side AND overlap [rangeStart, rangeEnd]
  * when that range is supplied. The overlap requirement matters: getCalendarBookings'
- * filteredTherapists ghost-column filter (calendar/index.jsx) drops any transferredIn/
+ * filteredDentists ghost-column filter (calendar/index.jsx) drops any transferredIn/
  * transferredOut column whose returnsAt date has already passed as of the day being viewed —
  * so adopting a STALE window (one that closed before the requested range even starts) would
  * make the orphan column vanish from the day being rendered instead of shading it, silently
@@ -92,7 +92,7 @@ export function computeTherapistBranchAt(transfers, fallbackBranchId, atDate) {
  * (transferred_at) among those. When none overlap, returns null — the caller's conservative
  * block-everything default is correct there, not a stale, irrelevant window.
  *
- * @param {Array} transfers - raw staff_transfers rows for one therapist: each with
+ * @param {Array} transfers - raw staff_transfers rows for one dentist: each with
  *   from_branch_id, to_branch_id, is_permanent, is_return_leg, revert_at, effective_date,
  *   start_time, transferred_at.
  * @param {string} branchId - the branch whose calendar is being rendered.
@@ -136,12 +136,12 @@ export function resolveOrphanTransferWindow(transfers, branchId, rangeStart, ran
 }
 
 /**
- * Whether a booking's date/start_time falls at or after a therapist's already-recorded
+ * Whether a booking's date/start_time falls at or after a dentist's already-recorded
  * check-out for that date — i.e. they've clocked out and shouldn't be booked into any
  * slot from that point through the rest of the day.
  *
- * @param {string|null} checkOutTime - raw therapist_attendance.check_out_time
- *   (timestamptz) for that therapist on that date, or null/undefined if not checked out.
+ * @param {string|null} checkOutTime - raw dentist_attendance.check_out_time
+ *   (timestamptz) for that dentist on that date, or null/undefined if not checked out.
  * @param {string} bookingDate - the booking's date (YYYY-MM-DD).
  * @param {string} bookingStartTime - the booking's start_time (HH:MM or HH:MM:SS).
  * @returns {boolean}

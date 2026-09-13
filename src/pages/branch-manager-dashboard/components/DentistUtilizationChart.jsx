@@ -4,7 +4,7 @@ import Icon from '../../../components/AppIcon';
 import { useIndustry } from '../../../hooks/useIndustry';
 import { getUtilizationIntelligence } from '../../../services/api';
 
-const TherapistUtilizationChart = ({ branchId, period }) => {
+const DentistUtilizationChart = ({ branchId, period }) => {
   const { staffLabel, staffLabelPlural } = useIndustry();
   const [utilizationData, setUtilizationData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,8 +23,8 @@ const TherapistUtilizationChart = ({ branchId, period }) => {
       return;
     }
 
-    const { therapistUtilization } = result.data;
-    const chartData = therapistUtilization.map(t => ({
+    const { dentistUtilization } = result.data;
+    const chartData = dentistUtilization.map(t => ({
       name: t.name,
       utilization: t.percent,
       bookedMinutes: t.bookedMinutes,
@@ -177,4 +177,4 @@ const TherapistUtilizationChart = ({ branchId, period }) => {
   );
 };
 
-export default TherapistUtilizationChart;
+export default DentistUtilizationChart;

@@ -256,10 +256,10 @@ const StaffSidebar = ({ userRole: propRole, userName: propName, branchName: prop
       roles: ['manager', 'admin', 'admin_viewer'],
       children: [
         {
-          id: 'therapists',
+          id: 'dentists',
           label: staffLabelPlural,
           icon: 'Users',
-          path: `${basePath}?view=therapists`,
+          path: `${basePath}?view=dentists`,
           roles: ['manager', 'admin', 'admin_viewer']
         },
         {

@@ -1,6 +1,6 @@
 // Which phase of a transfer window a given day falls into. 'before' (hasn't started yet) and
 // 'after' (already ended) are kept DISTINCT, not collapsed into one "outside" state — a
-// transferredOut therapist is never blocked in either phase, but a transferredIn visitor IS
+// transferredOut dentist is never blocked in either phase, but a transferredIn visitor IS
 // blocked 'before' (not yet arrived) and must NEVER be blocked 'after' (already returned home);
 // collapsing these two together previously caused an already-returned visitor to be blocked on
 // every later day exactly like a not-yet-arrived one. `start`/`end` are `{date, time}` shapes

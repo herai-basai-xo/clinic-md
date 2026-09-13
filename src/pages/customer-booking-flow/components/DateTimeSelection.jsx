@@ -19,29 +19,29 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
   const { enableStaffGender, enableRooms, staffLabel } = useTenant();
   const [selectedDate, setSelectedDate] = useState(selectedDateTime?.date || '');
   const [selectedTime, setSelectedTime] = useState(selectedDateTime?.time || '');
-  const [therapistCounts, setTherapistCounts] = useState({ male: 0, female: 0 });
+  const [dentistCounts, setDentistCounts] = useState({ male: 0, female: 0 });
   const [availabilityWindow, setAvailabilityWindow] = useState(null); // days 0..13
   const [extendedWindow, setExtendedWindow] = useState(null); // days 14..29, fetched on demand
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [loadingExtended, setLoadingExtended] = useState(false);
 
-  // Fetch therapist counts for the selected branch (once) — advisory gender signal only; real
+  // Fetch dentist counts for the selected branch (once) — advisory gender signal only; real
   // availability is gated by room capacity below.
   useEffect(() => {
     if (!selectedBranch?.id) return;
-    async function fetchTherapistCounts() {
+    async function fetchDentistCounts() {
       const { data } = await supabase
-        .from('therapists')
+        .from('dentists')
         .select('gender')
         .eq('branch_id', selectedBranch.id)
         .eq('is_active', true);
       if (data) {
         const male = data.filter(t => t.gender?.toLowerCase() === 'male').length;
         const female = data.filter(t => t.gender?.toLowerCase() === 'female').length;
-        setTherapistCounts({ male, female });
+        setDentistCounts({ male, female });
       }
     }
-    fetchTherapistCounts();
+    fetchDentistCounts();
   }, [selectedBranch?.id]);
 
   // Generate next 30 days (date-chip strip)
@@ -130,8 +130,8 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
         let femaleAvailable = true;
         for (let offset = 0; offset < duration; offset += 30) {
           const booked = byGender[d.fullDate]?.get(start + offset) || { male: 0, female: 0 };
-          if (therapistCounts.male - booked.male <= 0) maleAvailable = false;
-          if (therapistCounts.female - booked.female <= 0) femaleAvailable = false;
+          if (dentistCounts.male - booked.male <= 0) maleAvailable = false;
+          if (dentistCounts.female - booked.female <= 0) femaleAvailable = false;
         }
 
         const genderOk =
@@ -153,7 +153,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
 
       return { date: d.fullDate, slots };
     });
-  }, [availabilityWindow, extendedWindow, selectedService?.durationMinutes, genderPreference, enableRooms, therapistCounts, dates]);
+  }, [availabilityWindow, extendedWindow, selectedService?.durationMinutes, genderPreference, enableRooms, dentistCounts, dates]);
 
   const timeSlots = useMemo(
     () => computedDays.find((d) => d.date === selectedDate)?.slots || [],
@@ -213,7 +213,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
     onDateTimeSelect({ date: slot.date, time: slot.time24 });
   };
 
-  const getTherapistIcon = (slot) => {
+  const getDentistIcon = (slot) => {
     if (genderPreference === 'male' && slot.maleAvailable) {
       return <Icon name="User" size={12} className="text-blue-600" />;
     } else if (genderPreference === 'female' && slot.femaleAvailable) {
@@ -427,7 +427,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
                   </span>
                   {slot.isAvailable && (
                     <div className="flex items-center space-x-1">
-                      {getTherapistIcon(slot)}
+                      {getDentistIcon(slot)}
                     </div>
                   )}
                   {slot.isPast && (
@@ -481,7 +481,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
       {/* Legend */}
       <div className="bg-background rounded-spa p-4">
         <h4 className="font-body font-body-medium text-sm text-text-primary mb-3">
-          Therapist Availability Legend
+          Dentist Availability Legend
         </h4>
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center space-x-2">
@@ -489,7 +489,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
               <Icon name="User" size={8} className="text-blue-600" />
             </div>
             <span className="font-caption font-caption-normal text-text-secondary">
-              Male Therapist Available
+              Male Dentist Available
             </span>
           </div>
           <div className="flex items-center space-x-2">
@@ -497,7 +497,7 @@ const DateTimeSelection = ({ selectedDateTime, onDateTimeSelect, selectedService
               <Icon name="User" size={8} className="text-pink-600" />
             </div>
             <span className="font-caption font-caption-normal text-text-secondary">
-              Female Therapist Available
+              Female Dentist Available
             </span>
           </div>
           <div className="flex items-center space-x-2">

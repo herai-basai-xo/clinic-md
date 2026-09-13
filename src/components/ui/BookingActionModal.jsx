@@ -58,10 +58,10 @@ const BookingActionModal = ({
   isOpen = false,
   onClose,
   booking = null,
-  therapists = [],
+  dentists = [],
   rooms = [],
   services = [],
-  onAssignTherapist,
+  onAssignDentist,
   onUpdateStatus,
   onRecordPayment,
   onApplyDiscount,
@@ -74,8 +74,8 @@ const BookingActionModal = ({
 }) => {
   const { branchId } = useBranch();
   const [activeTab, setActiveTab] = useState('details');
-  const [selectedTherapists, setSelectedTherapists] = useState([]);
-  const [therapistSearch, setTherapistSearch] = useState('');
+  const [selectedDentists, setSelectedDentists] = useState([]);
+  const [dentistSearch, setDentistSearch] = useState('');
   const [selectedRoom, setSelectedRoom] = useState('');
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -142,13 +142,13 @@ const BookingActionModal = ({
     return () => { cancelled = true; };
   }, [showPaymentModal, branchId]);
 
-  // Pre-select current therapists/room when booking changes or assign tab opens
+  // Pre-select current dentists/room when booking changes or assign tab opens
   useEffect(() => {
     if (booking) {
-      const ids = booking.therapists?.length > 0
-        ? booking.therapists.map(t => t.id)
-        : (booking.therapist?.id ? [booking.therapist.id] : []);
-      setSelectedTherapists(ids);
+      const ids = booking.dentists?.length > 0
+        ? booking.dentists.map(t => t.id)
+        : (booking.dentist?.id ? [booking.dentist.id] : []);
+      setSelectedDentists(ids);
       setSelectedRoom(booking.roomId || '');
     }
   }, [booking?.bookingId]);
@@ -158,7 +158,7 @@ const BookingActionModal = ({
     setIsEditing(false);
     setEditError(null);
     setActionError(null);
-    setTherapistSearch('');
+    setDentistSearch('');
     setNewBookingMode(null);
     setNewBookingError(null);
     setNewBookingForm({});
@@ -434,7 +434,7 @@ const BookingActionModal = ({
       serviceId: mode === 'rebook' ? (booking.serviceId || '') : '',
       date: mode === 'rebook' ? '' : (booking.date || today),
       startTime: '',
-      therapistId: '',
+      dentistId: '',
       roomId: '',
     });
     setNewBookingError(null);
@@ -467,7 +467,7 @@ const BookingActionModal = ({
         customerPhone: booking.customerPhone || null,
         bookingDate: newBookingForm.date,
         bookingTime: newBookingForm.startTime,
-        therapistId: newBookingForm.therapistId || null,
+        dentistId: newBookingForm.dentistId || null,
         roomId: newBookingForm.roomId || null,
       });
 
@@ -484,14 +484,14 @@ const BookingActionModal = ({
     }
   };
 
-  const handleAssignTherapist = async () => {
+  const handleAssignDentist = async () => {
     if (!booking) return;
 
     setIsLoading(true);
     setActionError(null);
     try {
-      if (onAssignTherapist) {
-        await onAssignTherapist(booking.bookingId, selectedTherapists, notes, selectedRoom || null);
+      if (onAssignDentist) {
+        await onAssignDentist(booking.bookingId, selectedDentists, notes, selectedRoom || null);
       }
       onClose();
     } catch (error) {
@@ -552,7 +552,7 @@ const BookingActionModal = ({
   // settle the bill); being paid locks Discount/Payment too (via canDiscount/
   // canPay below). Day-close and terminal status always lock everything.
   const isMutationBlocked = isTerminal || isLocked || isServiceStarted || isSettled;
-  // Assignment (therapist/room) locks once the service has started (or is
+  // Assignment (dentist/room) locks once the service has started (or is
   // terminal/day-closed) — NOT merely because it's been paid. A booking can be
   // paid before it starts (pay-after-service isn't mandatory) and reassignment
   // should still be possible right up until the service actually begins.
@@ -560,10 +560,10 @@ const BookingActionModal = ({
   // "Rebook" reads as booking-again-after on terminal states; on active bookings "Reschedule" is clearer
   const rebookLabel = isTerminal ? 'Rebook' : 'Reschedule';
 
-  // Self-service rooms (Jacuzzi/Sauna/Steam) don't need a therapist to start — driven by
-  // rooms.requires_therapist, not a hardcoded room/branch list.
+  // Self-service rooms (Jacuzzi/Sauna/Steam) don't need a dentist to start — driven by
+  // rooms.requires_dentist, not a hardcoded room/branch list.
   const selectedRoomObj = rooms.find(r => r.id === selectedRoom);
-  const isTherapistOptional = selectedRoomObj?.requires_therapist === false;
+  const isDentistOptional = selectedRoomObj?.requires_dentist === false;
 
   const nextStatuses = getNextStatuses(booking.status);
   // Payment is allowed on Completed bookings (pay-after-service is standard cash-spa flow).
@@ -963,14 +963,14 @@ const BookingActionModal = ({
                   </div>
                 </div>
 
-                {/* Therapist(s) */}
-                {(booking.therapists?.length > 0 || booking.therapist) && !isEditing && (
+                {/* Dentist(s) */}
+                {(booking.dentists?.length > 0 || booking.dentist) && !isEditing && (
                   <div className="space-y-1.5 sm:space-y-2">
                     <label className="font-body font-body-medium text-xs sm:text-sm text-text-secondary">
-                      Assigned Therapist{(booking.therapists?.length || 0) > 1 ? 's' : ''}
+                      Assigned Dentist{(booking.dentists?.length || 0) > 1 ? 's' : ''}
                     </label>
                     <div className="font-body font-body-normal text-sm text-text-primary">
-                      {(booking.therapists?.length > 0 ? booking.therapists : [booking.therapist]).filter(Boolean).map((t, i) => (
+                      {(booking.dentists?.length > 0 ? booking.dentists : [booking.dentist]).filter(Boolean).map((t, i) => (
                         <span key={t.id}>
                           {i > 0 && ', '}
                           {t.name}{t.gender ? ` (${t.gender})` : ''}
@@ -1000,7 +1000,7 @@ const BookingActionModal = ({
                   )}
                 </div>
 
-                {/* Referred by — type freely or pick an existing therapist */}
+                {/* Referred by — type freely or pick an existing dentist */}
                 <div className="space-y-1.5 sm:space-y-2">
                   <label className="font-body font-body-medium text-xs sm:text-sm text-text-secondary">Referred by</label>
                   {isEditing ? (
@@ -1011,12 +1011,12 @@ const BookingActionModal = ({
                         onChange={(e) => { setEditForm(f => ({ ...f, referredBy: e.target.value })); setReferredByOpen(true); }}
                         onFocus={() => setReferredByOpen(true)}
                         onBlur={() => setTimeout(() => setReferredByOpen(false), 150)}
-                        placeholder="Type a name or pick a therapist…"
+                        placeholder="Type a name or pick a dentist…"
                         className={inputClasses}
                       />
                       {referredByOpen && (() => {
                         const q = (editForm.referredBy || '').toLowerCase().trim();
-                        const matches = therapists.filter(t => !q || t.name.toLowerCase().includes(q));
+                        const matches = dentists.filter(t => !q || t.name.toLowerCase().includes(q));
                         if (matches.length === 0) return null;
                         return (
                           <div className="absolute z-dropdown mt-1 w-full bg-surface border border-border rounded-spa shadow-spa-elevated max-h-[180px] overflow-y-auto">
@@ -1044,7 +1044,7 @@ const BookingActionModal = ({
                 </div>
 
                 {/* Customer-to-customer referral reward — separate from the legacy
-                    staff/therapist referredBy field above. Only present when this
+                    staff/dentist referredBy field above. Only present when this
                     booking was the referred customer's first booking. */}
                 {customerReferral && (
                   <div className="space-y-1.5 sm:space-y-2">
@@ -1140,40 +1140,40 @@ const BookingActionModal = ({
                   </div>
                 )}
 
-                {/* Section 1: Therapist */}
+                {/* Section 1: Dentist */}
                 <div className="space-y-3">
                   <h3 className="font-heading font-heading-medium text-sm sm:text-base text-text-primary">
-                    Therapist
+                    Dentist
                   </h3>
-                  {isTherapistOptional && (
+                  {isDentistOptional && (
                     <p className="font-caption font-caption-normal text-xs text-text-secondary">
-                      Optional for {selectedRoomObj?.name} — self-service room, no therapist required.
+                      Optional for {selectedRoomObj?.name} — self-service room, no dentist required.
                     </p>
                   )}
-                  {therapists.length === 0 ? (
-                    <p className="font-body font-body-normal text-sm text-text-secondary">No therapists available.</p>
+                  {dentists.length === 0 ? (
+                    <p className="font-body font-body-normal text-sm text-text-secondary">No dentists available.</p>
                   ) : (
                     <div>
                       <div className="relative mb-2">
                         <Icon name="Search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                         <input
                           type="text"
-                          value={therapistSearch}
-                          onChange={(e) => setTherapistSearch(e.target.value)}
-                          placeholder="Search therapists..."
+                          value={dentistSearch}
+                          onChange={(e) => setDentistSearch(e.target.value)}
+                          placeholder="Search dentists..."
                           className="w-full pl-8 pr-3 py-2 bg-background border border-border rounded-spa text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                         />
                       </div>
                     <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                      {therapists
-                        .filter(t => !therapistSearch.trim() || t.name.toLowerCase().includes(therapistSearch.toLowerCase()))
-                        .map((therapist) => {
-                        const isSelected = selectedTherapists.includes(therapist.id);
-                        const isCurrentlyAssigned = booking?.therapists?.some(t => t.id === therapist.id)
-                          || booking?.therapist?.id === therapist.id;
+                      {dentists
+                        .filter(t => !dentistSearch.trim() || t.name.toLowerCase().includes(dentistSearch.toLowerCase()))
+                        .map((dentist) => {
+                        const isSelected = selectedDentists.includes(dentist.id);
+                        const isCurrentlyAssigned = booking?.dentists?.some(t => t.id === dentist.id)
+                          || booking?.dentist?.id === dentist.id;
                         return (
                           <label
-                            key={therapist.id}
+                            key={dentist.id}
                             className={`flex items-center space-x-3 sm:space-x-4 p-3 rounded-spa border-2 spa-transition-fast min-h-[52px] ${
                               isAssignmentBlocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
                             } ${
@@ -1183,14 +1183,14 @@ const BookingActionModal = ({
                           >
                             <input
                               type="checkbox"
-                              value={therapist.id}
+                              value={dentist.id}
                               checked={isSelected}
                               disabled={isAssignmentBlocked}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSelectedTherapists(prev => [...prev, therapist.id]);
+                                  setSelectedDentists(prev => [...prev, dentist.id]);
                                 } else {
-                                  setSelectedTherapists(prev => prev.filter(id => id !== therapist.id));
+                                  setSelectedDentists(prev => prev.filter(id => id !== dentist.id));
                                 }
                               }}
                               className="text-primary focus:ring-primary w-4 h-4 rounded disabled:cursor-not-allowed"
@@ -1198,18 +1198,18 @@ const BookingActionModal = ({
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="font-body font-body-medium text-sm text-text-primary truncate">
-                                  {therapist.name}
+                                  {dentist.name}
                                   {isCurrentlyAssigned && (
                                     <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-success/10 text-success">Assigned</span>
                                   )}
                                 </span>
                                 <span className="text-xs font-caption font-caption-normal text-text-secondary capitalize flex-shrink-0">
-                                  {therapist.gender}
+                                  {dentist.gender}
                                 </span>
                               </div>
-                              {therapist.specialties && therapist.specialties.length > 0 && (
+                              {dentist.specialties && dentist.specialties.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1">
-                                  {therapist.specialties.map((specialty) => (
+                                  {dentist.specialties.map((specialty) => (
                                     <span
                                       key={specialty}
                                       className="inline-flex items-center px-2 py-0.5 rounded text-xs font-caption font-caption-normal bg-accent/10 text-accent"
@@ -1296,7 +1296,7 @@ const BookingActionModal = ({
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add any special instructions for the therapist..."
+                    placeholder="Add any special instructions for the dentist..."
                     rows={3}
                     disabled={isAssignmentBlocked}
                     className="w-full px-3 py-2.5 border border-border rounded-spa bg-surface text-text-primary text-sm focus:ring-2 focus:ring-primary focus:border-primary spa-transition-fast resize-none disabled:opacity-60 disabled:cursor-not-allowed"
@@ -1395,7 +1395,7 @@ const BookingActionModal = ({
                                     <span className="font-body font-body-medium text-xs text-text-primary">{booking.service}</span>
                                     <div className="font-caption text-[10px] text-text-secondary flex flex-wrap gap-x-2">
                                       {booking.time && <span>{to12h(booking.startTime || booking.time)}{booking.startTime && booking.startTime !== booking.time ? '' : ''}</span>}
-                                      {booking.therapist?.name && <span>· {booking.therapist.name}</span>}
+                                      {booking.dentist?.name && <span>· {booking.dentist.name}</span>}
                                       {booking.roomName && <span>· {booking.roomName}</span>}
                                     </div>
                                   </div>
@@ -1474,7 +1474,7 @@ const BookingActionModal = ({
                                           </div>
                                           <div className="font-caption text-[10px] text-text-secondary flex flex-wrap gap-x-2">
                                             {rb.start_time && <span>{to12h(rb.start_time)}{rb.end_time ? ` – ${to12h(rb.end_time)}` : ''}</span>}
-                                            {rb.therapist?.name && <span>· {rb.therapist.name}</span>}
+                                            {rb.dentist?.name && <span>· {rb.dentist.name}</span>}
                                             {rb.room?.name && <span>· {rb.room.name}</span>}
                                           </div>
                                         </div>
@@ -2043,13 +2043,13 @@ const BookingActionModal = ({
                     />
                   </div>
 
-                  {/* Therapist */}
+                  {/* Dentist */}
                   <div>
-                    <label className="block font-body font-body-medium text-xs text-text-secondary mb-1">Therapist</label>
+                    <label className="block font-body font-body-medium text-xs text-text-secondary mb-1">Dentist</label>
                     <CustomSelect
-                      value={newBookingForm.therapistId}
-                      onChange={(val) => setNewBookingForm(f => ({ ...f, therapistId: val }))}
-                      options={[{ value: '', label: 'Any available' }, ...therapists.map(t => ({ value: t.id, label: t.name }))]}
+                      value={newBookingForm.dentistId}
+                      onChange={(val) => setNewBookingForm(f => ({ ...f, dentistId: val }))}
+                      options={[{ value: '', label: 'Any available' }, ...dentists.map(t => ({ value: t.id, label: t.name }))]}
                       placeholder="Any available"
                       size="sm"
                     />
@@ -2139,9 +2139,9 @@ const BookingActionModal = ({
                   {activeTab === 'assign' && !isAssignmentBlocked && (
                     <Button
                       variant="primary"
-                      onClick={handleAssignTherapist}
+                      onClick={handleAssignDentist}
                       loading={isLoading}
-                      disabled={selectedTherapists.length === 0 && !isTherapistOptional}
+                      disabled={selectedDentists.length === 0 && !isDentistOptional}
                       className="min-h-[44px] sm:min-h-0"
                     >
                       Save Assignment

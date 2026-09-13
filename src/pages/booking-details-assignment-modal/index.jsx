@@ -5,12 +5,12 @@ import Button from '../../components/ui/Button';
 import StaffSidebar from '../../components/ui/StaffSidebar';
 import PaymentModal from '../../components/ui/PaymentModal';
 import BookingDetailsPanel from './components/BookingDetailsPanel';
-import TherapistAssignmentPanel from './components/TherapistAssignmentPanel';
+import DentistAssignmentPanel from './components/DentistAssignmentPanel';
 import BookingTimelinePanel from './components/BookingTimelinePanel';
 import CustomerCommunicationPanel from './components/CustomerCommunicationPanel';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBranch } from '../../contexts/BranchContext';
-import { fetchBookingById, fetchTherapists, recordPayment, updateBookingStatus, assignTherapist, fetchDueHolderNames } from '../../services/api';
+import { fetchBookingById, fetchDentists, recordPayment, updateBookingStatus, assignDentist, fetchDueHolderNames } from '../../services/api';
 import { transformBooking, toDbStatus } from '../../services/bookingTransformers';
 
 const BookingDetailsAssignmentModal = () => {
@@ -26,7 +26,7 @@ const BookingDetailsAssignmentModal = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [booking, setBooking] = useState(null);
-  const [therapists, setTherapists] = useState([]);
+  const [dentists, setDentists] = useState([]);
   const [error, setError] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [dueHolderSuggestions, setDueHolderSuggestions] = useState([]);
@@ -57,9 +57,9 @@ const BookingDetailsAssignmentModal = () => {
     setBooking(transformed);
 
     if (branchId) {
-      const therapistsResult = await fetchTherapists(branchId, { date: bookingResult.data?.date });
-      if (therapistsResult.data) {
-        setTherapists(therapistsResult.data.map(t => ({
+      const dentistsResult = await fetchDentists(branchId, { date: bookingResult.data?.date });
+      if (dentistsResult.data) {
+        setDentists(dentistsResult.data.map(t => ({
           id: t.id,
           name: t.name,
           gender: t.gender,
@@ -122,15 +122,15 @@ const BookingDetailsAssignmentModal = () => {
     setIsLoading(false);
   };
 
-  const handleAssignTherapist = async (therapistId, notes) => {
+  const handleAssignDentist = async (dentistId, notes) => {
     if (!booking) return;
     setIsLoading(true);
     setActionError(null);
 
-    const result = await assignTherapist({ bookingId: booking.bookingId, therapistId });
+    const result = await assignDentist({ bookingId: booking.bookingId, dentistId });
 
     if (result.error) {
-      showActionError(result.error.message || 'Failed to assign therapist.');
+      showActionError(result.error.message || 'Failed to assign dentist.');
     } else {
       await loadBooking();
     }
@@ -177,9 +177,9 @@ const BookingDetailsAssignmentModal = () => {
   }, [handleClose]);
 
   // Build assignment data for the panel
-  const currentAssignment = booking?.therapist ? {
-    therapistId: booking.therapist.id,
-    therapistName: booking.therapist.name,
+  const currentAssignment = booking?.dentist ? {
+    dentistId: booking.dentist.id,
+    dentistName: booking.dentist.name,
     assignedAt: '',
     notes: ''
   } : null;
@@ -329,14 +329,14 @@ const BookingDetailsAssignmentModal = () => {
                       )}
 
                       {activeTab === 'assignment' && (
-                        <TherapistAssignmentPanel
+                        <DentistAssignmentPanel
                           booking={booking}
-                          availableTherapists={therapists.map(t => ({
+                          availableDentists={dentists.map(t => ({
                             ...t,
                             conflictReason: null,
                             schedule: [],
                           }))}
-                          onAssignTherapist={handleAssignTherapist}
+                          onAssignDentist={handleAssignDentist}
                           isLoading={isLoading}
                           currentAssignment={currentAssignment}
                         />

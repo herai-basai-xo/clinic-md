@@ -8,17 +8,17 @@ import FilterBar from '../../../../components/ui/FilterBar';
 import { useIndustry } from '../../../../hooks/useIndustry';
 import {
   fetchAttendance,
-  fetchAttendanceByTherapistIds,
+  fetchAttendanceByDentistIds,
   fetchAttendanceSummary,
   markAttendance,
-  transferTherapist,
+  transferDentist,
   fetchPendingTransfers,
   cancelScheduledTransfer,
   fetchAllBranches,
   extendStaffTransfer,
   revertStaffTransferNow,
   rescheduleStaffTransferReturn,
-  fetchTherapistTransferStatus,
+  fetchDentistTransferStatus,
 } from '../../../../services/api';
 
 function formatPrettyDate(d) {
@@ -39,7 +39,7 @@ const DURATION_UNIT_OPTIONS = [
 ];
 
 // Client-side estimate only, for the modal's preview line — the server independently
-// computes the authoritative revert_at (migration-145's transfer_therapist()).
+// computes the authoritative revert_at (migration-145's transfer_dentist()).
 function computeRevertPreview(dateStr, timeStr, value, unit) {
   if (!dateStr || !timeStr || !value || !unit) return null;
   const start = new Date(`${dateStr}T${timeStr}`);
@@ -50,7 +50,7 @@ function computeRevertPreview(dateStr, timeStr, value, unit) {
   if (unit === 'month') {
     // Match Postgres's `timestamp + interval 'n months'` semantics (clamp to the last valid day
     // of the target month), not JS Date.setMonth()'s overflow-into-next-month behavior — e.g.
-    // Jan 31 + 1 month is Feb 28 server-side, not Mar 3. The server (transfer_therapist()) is
+    // Jan 31 + 1 month is Feb 28 server-side, not Mar 3. The server (transfer_dentist()) is
     // the actual source of truth for revert_at; this is just the preview shown before confirming.
     const targetMonthIndex = start.getMonth() + n;
     const targetYear = start.getFullYear() + Math.floor(targetMonthIndex / 12);
@@ -114,7 +114,7 @@ const AttendancePanel = ({ branchId }) => {
   const { staffLabel } = useIndustry();
 
   const [selectedDate, setSelectedDate] = useState(today);
-  const [therapists, setTherapists] = useState([]);
+  const [dentists, setDentists] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -123,8 +123,8 @@ const AttendancePanel = ({ branchId }) => {
 
   // Transfer feature
   const [orgBranches, setOrgBranches] = useState([]);
-  const [pendingByTherapist, setPendingByTherapist] = useState({});
-  const [transferStatusByTherapist, setTransferStatusByTherapist] = useState({});
+  const [pendingByDentist, setPendingByDentist] = useState({});
+  const [transferStatusByDentist, setTransferStatusByDentist] = useState({});
   const [extendDurationUnit, setExtendDurationUnit] = useState('');
   const [extendDurationValue, setExtendDurationValue] = useState('');
   const [extendError, setExtendError] = useState(null);
@@ -134,7 +134,7 @@ const AttendancePanel = ({ branchId }) => {
   const [useCustomReturnTime, setUseCustomReturnTime] = useState(false);
   const [customReturnDate, setCustomReturnDate] = useState('');
   const [customReturnTime, setCustomReturnTime] = useState('');
-  const [transferTarget, setTransferTarget] = useState(null); // { therapistId, therapistName }
+  const [transferTarget, setTransferTarget] = useState(null); // { dentistId, dentistName }
   const [transferMode, setTransferMode] = useState('temporary'); // 'temporary' | 'permanent'
   const [transferToBranch, setTransferToBranch] = useState('');
   const [transferStartDate, setTransferStartDate] = useState('');
@@ -148,7 +148,7 @@ const AttendancePanel = ({ branchId }) => {
   const [cancellingActive, setCancellingActive] = useState(false);
   const [cancelActiveError, setCancelActiveError] = useState(null);
 
-  // Track local edits per therapist: { [therapistId]: { status, checkInTime, checkOutTime, notes, dirty } }
+  // Track local edits per dentist: { [dentistId]: { status, checkInTime, checkOutTime, notes, dirty } }
   const [edits, setEdits] = useState({});
   const [saving, setSaving] = useState({});
 
@@ -167,47 +167,47 @@ const AttendancePanel = ({ branchId }) => {
   // the DB, but the staffer is due to leave. Hide them from this branch's own table immediately
   // rather than waiting out that window; they'll disappear from the DB-driven side (calendar,
   // origin's list, etc.) once the cron actually processes it.
-  const isIncomingTransferOverdue = useCallback((therapistId) => {
-    const status = transferStatusByTherapist[therapistId];
+  const isIncomingTransferOverdue = useCallback((dentistId) => {
+    const status = transferStatusByDentist[dentistId];
     return !!(
       status?.applied && !status?.reverted && status?.revertAt
       && status?.toBranchId === branchId
       && new Date(status.revertAt) <= new Date()
     );
-  }, [transferStatusByTherapist, branchId]);
+  }, [transferStatusByDentist, branchId]);
 
-  const filteredTherapists = useMemo(() => {
+  const filteredDentists = useMemo(() => {
     if (staffTypeFilter === 'transferred') return [];
-    return therapists.filter((t) => {
-      if (isIncomingTransferOverdue(t.therapistId)) return false;
+    return dentists.filter((t) => {
+      if (isIncomingTransferOverdue(t.dentistId)) return false;
       const matchesSearch = !searchQuery.trim()
-        || (t.therapistName || '').toLowerCase().includes(searchQuery.toLowerCase().trim());
-      const currentStatus = edits[t.therapistId]?.status ?? (t.status || '');
+        || (t.dentistName || '').toLowerCase().includes(searchQuery.toLowerCase().trim());
+      const currentStatus = edits[t.dentistId]?.status ?? (t.status || '');
       const matchesStatus = statusFilter === 'all' || currentStatus === statusFilter;
       const matchesType = staffTypeFilter === 'all'
         || (staffTypeFilter === 'service' ? t.isServiceStaff : !t.isServiceStaff);
       return matchesSearch && matchesStatus && matchesType;
     });
-  }, [therapists, edits, searchQuery, statusFilter, staffTypeFilter, isIncomingTransferOverdue]);
+  }, [dentists, edits, searchQuery, statusFilter, staffTypeFilter, isIncomingTransferOverdue]);
 
-  const isTransferredTherapist = useCallback((therapistId) => {
-    const status = transferStatusByTherapist[therapistId];
+  const isTransferredDentist = useCallback((dentistId) => {
+    const status = transferStatusByDentist[dentistId];
     const activeIncomingTransfer = status?.applied && !status?.reverted && status?.revertAt && status?.toBranchId === branchId;
-    return !!pendingByTherapist[therapistId] || !!activeIncomingTransfer;
-  }, [pendingByTherapist, transferStatusByTherapist, branchId]);
+    return !!pendingByDentist[dentistId] || !!activeIncomingTransfer;
+  }, [pendingByDentist, transferStatusByDentist, branchId]);
 
   // Staff transferred (or being transferred) AWAY from this branch — both already-active
-  // transfers (branch_id has moved, so they're absent from `therapists`) and scheduled-but-
+  // transfers (branch_id has moved, so they're absent from `dentists`) and scheduled-but-
   // not-yet-started ones (branch_id hasn't moved yet, but the transfer already exists). Both
   // show up here as soon as the transfer is created, each cancellable from this same list.
   const transferredOutBase = useMemo(() => {
-    const active = Object.values(transferStatusByTherapist)
+    const active = Object.values(transferStatusByDentist)
       .filter((s) => s.applied && !s.reverted && s.revertAt && s.fromBranchId === branchId && s.toBranchId !== branchId)
       .map((s) => ({ ...s, isPending: false }));
-    const pending = Object.values(pendingByTherapist).map((p) => ({
+    const pending = Object.values(pendingByDentist).map((p) => ({
       id: p.id,
-      therapistId: p.therapistId,
-      therapistName: p.therapistName,
+      dentistId: p.dentistId,
+      dentistName: p.dentistName,
       toBranch: p.toBranch,
       effectiveDate: p.effectiveDate,
       startTime: p.startTime,
@@ -215,28 +215,28 @@ const AttendancePanel = ({ branchId }) => {
       isPending: true,
     }));
     return [...active, ...pending];
-  }, [transferStatusByTherapist, pendingByTherapist, branchId]);
+  }, [transferStatusByDentist, pendingByDentist, branchId]);
 
   // Today's check-in/check-out for transferred-out staff — attendance is global per
-  // (therapist_id, date), not branch-scoped, so it still exists even once they're off this
+  // (dentist_id, date), not branch-scoped, so it still exists even once they're off this
   // branch's own fetchAttendance() result.
   const [transferredAttendance, setTransferredAttendance] = useState({});
 
   useEffect(() => {
-    const ids = transferredOutBase.map((s) => s.therapistId);
+    const ids = transferredOutBase.map((s) => s.dentistId);
     if (ids.length === 0) {
       setTransferredAttendance({});
       return;
     }
     let cancelled = false;
-    fetchAttendanceByTherapistIds({ therapistIds: ids, date: selectedDate }).then(({ data }) => {
+    fetchAttendanceByDentistIds({ dentistIds: ids, date: selectedDate }).then(({ data }) => {
       if (!cancelled) setTransferredAttendance(data || {});
     });
     return () => { cancelled = true; };
   }, [transferredOutBase, selectedDate]);
 
   const transferredOutList = useMemo(
-    () => transferredOutBase.map((s) => ({ ...s, attendance: transferredAttendance[s.therapistId] || null })),
+    () => transferredOutBase.map((s) => ({ ...s, attendance: transferredAttendance[s.dentistId] || null })),
     [transferredOutBase, transferredAttendance]
   );
 
@@ -244,16 +244,16 @@ const AttendancePanel = ({ branchId }) => {
     if (staffTypeFilter !== 'transferred') return [];
     if (!searchQuery.trim()) return transferredOutList;
     const q = searchQuery.toLowerCase().trim();
-    return transferredOutList.filter((s) => (s.therapistName || '').toLowerCase().includes(q));
+    return transferredOutList.filter((s) => (s.dentistName || '').toLowerCase().includes(q));
   }, [transferredOutList, searchQuery, staffTypeFilter]);
 
   const transferredCount = useMemo(
-    () => therapists.filter((t) => isTransferredTherapist(t.therapistId)).length + transferredOutList.length,
-    [therapists, isTransferredTherapist, transferredOutList]
+    () => dentists.filter((t) => isTransferredDentist(t.dentistId)).length + transferredOutList.length,
+    [dentists, isTransferredDentist, transferredOutList]
   );
 
-  const allFilteredSelected = filteredTherapists.length > 0
-    && filteredTherapists.every((t) => selectedIds.includes(t.therapistId));
+  const allFilteredSelected = filteredDentists.length > 0
+    && filteredDentists.every((t) => selectedIds.includes(t.dentistId));
 
   const toggleSelect = (id) => {
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -261,9 +261,9 @@ const AttendancePanel = ({ branchId }) => {
 
   const toggleSelectAll = () => {
     if (allFilteredSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !filteredTherapists.some((t) => t.therapistId === id)));
+      setSelectedIds((prev) => prev.filter((id) => !filteredDentists.some((t) => t.dentistId === id)));
     } else {
-      setSelectedIds((prev) => [...new Set([...prev, ...filteredTherapists.map((t) => t.therapistId)])]);
+      setSelectedIds((prev) => [...new Set([...prev, ...filteredDentists.map((t) => t.dentistId)])]);
     }
   };
 
@@ -280,12 +280,12 @@ const AttendancePanel = ({ branchId }) => {
     if (!branchId) return;
     const [{ data }, { data: statusMap }] = await Promise.all([
       fetchPendingTransfers(branchId),
-      fetchTherapistTransferStatus(branchId),
+      fetchDentistTransferStatus(branchId),
     ]);
     const map = {};
-    (data || []).forEach(t => { map[t.therapistId] = t; });
-    setPendingByTherapist(map);
-    setTransferStatusByTherapist(statusMap || {});
+    (data || []).forEach(t => { map[t.dentistId] = t; });
+    setPendingByDentist(map);
+    setTransferStatusByDentist(statusMap || {});
   }, [branchId]);
 
   const loadData = useCallback(async () => {
@@ -307,13 +307,13 @@ const AttendancePanel = ({ branchId }) => {
     }
 
     const rows = attendanceResult.data || [];
-    setTherapists(rows);
+    setDentists(rows);
     setSelectedIds([]);
 
     // Initialize edits from fetched data
     const initialEdits = {};
     for (const t of rows) {
-      initialEdits[t.therapistId] = {
+      initialEdits[t.dentistId] = {
         status: t.status || '',
         checkInTime: t.checkInTime || '',
         checkOutTime: t.checkOutTime || '',
@@ -332,28 +332,28 @@ const AttendancePanel = ({ branchId }) => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const handleFieldChange = (therapistId, field, value) => {
+  const handleFieldChange = (dentistId, field, value) => {
     setEdits(prev => ({
       ...prev,
-      [therapistId]: {
-        ...prev[therapistId],
+      [dentistId]: {
+        ...prev[dentistId],
         [field]: value,
         dirty: true,
       },
     }));
   };
 
-  const handleSave = async (therapistId) => {
-    const edit = edits[therapistId];
+  const handleSave = async (dentistId) => {
+    const edit = edits[dentistId];
     if (!edit || !edit.status) {
       showToast('Please select a status before saving.', 'error');
       return;
     }
 
-    setSaving(prev => ({ ...prev, [therapistId]: true }));
+    setSaving(prev => ({ ...prev, [dentistId]: true }));
 
     const result = await markAttendance({
-      therapistId,
+      dentistId,
       date: selectedDate,
       status: edit.status,
       checkInTime: edit.checkInTime || null,
@@ -361,7 +361,7 @@ const AttendancePanel = ({ branchId }) => {
       notes: edit.notes || null,
     });
 
-    setSaving(prev => ({ ...prev, [therapistId]: false }));
+    setSaving(prev => ({ ...prev, [dentistId]: false }));
 
     if (result.error) {
       if (result.error.code === 'ATTENDANCE_DAY_LOCKED') {
@@ -376,10 +376,10 @@ const AttendancePanel = ({ branchId }) => {
     // Mark as not dirty
     setEdits(prev => ({
       ...prev,
-      [therapistId]: { ...prev[therapistId], dirty: false },
+      [dentistId]: { ...prev[dentistId], dirty: false },
     }));
 
-    showToast(`Attendance saved for ${therapists.find(t => t.therapistId === therapistId)?.therapistName || 'therapist'}`);
+    showToast(`Attendance saved for ${dentists.find(t => t.dentistId === dentistId)?.dentistName || 'dentist'}`);
 
     // Refresh summary
     const summaryResult = await fetchAttendanceSummary({ branchId, date: selectedDate });
@@ -406,7 +406,7 @@ const AttendancePanel = ({ branchId }) => {
 
       const edit = edits[id];
       const result = await markAttendance({
-        therapistId: id,
+        dentistId: id,
         date: selectedDate,
         status: edit.status,
         checkInTime: edit.checkInTime || null,
@@ -435,7 +435,7 @@ const AttendancePanel = ({ branchId }) => {
     if (lockHit) {
       showToast('Day is closed. Attendance cannot be modified.', 'error');
     } else if (successCount > 0) {
-      showToast(`Saved attendance for ${successCount} therapist${successCount !== 1 ? 's' : ''}`);
+      showToast(`Saved attendance for ${successCount} dentist${successCount !== 1 ? 's' : ''}`);
     }
 
     // Refresh summary
@@ -460,7 +460,7 @@ const AttendancePanel = ({ branchId }) => {
 
       const edit = edits[id] || {};
       const result = await markAttendance({
-        therapistId: id,
+        dentistId: id,
         date: selectedDate,
         status,
         checkInTime: edit.checkInTime || null,
@@ -489,7 +489,7 @@ const AttendancePanel = ({ branchId }) => {
     if (lockHit) {
       showToast('Day is closed. Attendance cannot be modified.', 'error');
     } else if (successCount > 0) {
-      showToast(`Marked ${successCount} therapist${successCount !== 1 ? 's' : ''} ${status}`);
+      showToast(`Marked ${successCount} dentist${successCount !== 1 ? 's' : ''} ${status}`);
     }
 
     setSelectedIds([]);
@@ -501,7 +501,7 @@ const AttendancePanel = ({ branchId }) => {
   };
 
   const openTransfer = (t) => {
-    const latest = transferStatusByTherapist[t.therapistId] || null;
+    const latest = transferStatusByDentist[t.dentistId] || null;
     const activeTransfer = latest && latest.applied && !latest.reverted && latest.revertAt
       && (latest.toBranchId === branchId || latest.fromBranchId === branchId)
       ? latest
@@ -510,7 +510,7 @@ const AttendancePanel = ({ branchId }) => {
       ? latest
       : null;
 
-    setTransferTarget({ therapistId: t.therapistId, therapistName: t.therapistName, activeTransfer, completedTransfer });
+    setTransferTarget({ dentistId: t.dentistId, dentistName: t.dentistName, activeTransfer, completedTransfer });
     setTransferMode('temporary');
     setTransferToBranch('');
     setTransferStartDate(selectedDate);
@@ -552,7 +552,7 @@ const AttendancePanel = ({ branchId }) => {
       return;
     }
 
-    const name = transferTarget.therapistName;
+    const name = transferTarget.dentistName;
     setTransferTarget(null);
     setExtending(false);
     showToast(`Extended ${name}'s transfer — now returns ${new Date(result.data.revertAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}.`);
@@ -588,7 +588,7 @@ const AttendancePanel = ({ branchId }) => {
       return;
     }
 
-    const name = transferTarget.therapistName;
+    const name = transferTarget.dentistName;
     setTransferTarget(null);
     setReverting(false);
     showToast(isFuture
@@ -598,7 +598,7 @@ const AttendancePanel = ({ branchId }) => {
   };
 
   // Origin branch cancelling an active transfer they initiated — one click, right now. If the
-  // therapist is still booked at the destination branch, revert_staff_transfer_now() (server)
+  // dentist is still booked at the destination branch, revert_staff_transfer_now() (server)
   // blocks it and explains the conflicting booking's end time; the destination branch's manager
   // then has to mark them returned once that booking finishes.
   const handleCancelTransferNow = async () => {
@@ -616,7 +616,7 @@ const AttendancePanel = ({ branchId }) => {
       return;
     }
 
-    const name = transferTarget.therapistName;
+    const name = transferTarget.dentistName;
     setTransferTarget(null);
     setCancellingActive(false);
     showToast(`${name}'s transfer cancelled — back at this branch now.`);
@@ -662,8 +662,8 @@ const AttendancePanel = ({ branchId }) => {
     setTransferError(null);
 
     const isFuture = transferStartDate > today;
-    const result = await transferTherapist({
-      therapistId: transferTarget.therapistId,
+    const result = await transferDentist({
+      dentistId: transferTarget.dentistId,
       toBranchId: transferToBranch,
       permanent: isPermanentTransfer,
       startTime: isPermanentTransfer ? null : transferStartTime,
@@ -679,7 +679,7 @@ const AttendancePanel = ({ branchId }) => {
       return;
     }
 
-    const name = transferTarget.therapistName;
+    const name = transferTarget.dentistName;
     const revertPreview = isPermanentTransfer
       ? null
       : computeRevertPreview(transferStartDate, transferStartTime, transferDurationValue, transferDurationUnit);
@@ -849,8 +849,8 @@ const AttendancePanel = ({ branchId }) => {
           },
         ]}
         resultCount={hasActiveFilters ? {
-          filtered: filteredTherapists.length + filteredTransferredOut.length,
-          total: therapists.length + transferredOutList.length,
+          filtered: filteredDentists.length + filteredTransferredOut.length,
+          total: dentists.length + transferredOutList.length,
         } : undefined}
         hasActiveFilters={hasActiveFilters}
         onClear={() => { setSearchQuery(''); setStatusFilter('all'); setStaffTypeFilter('all'); }}
@@ -887,7 +887,7 @@ const AttendancePanel = ({ branchId }) => {
         </div>
       )}
 
-      {/* Therapist Table */}
+      {/* Dentist Table */}
       <div className="bg-surface rounded-spa-lg border border-border">
         {/* Table header */}
         <div className="hidden md:grid md:grid-cols-[1fr_140px_110px_110px_1fr_120px] gap-3 px-5 py-3 bg-background/50 border-b border-border rounded-t-spa-lg">
@@ -896,7 +896,7 @@ const AttendancePanel = ({ branchId }) => {
               type="checkbox"
               checked={allFilteredSelected}
               onChange={toggleSelectAll}
-              disabled={dayLocked || filteredTherapists.length === 0}
+              disabled={dayLocked || filteredDentists.length === 0}
               className="w-4 h-4 rounded border-border text-primary focus:ring-primary/30 cursor-pointer disabled:cursor-not-allowed"
               title="Select all"
             />
@@ -909,12 +909,12 @@ const AttendancePanel = ({ branchId }) => {
           <span className="font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide text-center">Action</span>
         </div>
 
-        {therapists.length === 0 && transferredOutList.length === 0 ? (
+        {dentists.length === 0 && transferredOutList.length === 0 ? (
           <div className="p-8 text-center">
             <Icon name="Users" size={32} className="text-text-tertiary mx-auto mb-3" />
             <p className="font-body text-sm text-text-tertiary">No active staff found for this branch.</p>
           </div>
-        ) : filteredTherapists.length === 0 && filteredTransferredOut.length === 0 ? (
+        ) : filteredDentists.length === 0 && filteredTransferredOut.length === 0 ? (
           <div className="p-8 text-center">
             <Icon name="SearchX" size={32} className="text-text-tertiary mx-auto mb-3" />
             <p className="font-body text-sm text-text-tertiary">No staff match the current filters.</p>
@@ -933,7 +933,7 @@ const AttendancePanel = ({ branchId }) => {
                     <Icon name="ArrowRightLeft" size={14} className="text-[#B45309]" />
                   </div>
                   <div className="min-w-0">
-                    <span className="font-body font-body-medium text-sm text-text-primary truncate block">{s.therapistName}</span>
+                    <span className="font-body font-body-medium text-sm text-text-primary truncate block">{s.dentistName}</span>
                     <span className="font-caption text-[11px] text-[#B45309]">
                       {s.isPending
                         ? `Transfer → ${s.toBranch} on ${formatPrettyDate(s.effectiveDate)}`
@@ -948,7 +948,7 @@ const AttendancePanel = ({ branchId }) => {
                 </span>
 
                 {/* Check-in / Check-out — attendance is global per day, so it still shows even
-                    though they're no longer in this branch's own therapist roster */}
+                    though they're no longer in this branch's own dentist roster */}
                 <span className="font-data text-sm text-text-primary">{s.attendance?.checkInTime || '—'}</span>
                 <span className="font-data text-sm text-text-primary">{s.attendance?.checkOutTime || '—'}</span>
 
@@ -962,7 +962,7 @@ const AttendancePanel = ({ branchId }) => {
                   <button
                     onClick={() => s.isPending
                       ? handleCancelTransfer(s.id)
-                      : openTransfer({ therapistId: s.therapistId, therapistName: s.therapistName })}
+                      : openTransfer({ dentistId: s.dentistId, dentistName: s.dentistName })}
                     disabled={s.isPending && cancellingTransfer === s.id}
                     className="inline-flex items-center justify-center h-8 px-3 rounded-spa bg-surface border border-[#B45309]/30 text-[#B45309] hover:bg-[#B45309]/10 spa-transition-fast font-body font-body-medium text-xs whitespace-nowrap disabled:opacity-50"
                   >
@@ -971,36 +971,36 @@ const AttendancePanel = ({ branchId }) => {
                 </div>
               </div>
             ))}
-            {filteredTherapists.map(t => {
-              const edit = edits[t.therapistId] || {};
-              const isSaving = saving[t.therapistId];
+            {filteredDentists.map(t => {
+              const edit = edits[t.dentistId] || {};
+              const isSaving = saving[t.dentistId];
               const isDirty = edit.dirty;
               const isDisabled = dayLocked || isSaving;
 
               return (
                 <div
-                  key={t.therapistId}
+                  key={t.dentistId}
                   className={`grid grid-cols-1 md:grid-cols-[1fr_140px_110px_110px_1fr_120px] gap-3 px-5 py-3 items-center ${
                     isDirty ? 'bg-primary/5' : ''
                   }`}
                 >
-                  {/* Therapist name */}
+                  {/* Dentist name */}
                   <div className="flex items-center space-x-2 min-w-0">
                     <input
                       type="checkbox"
-                      checked={selectedIds.includes(t.therapistId)}
-                      onChange={() => toggleSelect(t.therapistId)}
+                      checked={selectedIds.includes(t.dentistId)}
+                      onChange={() => toggleSelect(t.dentistId)}
                       disabled={dayLocked}
                       className="w-4 h-4 rounded border-border text-primary focus:ring-primary/30 cursor-pointer disabled:cursor-not-allowed flex-shrink-0"
                     />
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      isTransferredTherapist(t.therapistId) ? 'bg-[#B45309]/10' : 'bg-primary/10'
+                      isTransferredDentist(t.dentistId) ? 'bg-[#B45309]/10' : 'bg-primary/10'
                     }`}>
-                      <Icon name="User" size={14} className={isTransferredTherapist(t.therapistId) ? 'text-[#B45309]' : 'text-primary'} />
+                      <Icon name="User" size={14} className={isTransferredDentist(t.dentistId) ? 'text-[#B45309]' : 'text-primary'} />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-body font-body-medium text-sm text-text-primary truncate">{t.therapistName}</span>
+                        <span className="font-body font-body-medium text-sm text-text-primary truncate">{t.dentistName}</span>
                         {edit.status && (
                           <span className={`md:hidden inline-flex items-center px-2 py-0.5 rounded text-[10px] font-caption font-caption-medium ${
                             edit.status === 'Present' ? 'bg-success/10 text-success' :
@@ -1018,7 +1018,7 @@ const AttendancePanel = ({ branchId }) => {
                   {/* Status dropdown */}
                   <CustomSelect
                     value={edit.status || ''}
-                    onChange={(val) => handleFieldChange(t.therapistId, 'status', val)}
+                    onChange={(val) => handleFieldChange(t.dentistId, 'status', val)}
                     options={ATTENDANCE_OPTIONS}
                     disabled={isDisabled}
                     size="sm"
@@ -1035,7 +1035,7 @@ const AttendancePanel = ({ branchId }) => {
                   <input
                     type="time"
                     value={edit.checkInTime || ''}
-                    onChange={(e) => handleFieldChange(t.therapistId, 'checkInTime', e.target.value)}
+                    onChange={(e) => handleFieldChange(t.dentistId, 'checkInTime', e.target.value)}
                     disabled={isDisabled}
                     className="px-2 py-1.5 rounded-spa border border-border bg-surface font-data font-data-normal text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
@@ -1044,7 +1044,7 @@ const AttendancePanel = ({ branchId }) => {
                   <input
                     type="time"
                     value={edit.checkOutTime || ''}
-                    onChange={(e) => handleFieldChange(t.therapistId, 'checkOutTime', e.target.value)}
+                    onChange={(e) => handleFieldChange(t.dentistId, 'checkOutTime', e.target.value)}
                     disabled={isDisabled}
                     className="px-2 py-1.5 rounded-spa border border-border bg-surface font-data font-data-normal text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
@@ -1054,7 +1054,7 @@ const AttendancePanel = ({ branchId }) => {
                     type="text"
                     placeholder="Optional notes..."
                     value={edit.notes || ''}
-                    onChange={(e) => handleFieldChange(t.therapistId, 'notes', e.target.value)}
+                    onChange={(e) => handleFieldChange(t.dentistId, 'notes', e.target.value)}
                     disabled={isDisabled}
                     className="px-2 py-1.5 rounded-spa border border-border bg-surface font-body text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
@@ -1062,7 +1062,7 @@ const AttendancePanel = ({ branchId }) => {
                   {/* Actions */}
                   <div className="flex justify-center items-center gap-1.5">
                     <button
-                      onClick={() => handleSave(t.therapistId)}
+                      onClick={() => handleSave(t.dentistId)}
                       disabled={isDisabled || !isDirty}
                       className={`inline-flex items-center justify-center w-8 h-8 rounded-spa spa-transition-fast ${
                         isDirty && !isDisabled
@@ -1079,12 +1079,12 @@ const AttendancePanel = ({ branchId }) => {
                     </button>
                     <button
                       onClick={() => openTransfer(t)}
-                      disabled={!!pendingByTherapist[t.therapistId]}
+                      disabled={!!pendingByDentist[t.dentistId]}
                       className="inline-flex items-center justify-center w-8 h-8 rounded-spa bg-background text-text-secondary hover:bg-accent/10 hover:text-accent spa-transition-fast disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-background disabled:hover:text-text-secondary"
                       title={
-                        pendingByTherapist[t.therapistId]
+                        pendingByDentist[t.dentistId]
                           ? 'A transfer is already scheduled'
-                          : transferStatusByTherapist[t.therapistId]?.applied && !transferStatusByTherapist[t.therapistId]?.reverted && transferStatusByTherapist[t.therapistId]?.toBranchId === branchId
+                          : transferStatusByDentist[t.dentistId]?.applied && !transferStatusByDentist[t.dentistId]?.reverted && transferStatusByDentist[t.dentistId]?.toBranchId === branchId
                             ? 'View active transfer / add extra time'
                             : `Transfer ${staffLabel.toLowerCase()}`
                       }
@@ -1117,7 +1117,7 @@ const AttendancePanel = ({ branchId }) => {
                 {/* ORIGIN branch cancelling a transfer it initiated — simple one-click return,
                     no Add Extra Time (only the destination manager may extend). */}
                 <p className="font-body text-sm text-text-secondary">
-                  <span className="font-body-medium text-text-primary">"{transferTarget.therapistName}"</span> is currently transferred to{' '}
+                  <span className="font-body-medium text-text-primary">"{transferTarget.dentistName}"</span> is currently transferred to{' '}
                   <span className="font-body-medium text-text-primary">{transferTarget.activeTransfer.toBranch}</span>.
                 </p>
 
@@ -1144,7 +1144,7 @@ const AttendancePanel = ({ branchId }) => {
                 )}
 
                 <p className="font-caption text-xs text-text-tertiary">
-                  Cancelling brings {transferTarget.therapistName} back to this branch right now. If they're still
+                  Cancelling brings {transferTarget.dentistName} back to this branch right now. If they're still
                   booked at {transferTarget.activeTransfer.toBranch}, {transferTarget.activeTransfer.toBranch}'s manager
                   will need to mark them returned once that booking finishes.
                 </p>
@@ -1227,7 +1227,7 @@ const AttendancePanel = ({ branchId }) => {
                 {/* ACTIVE: show current transfer details + Add Extra Time. Cannot start a
                     new transfer for this staffer until this one resolves (server-enforced). */}
                 <p className="font-body text-sm text-text-secondary">
-                  <span className="font-body-medium text-text-primary">"{transferTarget.therapistName}"</span> is currently transferred here from{' '}
+                  <span className="font-body-medium text-text-primary">"{transferTarget.dentistName}"</span> is currently transferred here from{' '}
                   <span className="font-body-medium text-text-primary">{transferTarget.activeTransfer.fromBranch}</span>.
                 </p>
 
@@ -1400,9 +1400,9 @@ const AttendancePanel = ({ branchId }) => {
 
                 <p className="font-body text-sm text-text-secondary">
                   {isPermanentTransfer ? (
-                    <>Move <span className="font-body-medium text-text-primary">"{transferTarget.therapistName}"</span> to another branch permanently. They'll stay there until transferred again.</>
+                    <>Move <span className="font-body-medium text-text-primary">"{transferTarget.dentistName}"</span> to another branch permanently. They'll stay there until transferred again.</>
                   ) : (
-                    <>Move <span className="font-body-medium text-text-primary">"{transferTarget.therapistName}"</span> to another branch for a set duration. They'll automatically return to their current branch once it elapses.</>
+                    <>Move <span className="font-body-medium text-text-primary">"{transferTarget.dentistName}"</span> to another branch for a set duration. They'll automatically return to their current branch once it elapses.</>
                   )}
                 </p>
 
@@ -1489,7 +1489,7 @@ const AttendancePanel = ({ branchId }) => {
                 <div className="flex justify-end gap-2 pt-2">
                   <Button variant="ghost" size="sm" onClick={() => setTransferTarget(null)} disabled={transferring}>Cancel</Button>
                   <Button variant="primary" size="sm" onClick={handleTransfer} loading={transferring} disabled={!isTransferFormComplete}>
-                    {transferTarget.completedTransfer ? 'Transfer Therapist Again' : (transferStartDate > today ? 'Schedule Transfer' : 'Transfer')}
+                    {transferTarget.completedTransfer ? 'Transfer Dentist Again' : (transferStartDate > today ? 'Schedule Transfer' : 'Transfer')}
                   </Button>
                 </div>
               </>

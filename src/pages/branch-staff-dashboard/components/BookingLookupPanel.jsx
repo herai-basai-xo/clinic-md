@@ -7,9 +7,9 @@ import { transformBookings, transformBooking } from '../../../services/bookingTr
 import { useBranch } from '../../../contexts/BranchContext';
 
 const BookingLookupPanel = ({
-  therapists = [],
+  dentists = [],
   onStatusUpdate,
-  onAssignTherapist,
+  onAssignDentist,
   onRecordPayment,
   onApplyDiscount,
   userRole = 'staff',
@@ -228,11 +228,11 @@ const BookingLookupPanel = ({
                     </div>
                   </div>
 
-                  {/* Therapist */}
+                  {/* Dentist */}
                   <div className="flex-shrink-0 text-right">
-                    {booking.therapist ? (
+                    {booking.dentist ? (
                       <span className="font-body text-sm text-text-primary">
-                        {booking.therapist.name}
+                        {booking.dentist.name}
                       </span>
                     ) : (
                       <span className="font-body text-sm text-warning">
@@ -261,8 +261,8 @@ const BookingLookupPanel = ({
         isOpen={showModal}
         onClose={handleModalClose}
         booking={selectedBooking}
-        therapists={therapists}
-        onAssignTherapist={onAssignTherapist}
+        dentists={dentists}
+        onAssignDentist={onAssignDentist}
         onUpdateStatus={onStatusUpdate}
         onRecordPayment={handleRecordPaymentWrapper}
         onApplyDiscount={onApplyDiscount}

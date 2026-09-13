@@ -4,7 +4,7 @@ import { dedupeTransfersByKey, sortTransfersByTime } from './transferDedup';
 import { capture } from '../lib/analytics';
 import { MEMBERSHIP_ENABLED, CUSTOMER_REFERRALS_ENABLED, VOUCHER_ENABLED } from '../lib/featureFlags';
 import { toE164, samePhone } from '../utils/phone';
-import { computeTherapistBranchAt, toKathmanduDate, isAfterCheckout, resolveOrphanTransferWindow } from './therapistBranchWindow';
+import { computeDentistBranchAt, toKathmanduDate, isAfterCheckout, resolveOrphanTransferWindow } from './dentistBranchWindow';
 
 // Sentinel "branch" meaning "all branches in the admin's org" (the Overall view).
 // Admin RLS is already org-scoped, so dropping the per-branch filter for this value
@@ -162,7 +162,7 @@ export async function fetchRooms(branchId) {
   try {
     const { data, error } = await supabase
       .from('rooms')
-      .select('id, name, amenities, floor, capacity, requires_therapist')
+      .select('id, name, amenities, floor, capacity, requires_dentist')
       .eq('branch_id', branchId)
       .eq('is_active', true)
       .order('name');
@@ -195,48 +195,48 @@ export async function fetchBranchAvailabilityWindow(branchId, startDate, endDate
   return { rooms: rooms || [], bookings: bookings || [] };
 }
 
-export async function fetchTherapists(branchId, { date } = {}) {
+export async function fetchDentists(branchId, { date } = {}) {
   try {
-    let therapistsQuery = supabase
-      .from('therapists')
+    let dentistsQuery = supabase
+      .from('dentists')
       .select('id, name, gender, specialties, position, is_service_staff')
       .eq('is_active', true)
       .eq('is_service_staff', true)
       .order('name');
-    therapistsQuery = withBranch(therapistsQuery, branchId);
+    dentistsQuery = withBranch(dentistsQuery, branchId);
 
     // Not branch-scoped: absentIds below is only matched against the
-    // branch-scoped `therapists` list, and therapist_attendance is keyed by
-    // (therapist_id, date) globally — filtering here would risk missing a
+    // branch-scoped `dentists` list, and dentist_attendance is keyed by
+    // (dentist_id, date) globally — filtering here would risk missing a
     // status marked before a same-day transfer.
     let attendancePromise;
     if (date) {
       attendancePromise = supabase
-        .from('therapist_attendance')
-        .select('therapist_id, status')
+        .from('dentist_attendance')
+        .select('dentist_id, status')
         .eq('date', date)
         .in('status', ['Absent', ...LEAVE_LIKE_ATTENDANCE_STATUSES]);
     } else {
       attendancePromise = Promise.resolve({ data: [] });
     }
 
-    const [therapistsResult, attendanceResult] = await Promise.all([
-      therapistsQuery,
+    const [dentistsResult, attendanceResult] = await Promise.all([
+      dentistsQuery,
       attendancePromise,
     ]);
 
-    if (therapistsResult.error) throw therapistsResult.error;
+    if (dentistsResult.error) throw dentistsResult.error;
 
     const absentIds = new Set(
-      (attendanceResult.data || []).map(a => a.therapist_id)
+      (attendanceResult.data || []).map(a => a.dentist_id)
     );
     const data = absentIds.size > 0
-      ? therapistsResult.data.filter(t => !absentIds.has(t.id))
-      : therapistsResult.data;
+      ? dentistsResult.data.filter(t => !absentIds.has(t.id))
+      : dentistsResult.data;
 
     return { data, error: null };
   } catch (error) {
-    console.error('[API] fetchTherapists error:', error.message);
+    console.error('[API] fetchDentists error:', error.message);
     return { data: null, error };
   }
 }
@@ -248,7 +248,7 @@ export async function fetchBookings(branchId, { date, dateFrom, dateTo, status }
       .select(`
         *,
         service:services(id, name, duration_minutes),
-        therapist:therapists(id, name, gender),
+        dentist:dentists(id, name, gender),
         room:rooms(id, name),
         payments(amount)
       `)
@@ -1113,7 +1113,7 @@ export async function getReferralsReport({ branchId, from, to } = {}) {
 }
 
 // Customer-to-customer referral reward report (migration-078). Distinct from
-// getReferralsReport above (staff/therapist commission) — reads
+// getReferralsReport above (staff/dentist commission) — reads
 // customer_referrals/customer_referral_credits, grouped by referring customer.
 export async function getCustomerReferralsReport({ branchId, from, to } = {}) {
   try {
@@ -1445,7 +1445,7 @@ export async function getActivePackagesForCustomer(customerId, phone, serviceId)
 // per booking — set at creation time via record_customer_referral). Used by
 // BookingActionModal to show "this customer was referred by X" on the
 // referred customer's own booking, distinct from the legacy free-text
-// bookings.referred_by staff/therapist commission field. Returns null in
+// bookings.referred_by staff/dentist commission field. Returns null in
 // `data` when referrals are disabled or this booking has no referral attached.
 export async function fetchCustomerReferralForBooking(bookingId) {
   try {
@@ -1683,10 +1683,10 @@ export async function updateBookingStatus({ bookingId, newStatus, reason }) {
   }
 }
 
-export async function assignTherapist({ bookingId, therapistIds = [], roomId }) {
+export async function assignDentist({ bookingId, dentistIds = [], roomId }) {
   try {
-    // Support legacy single therapistId param
-    const ids = Array.isArray(therapistIds) ? therapistIds.filter(Boolean) : (therapistIds ? [therapistIds] : []);
+    // Support legacy single dentistId param
+    const ids = Array.isArray(dentistIds) ? dentistIds.filter(Boolean) : (dentistIds ? [dentistIds] : []);
 
     // 1. Fetch booking (include room_id + date for attendance check)
     const { data: booking, error: fetchError } = await supabase
@@ -1710,77 +1710,77 @@ export async function assignTherapist({ bookingId, therapistIds = [], roomId }) 
     const { user, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
 
-    // 4. Validate all therapists are active
+    // 4. Validate all dentists are active
     const primaryId = ids[0] || null;
-    let therapistNameSnapshot = null;
+    let dentistNameSnapshot = null;
 
     if (ids.length > 0) {
-      const { data: therapistsData } = await supabase
-        .from('therapists')
+      const { data: dentistsData } = await supabase
+        .from('dentists')
         .select('id, name, is_active, branch_id')
         .in('id', ids);
 
-      const inactive = (therapistsData || []).find(t => !t.is_active);
+      const inactive = (dentistsData || []).find(t => !t.is_active);
       if (inactive) {
-        return { data: null, error: { code: 'THERAPIST_INACTIVE', message: `Cannot assign inactive therapist: ${inactive.name}` } };
+        return { data: null, error: { code: 'DENTIST_INACTIVE', message: `Cannot assign inactive dentist: ${inactive.name}` } };
       }
 
-      // A therapist's live branch_id only reflects the CURRENT moment (flipped by the
+      // A dentist's live branch_id only reflects the CURRENT moment (flipped by the
       // apply/revert cron) — it's the wrong thing to check against a booking on a
       // different date. Reconstruct their expected branch AT THE BOOKING'S DATE/TIME
       // from the full staff_transfers window history instead (see
-      // therapistBranchWindow.js) so scheduled-but-not-yet-applied and
+      // dentistBranchWindow.js) so scheduled-but-not-yet-applied and
       // already-reverted transfer windows are both handled correctly.
       const atDate = toKathmanduDate(booking.date, booking.start_time);
       const { data: transferRows } = await supabase
         .from('staff_transfers')
-        .select('therapist_id, from_branch_id, to_branch_id, is_permanent, effective_date, start_time, revert_at')
-        .in('therapist_id', ids);
+        .select('dentist_id, from_branch_id, to_branch_id, is_permanent, effective_date, start_time, revert_at')
+        .in('dentist_id', ids);
 
-      const transfersByTherapist = {};
+      const transfersByDentist = {};
       (transferRows || []).forEach(t => {
-        (transfersByTherapist[t.therapist_id] ||= []).push(t);
+        (transfersByDentist[t.dentist_id] ||= []).push(t);
       });
 
-      const wrongBranch = (therapistsData || []).find(t =>
-        computeTherapistBranchAt(transfersByTherapist[t.id] || [], t.branch_id, atDate) !== booking.branch_id
+      const wrongBranch = (dentistsData || []).find(t =>
+        computeDentistBranchAt(transfersByDentist[t.id] || [], t.branch_id, atDate) !== booking.branch_id
       );
       if (wrongBranch) {
-        return { data: null, error: { code: 'INVALID_THERAPIST', message: `${wrongBranch.name} is not available in this branch at this time (transferred elsewhere for this date).` } };
+        return { data: null, error: { code: 'INVALID_DENTIST', message: `${wrongBranch.name} is not available in this branch at this time (transferred elsewhere for this date).` } };
       }
 
       if (booking.date) {
         const { data: attendanceRecords } = await supabase
-          .from('therapist_attendance')
-          .select('therapist_id, status, check_out_time')
-          .in('therapist_id', ids)
+          .from('dentist_attendance')
+          .select('dentist_id, status, check_out_time')
+          .in('dentist_id', ids)
           .eq('date', booking.date);
 
         const absent = (attendanceRecords || []).find(a =>
           a.status === 'Absent' || LEAVE_LIKE_ATTENDANCE_STATUSES.includes(a.status)
         );
         if (absent) {
-          const absentTherapist = (therapistsData || []).find(t => t.id === absent.therapist_id);
-          return { data: null, error: { code: 'THERAPIST_ABSENT', message: `Cannot assign ${absentTherapist?.name || 'therapist'}: marked as ${absent.status} for this date.` } };
+          const absentDentist = (dentistsData || []).find(t => t.id === absent.dentist_id);
+          return { data: null, error: { code: 'DENTIST_ABSENT', message: `Cannot assign ${absentDentist?.name || 'dentist'}: marked as ${absent.status} for this date.` } };
         }
 
         const checkedOut = (attendanceRecords || []).find(a =>
           isAfterCheckout(a.check_out_time, booking.date, booking.start_time)
         );
         if (checkedOut) {
-          const checkedOutTherapist = (therapistsData || []).find(t => t.id === checkedOut.therapist_id);
-          return { data: null, error: { code: 'THERAPIST_CHECKED_OUT', message: `Cannot assign ${checkedOutTherapist?.name || 'therapist'}: already checked out for this date.` } };
+          const checkedOutDentist = (dentistsData || []).find(t => t.id === checkedOut.dentist_id);
+          return { data: null, error: { code: 'DENTIST_CHECKED_OUT', message: `Cannot assign ${checkedOutDentist?.name || 'dentist'}: already checked out for this date.` } };
         }
       }
 
-      const primary = (therapistsData || []).find(t => t.id === primaryId);
-      therapistNameSnapshot = primary?.name || null;
+      const primary = (dentistsData || []).find(t => t.id === primaryId);
+      dentistNameSnapshot = primary?.name || null;
     }
 
-    // 5. Build update payload (primary therapist on bookings table)
+    // 5. Build update payload (primary dentist on bookings table)
     const updatePayload = {
-      therapist_id: primaryId,
-      therapist_name_snapshot: therapistNameSnapshot,
+      dentist_id: primaryId,
+      dentist_name_snapshot: dentistNameSnapshot,
     };
 
     // 6. Room assignment (if roomId provided)
@@ -1808,46 +1808,46 @@ export async function assignTherapist({ bookingId, therapistIds = [], roomId }) 
       }
     }
 
-    // 7. Update primary therapist on bookings table
+    // 7. Update primary dentist on bookings table
     const { data: updated, error: updateError } = await supabase
       .from('bookings')
       .update(updatePayload)
       .eq('id', bookingId)
-      .select('id, therapist_id, room_id')
+      .select('id, dentist_id, room_id')
       .single();
 
     if (updateError) {
       if (updateError.code === '23P01') {
-        return { data: null, error: { code: 'THERAPIST_CONFLICT', message: 'Therapist is already booked during this time slot.' } };
+        return { data: null, error: { code: 'DENTIST_CONFLICT', message: 'Dentist is already booked during this time slot.' } };
       }
       throw updateError;
     }
 
-    // 8. Sync junction table: preserve per-therapist times where possible
-    const { data: existingBt } = await supabase.from('booking_therapists').select('therapist_id, start_time, end_time').eq('booking_id', bookingId);
+    // 8. Sync junction table: preserve per-dentist times where possible
+    const { data: existingBt } = await supabase.from('booking_dentists').select('dentist_id, start_time, end_time').eq('booking_id', bookingId);
     const existingTimeMap = {};
-    (existingBt || []).forEach(bt => { existingTimeMap[bt.therapist_id] = { start_time: bt.start_time, end_time: bt.end_time }; });
+    (existingBt || []).forEach(bt => { existingTimeMap[bt.dentist_id] = { start_time: bt.start_time, end_time: bt.end_time }; });
 
-    await supabase.from('booking_therapists').delete().eq('booking_id', bookingId);
+    await supabase.from('booking_dentists').delete().eq('booking_id', bookingId);
 
     if (ids.length > 0) {
       // Fetch booking times for default
       const { data: bk } = await supabase.from('bookings').select('start_time, end_time').eq('id', bookingId).single();
       const rows = ids.map(tid => ({
         booking_id: bookingId,
-        therapist_id: tid,
+        dentist_id: tid,
         start_time: existingTimeMap[tid]?.start_time || bk?.start_time || null,
         end_time: existingTimeMap[tid]?.end_time || bk?.end_time || null,
       }));
-      const { error: junctionError } = await supabase.from('booking_therapists').insert(rows);
+      const { error: junctionError } = await supabase.from('booking_dentists').insert(rows);
       if (junctionError) {
-        console.warn('[API] booking_therapists insert warning:', junctionError.message);
+        console.warn('[API] booking_dentists insert warning:', junctionError.message);
       }
     }
 
-    return { data: { success: true, bookingId, therapistIds: ids, roomId: updated.room_id }, error: null };
+    return { data: { success: true, bookingId, dentistIds: ids, roomId: updated.room_id }, error: null };
   } catch (error) {
-    console.error('[API] assignTherapist error:', error.message);
+    console.error('[API] assignDentist error:', error.message);
     return { data: null, error };
   }
 }
@@ -1856,7 +1856,7 @@ export async function fetchRelatedUnpaidBookings({ customerName, date, excludeBo
   try {
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, booking_number, customer_name, date, start_time, end_time, base_amount, discount_amount, final_amount, payment_status, status, service:services(name, duration_minutes), room:rooms(name), therapist:therapists(name)')
+      .select('id, booking_number, customer_name, date, start_time, end_time, base_amount, discount_amount, final_amount, payment_status, status, service:services(name, duration_minutes), room:rooms(name), dentist:dentists(name)')
       .eq('customer_name', customerName)
       .eq('date', date)
       .eq('payment_status', 'unpaid')
@@ -1872,38 +1872,38 @@ export async function fetchRelatedUnpaidBookings({ customerName, date, excludeBo
   }
 }
 
-export async function updateTherapistTime({ bookingId, therapistId, startTime, endTime }) {
+export async function updateDentistTime({ bookingId, dentistId, startTime, endTime }) {
   try {
     const { error } = await supabase
-      .from('booking_therapists')
+      .from('booking_dentists')
       .update({ start_time: startTime, end_time: endTime })
       .eq('booking_id', bookingId)
-      .eq('therapist_id', therapistId);
+      .eq('dentist_id', dentistId);
 
     if (error) throw error;
     return { data: { success: true }, error: null };
   } catch (error) {
-    console.error('[API] updateTherapistTime error:', error.message);
+    console.error('[API] updateDentistTime error:', error.message);
     return { data: null, error };
   }
 }
 
-// Resizes a shared booking's time for ALL assigned therapists at once, plus the
+// Resizes a shared booking's time for ALL assigned dentists at once, plus the
 // parent bookings row — the calendar's default (non-Cmd) resize gesture. Keeps
-// every booking_therapists row and the canonical bookings.start_time/end_time in
-// agreement, unlike updateTherapistTime (which only ever touches one therapist's
+// every booking_dentists row and the canonical bookings.start_time/end_time in
+// agreement, unlike updateDentistTime (which only ever touches one dentist's
 // row and is reserved for the explicit Cmd/Ctrl-selected independent-resize case).
-// Without this, resizing one therapist's card silently desyncs it from the rest
+// Without this, resizing one dentist's card silently desyncs it from the rest
 // of the booking with no warning — see calendar/index.jsx handleBookingResize.
 export async function resizeSharedBookingTime({ bookingId, startTime, endTime }) {
   try {
     // bookings is ground truth (same order/failure policy as rescheduleBooking):
-    // update it first and fail loudly if it errors. booking_therapists is synced
+    // update it first and fail loudly if it errors. booking_dentists is synced
     // second, best-effort — if that write fails, bookings is still correct and
     // every reader outside the calendar (receipts, reschedule dialogs) is fine;
     // only the calendar's per-column display would lag until the next successful
-    // write. Updating booking_therapists FIRST would risk the opposite and worse
-    // failure: every therapist's row moved but bookings left stale, recreating
+    // write. Updating booking_dentists FIRST would risk the opposite and worse
+    // failure: every dentist's row moved but bookings left stale, recreating
     // the exact class of desync this function exists to prevent.
     const { error: bookingError } = await supabase
       .from('bookings')
@@ -1911,12 +1911,12 @@ export async function resizeSharedBookingTime({ bookingId, startTime, endTime })
       .eq('id', bookingId);
     if (bookingError) throw bookingError;
 
-    const { error: therapistsError } = await supabase
-      .from('booking_therapists')
+    const { error: dentistsError } = await supabase
+      .from('booking_dentists')
       .update({ start_time: startTime, end_time: endTime })
       .eq('booking_id', bookingId);
-    if (therapistsError) {
-      console.error('[API] resizeSharedBookingTime booking_therapists sync error:', therapistsError.message);
+    if (dentistsError) {
+      console.error('[API] resizeSharedBookingTime booking_dentists sync error:', dentistsError.message);
     }
 
     return { data: { success: true }, error: null };
@@ -2114,22 +2114,22 @@ export async function updateBookingDetails({ bookingId, customerName, customerPh
     }
 
     // 10. Extending the service changes duration — keep any co-assigned
-    // therapist's booking_therapists row in sync, since getCalendarBookings
+    // dentist's booking_dentists row in sync, since getCalendarBookings
     // reads end_time from this junction row, not just bookings.end_time.
     if (newServiceDurationMinutes) {
       const { data: btRows } = await supabase
-        .from('booking_therapists')
-        .select('therapist_id, start_time')
+        .from('booking_dentists')
+        .select('dentist_id, start_time')
         .eq('booking_id', bookingId);
       for (const row of (btRows || [])) {
         if (!row.start_time) continue;
         const newEndTime = addMinutesToTime(row.start_time.slice(0, 5), newServiceDurationMinutes);
         const { error: btUpdateError } = await supabase
-          .from('booking_therapists')
+          .from('booking_dentists')
           .update({ end_time: newEndTime })
           .eq('booking_id', bookingId)
-          .eq('therapist_id', row.therapist_id);
-        if (btUpdateError) console.warn('[API] booking_therapists end_time sync warning:', btUpdateError.message);
+          .eq('dentist_id', row.dentist_id);
+        if (btUpdateError) console.warn('[API] booking_dentists end_time sync warning:', btUpdateError.message);
       }
     }
 
@@ -2682,15 +2682,15 @@ export async function markAllNotificationsRead() {
 
 /**
  * Reschedule a booking to a new date/time.
- * Optionally reassign to a different therapist or room (cross-column drag).
- * Validates lifecycle, checks room/therapist availability, and updates the booking.
+ * Optionally reassign to a different dentist or room (cross-column drag).
+ * Validates lifecycle, checks room/dentist availability, and updates the booking.
  */
-export async function rescheduleBooking({ bookingId, newDate, newStartTime, newTherapistId, newRoomId }) {
+export async function rescheduleBooking({ bookingId, newDate, newStartTime, newDentistId, newRoomId }) {
   try {
-    // 1. Fetch booking with service duration, room, therapist, and branch
+    // 1. Fetch booking with service duration, room, dentist, and branch
     const { data: booking, error: fetchError } = await supabase
       .from('bookings')
-      .select('id, status, is_locked, payment_status, room_id, therapist_id, branch_id, service:services(duration_minutes)')
+      .select('id, status, is_locked, payment_status, room_id, dentist_id, branch_id, service:services(duration_minutes)')
       .eq('id', bookingId)
       .single();
 
@@ -2728,80 +2728,80 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newT
       end_time: newEndTime,
     };
 
-    // 6a. Therapist reassignment
-    if (newTherapistId !== undefined) {
-      if (newTherapistId === 'unassigned' || newTherapistId === null) {
-        updatePayload.therapist_id = null;
-        updatePayload.therapist_name_snapshot = null;
+    // 6a. Dentist reassignment
+    if (newDentistId !== undefined) {
+      if (newDentistId === 'unassigned' || newDentistId === null) {
+        updatePayload.dentist_id = null;
+        updatePayload.dentist_name_snapshot = null;
       } else {
-        // Resolve therapist name + check active status
-        const { data: therapist } = await supabase
-          .from('therapists')
+        // Resolve dentist name + check active status
+        const { data: dentist } = await supabase
+          .from('dentists')
           .select('name, is_active, branch_id')
-          .eq('id', newTherapistId)
+          .eq('id', newDentistId)
           .single();
 
-        if (therapist && !therapist.is_active) {
-          return { data: null, error: { code: 'THERAPIST_INACTIVE', message: 'Cannot assign an inactive therapist.' } };
+        if (dentist && !dentist.is_active) {
+          return { data: null, error: { code: 'DENTIST_INACTIVE', message: 'Cannot assign an inactive dentist.' } };
         }
-        // A therapist's live branch_id only reflects the CURRENT moment (flipped by
+        // A dentist's live branch_id only reflects the CURRENT moment (flipped by
         // the apply/revert cron) — it's the wrong thing to check against the NEW
         // date/time being rescheduled to. Reconstruct their expected branch at
         // newDate/newStartTime from the full staff_transfers window history instead
-        // (see therapistBranchWindow.js).
-        if (therapist) {
+        // (see dentistBranchWindow.js).
+        if (dentist) {
           const { data: transferRows } = await supabase
             .from('staff_transfers')
             .select('from_branch_id, to_branch_id, is_permanent, effective_date, start_time, revert_at')
-            .eq('therapist_id', newTherapistId);
+            .eq('dentist_id', newDentistId);
           const atDate = toKathmanduDate(newDate, newStartTime);
-          const effectiveBranch = computeTherapistBranchAt(transferRows || [], therapist.branch_id, atDate);
+          const effectiveBranch = computeDentistBranchAt(transferRows || [], dentist.branch_id, atDate);
           if (effectiveBranch !== booking.branch_id) {
-            return { data: null, error: { code: 'INVALID_THERAPIST', message: `${therapist.name} is not available in this branch at this time (transferred elsewhere for this date).` } };
+            return { data: null, error: { code: 'INVALID_DENTIST', message: `${dentist.name} is not available in this branch at this time (transferred elsewhere for this date).` } };
           }
 
           const { data: attRow } = await supabase
-            .from('therapist_attendance')
+            .from('dentist_attendance')
             .select('check_out_time')
-            .eq('therapist_id', newTherapistId)
+            .eq('dentist_id', newDentistId)
             .eq('date', newDate)
             .maybeSingle();
           if (isAfterCheckout(attRow?.check_out_time, newDate, newStartTime)) {
-            return { data: null, error: { code: 'THERAPIST_CHECKED_OUT', message: `${therapist.name} already checked out for this date.` } };
+            return { data: null, error: { code: 'DENTIST_CHECKED_OUT', message: `${dentist.name} already checked out for this date.` } };
           }
         }
-        updatePayload.therapist_id = newTherapistId;
-        updatePayload.therapist_name_snapshot = therapist?.name || null;
+        updatePayload.dentist_id = newDentistId;
+        updatePayload.dentist_name_snapshot = dentist?.name || null;
       }
-    } else if (booking.therapist_id) {
-      // Therapist isn't being reassigned, but the booking is still moving to a new
-      // date/time — the CURRENTLY assigned therapist's visiting window still needs
+    } else if (booking.dentist_id) {
+      // Dentist isn't being reassigned, but the booking is still moving to a new
+      // date/time — the CURRENTLY assigned dentist's visiting window still needs
       // re-validating against that new date/time (same reasoning as 6a above).
-      const { data: currentTherapist } = await supabase
-        .from('therapists')
+      const { data: currentDentist } = await supabase
+        .from('dentists')
         .select('name, branch_id')
-        .eq('id', booking.therapist_id)
+        .eq('id', booking.dentist_id)
         .single();
 
-      if (currentTherapist) {
+      if (currentDentist) {
         const { data: transferRows } = await supabase
           .from('staff_transfers')
           .select('from_branch_id, to_branch_id, is_permanent, effective_date, start_time, revert_at')
-          .eq('therapist_id', booking.therapist_id);
+          .eq('dentist_id', booking.dentist_id);
         const atDate = toKathmanduDate(newDate, newStartTime);
-        const effectiveBranch = computeTherapistBranchAt(transferRows || [], currentTherapist.branch_id, atDate);
+        const effectiveBranch = computeDentistBranchAt(transferRows || [], currentDentist.branch_id, atDate);
         if (effectiveBranch !== booking.branch_id) {
-          return { data: null, error: { code: 'INVALID_THERAPIST', message: `${currentTherapist.name} is not available in this branch at this time (transferred elsewhere for this date). Reassign or choose a different date.` } };
+          return { data: null, error: { code: 'INVALID_DENTIST', message: `${currentDentist.name} is not available in this branch at this time (transferred elsewhere for this date). Reassign or choose a different date.` } };
         }
 
         const { data: attRow } = await supabase
-          .from('therapist_attendance')
+          .from('dentist_attendance')
           .select('check_out_time')
-          .eq('therapist_id', booking.therapist_id)
+          .eq('dentist_id', booking.dentist_id)
           .eq('date', newDate)
           .maybeSingle();
         if (isAfterCheckout(attRow?.check_out_time, newDate, newStartTime)) {
-          return { data: null, error: { code: 'THERAPIST_CHECKED_OUT', message: `${currentTherapist.name} already checked out for this date. Reassign or choose a different time.` } };
+          return { data: null, error: { code: 'DENTIST_CHECKED_OUT', message: `${currentDentist.name} already checked out for this date. Reassign or choose a different time.` } };
         }
       }
     }
@@ -2863,13 +2863,13 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newT
       .from('bookings')
       .update(updatePayload)
       .eq('id', bookingId)
-      .select('id, date, start_time, end_time, therapist_id, room_id')
+      .select('id, date, start_time, end_time, dentist_id, room_id')
       .single();
 
     if (updateError) {
-      // GIST exclusion: therapist double-booking
+      // GIST exclusion: dentist double-booking
       if (updateError.code === '23P01') {
-        return { data: null, error: { code: 'THERAPIST_CONFLICT', message: 'Therapist is already booked during this time slot.' } };
+        return { data: null, error: { code: 'DENTIST_CONFLICT', message: 'Dentist is already booked during this time slot.' } };
       }
       // Room-capacity trigger: lost a race against a concurrent booking for the same room
       if (updateError.code === 'P0003') {
@@ -2878,33 +2878,33 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newT
       throw updateError;
     }
 
-    // 9. Sync booking_therapists junction. If therapist changed, replace the
-    //    junction row(s) so display reads the new therapist. Calendar reads the
-    //    therapist name from this junction when it has any rows, so leaving the
-    //    old therapist_id here causes the card to render the previous name even
-    //    though bookings.therapist_id was updated. Shared-booking reassignment
-    //    goes through assignTherapist and never reaches this path.
+    // 9. Sync booking_dentists junction. If dentist changed, replace the
+    //    junction row(s) so display reads the new dentist. Calendar reads the
+    //    dentist name from this junction when it has any rows, so leaving the
+    //    old dentist_id here causes the card to render the previous name even
+    //    though bookings.dentist_id was updated. Shared-booking reassignment
+    //    goes through assignDentist and never reaches this path.
     try {
-      if (newTherapistId !== undefined) {
-        await supabase.from('booking_therapists').delete().eq('booking_id', bookingId);
-        if (newTherapistId !== 'unassigned' && newTherapistId !== null) {
-          await supabase.from('booking_therapists').insert({
+      if (newDentistId !== undefined) {
+        await supabase.from('booking_dentists').delete().eq('booking_id', bookingId);
+        if (newDentistId !== 'unassigned' && newDentistId !== null) {
+          await supabase.from('booking_dentists').insert({
             booking_id: bookingId,
-            therapist_id: newTherapistId,
+            dentist_id: newDentistId,
             start_time: updated.start_time,
             end_time: updated.end_time,
           });
         }
       } else {
         await supabase
-          .from('booking_therapists')
+          .from('booking_dentists')
           .update({ start_time: updated.start_time, end_time: updated.end_time })
           .eq('booking_id', bookingId);
       }
     } catch (junctionError) {
       // Best-effort: booking row is already updated and correct. Don't fail
       // the whole reschedule if this secondary sync write errors.
-      console.error('[API] rescheduleBooking booking_therapists sync error:', junctionError.message);
+      console.error('[API] rescheduleBooking booking_dentists sync error:', junctionError.message);
     }
 
     return {
@@ -2914,7 +2914,7 @@ export async function rescheduleBooking({ bookingId, newDate, newStartTime, newT
         bookingDate: updated.date,
         startTime: updated.start_time,
         endTime: updated.end_time,
-        therapistId: updated.therapist_id,
+        dentistId: updated.dentist_id,
         roomId: updated.room_id,
       },
       error: null,
@@ -3258,8 +3258,8 @@ export async function getTodayInsights(branchId, from, to) {
         packageSold,
         packageRedeemed,
         staffUtilization: {
-          avgPercent: utilization?.summary?.avgTherapistUtilization ?? 0,
-          therapists: utilization?.therapistUtilization ?? [],
+          avgPercent: utilization?.summary?.avgDentistUtilization ?? 0,
+          dentists: utilization?.dentistUtilization ?? [],
         },
       },
       error: null,
@@ -3398,9 +3398,9 @@ export async function getDailyOperationalReport(branchId, date) {
       .select(`
         id, booking_number, customer_name, status, payment_status,
         base_amount, discount_amount, final_amount, discount_status,
-        discount_approved_by, therapist_id,
+        discount_approved_by, dentist_id,
         service_name_snapshot, service_duration_snapshot, service_price_snapshot,
-        therapist_name_snapshot, room_name_snapshot
+        dentist_name_snapshot, room_name_snapshot
       `)
       .eq('date', date)
       .order('start_time');
@@ -3478,7 +3478,7 @@ export async function getDailyOperationalReport(branchId, date) {
         bookingNumber: b.booking_number,
         customerName: b.customer_name,
         serviceName: b.service_name_snapshot || '—',
-        therapistName: b.therapist_name_snapshot || 'Unassigned',
+        dentistName: b.dentist_name_snapshot || 'Unassigned',
         roomName: b.room_name_snapshot || '—',
         baseAmount: Number(b.base_amount),
         discountAmount: Number(b.discount_amount),
@@ -3593,28 +3593,28 @@ export async function getDailyOperationalReport(branchId, date) {
       totalDiscountAmount: d.totalDiscountAmount,
     }));
 
-    // Step 6 — Therapist revenue summary
-    // Group by therapist_id for paid + completed bookings
-    const therapistBookings = all.filter(
-      b => b.payment_status === 'paid' && b.status === 'Completed' && b.therapist_id
+    // Step 6 — Dentist revenue summary
+    // Group by dentist_id for paid + completed bookings
+    const dentistBookings = all.filter(
+      b => b.payment_status === 'paid' && b.status === 'Completed' && b.dentist_id
     );
 
-    const revenueByTherapist = {};
-    for (const b of therapistBookings) {
-      const key = b.therapist_id;
+    const revenueByDentist = {};
+    for (const b of dentistBookings) {
+      const key = b.dentist_id;
       const payment = paymentsMap[b.id];
-      if (!revenueByTherapist[key]) {
-        revenueByTherapist[key] = {
-          therapistName: b.therapist_name_snapshot || 'Unknown',
+      if (!revenueByDentist[key]) {
+        revenueByDentist[key] = {
+          dentistName: b.dentist_name_snapshot || 'Unknown',
           completedBookings: 0,
           totalRevenue: 0,
         };
       }
-      revenueByTherapist[key].completedBookings += 1;
-      revenueByTherapist[key].totalRevenue += payment ? Number(payment.amount) : 0;
+      revenueByDentist[key].completedBookings += 1;
+      revenueByDentist[key].totalRevenue += payment ? Number(payment.amount) : 0;
     }
 
-    const therapistRevenueSummary = Object.values(revenueByTherapist);
+    const dentistRevenueSummary = Object.values(revenueByDentist);
 
     // Step 7 — Unpaid / partially-paid bookings (outstanding balance)
     const unpaidBookings = all
@@ -3638,7 +3638,7 @@ export async function getDailyOperationalReport(branchId, date) {
         paymentBreakdown,
         voucherSalesTotal,
         staffDiscountSummary,
-        therapistRevenueSummary,
+        dentistRevenueSummary,
         unpaidBookings,
         isClosed,
         closedAt: closedReport?.closed_at || null,
@@ -3655,13 +3655,13 @@ export function exportDailyReportCSV(reportData) {
   if (!reportData) return '';
 
   const rows = [];
-  const { bookings, totals, paymentBreakdown, staffDiscountSummary, therapistRevenueSummary, unpaidBookings } = reportData;
+  const { bookings, totals, paymentBreakdown, staffDiscountSummary, dentistRevenueSummary, unpaidBookings } = reportData;
 
   // Section 1: Booking Details
   rows.push('DAILY OPERATIONAL REPORT');
   rows.push('');
   rows.push([
-    'Booking #', 'Customer Name', 'Service', 'Therapist', 'Room',
+    'Booking #', 'Customer Name', 'Service', 'Dentist', 'Room',
     'Base Amount', 'Discount', 'Final Amount', 'Payment Mode', 'Payment Status', 'Status'
   ].join(','));
 
@@ -3670,7 +3670,7 @@ export function exportDailyReportCSV(reportData) {
       b.bookingNumber,
       `"${(b.customerName || '').replace(/"/g, '""')}"`,
       `"${(b.serviceName || '').replace(/"/g, '""')}"`,
-      `"${(b.therapistName || '').replace(/"/g, '""')}"`,
+      `"${(b.dentistName || '').replace(/"/g, '""')}"`,
       `"${(b.roomName || '').replace(/"/g, '""')}"`,
       b.baseAmount.toFixed(2),
       b.discountAmount.toFixed(2),
@@ -3709,13 +3709,13 @@ export function exportDailyReportCSV(reportData) {
     }
   }
 
-  // Section 5: Therapist Revenue Summary
-  if (therapistRevenueSummary.length > 0) {
+  // Section 5: Dentist Revenue Summary
+  if (dentistRevenueSummary.length > 0) {
     rows.push('');
-    rows.push('THERAPIST REVENUE SUMMARY');
-    rows.push('Therapist Name,Completed Bookings,Total Revenue');
-    for (const t of therapistRevenueSummary) {
-      rows.push(`"${t.therapistName}",${t.completedBookings},${t.totalRevenue.toFixed(2)}`);
+    rows.push('DENTIST REVENUE SUMMARY');
+    rows.push('Dentist Name,Completed Bookings,Total Revenue');
+    for (const t of dentistRevenueSummary) {
+      rows.push(`"${t.dentistName}",${t.completedBookings},${t.totalRevenue.toFixed(2)}`);
     }
   }
 
@@ -3895,7 +3895,7 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
     // Range mode (multi-day period filter): aggregate across [from, to] instead
     // of a single day. Attendance is tracked per-day, so a multi-day window
     // skips the absent/leave exclusion below rather than trying to prorate it —
-    // available therapists = all active therapists for range mode.
+    // available dentists = all active dentists for range mode.
     const isRange = !!(from && to && from !== to);
     const rangeStart = from || targetDate;
     const rangeEnd = to || targetDate;
@@ -3932,51 +3932,51 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
     // Operating window (minutes) attributable to a given resource's branch.
     const windowFor = (bid) => overall ? (branchWindow[bid] || 0) : operatingMinutes;
 
-    // 2. Fetch active rooms + therapists + attendance (parallel)
+    // 2. Fetch active rooms + dentists + attendance (parallel)
     let roomsQuery = supabase
       .from('rooms')
       .select('id, name, branch_id')
       .eq('is_active', true);
     roomsQuery = withBranch(roomsQuery, branchId);
-    let therapistsQuery = supabase
-      .from('therapists')
+    let dentistsQuery = supabase
+      .from('dentists')
       .select('id, name, branch_id')
       .eq('is_active', true);
-    therapistsQuery = withBranch(therapistsQuery, branchId);
-    // Not branch-scoped: therapist_attendance is keyed by (therapist_id, date)
+    dentistsQuery = withBranch(dentistsQuery, branchId);
+    // Not branch-scoped: dentist_attendance is keyed by (dentist_id, date)
     // globally, and absentIds below is only matched against the branch-scoped
-    // `therapists` list, so filtering here would just risk missing a status
+    // `dentists` list, so filtering here would just risk missing a status
     // marked before a same-day transfer.
     const attendanceQuery = supabase
-      .from('therapist_attendance')
-      .select('therapist_id, status')
+      .from('dentist_attendance')
+      .select('dentist_id, status')
       .eq('date', targetDate)
       .in('status', ['Absent', ...LEAVE_LIKE_ATTENDANCE_STATUSES]);
-    const [roomsResult, therapistsResult, attendanceResult] = await Promise.all([
+    const [roomsResult, dentistsResult, attendanceResult] = await Promise.all([
       roomsQuery,
-      therapistsQuery,
+      dentistsQuery,
       isRange ? Promise.resolve({ data: [], error: null }) : attendanceQuery,
     ]);
 
     if (roomsResult.error) throw roomsResult.error;
-    if (therapistsResult.error) throw therapistsResult.error;
+    if (dentistsResult.error) throw dentistsResult.error;
     // Attendance errors are non-fatal — just ignore
     const absentIds = new Set();
     if (!isRange && !attendanceResult.error && attendanceResult.data) {
       for (const a of attendanceResult.data) {
-        absentIds.add(a.therapist_id);
+        absentIds.add(a.dentist_id);
       }
     }
 
     const rooms = roomsResult.data || [];
-    const therapists = therapistsResult.data || [];
-    // Available therapists = active minus absent/leave (single-day only; see isRange above)
-    const availableTherapists = therapists.filter(t => !absentIds.has(t.id));
+    const dentists = dentistsResult.data || [];
+    // Available dentists = active minus absent/leave (single-day only; see isRange above)
+    const availableDentists = dentists.filter(t => !absentIds.has(t.id));
 
     // 3. Fetch qualifying bookings: Confirmed, In-Progress, Completed only
     let bookingsQuery = supabase
       .from('bookings')
-      .select('id, room_id, therapist_id, start_time, end_time, service_duration_snapshot, status')
+      .select('id, room_id, dentist_id, start_time, end_time, service_duration_snapshot, status')
       .in('status', ['Confirmed', 'In-Progress', 'Completed']);
     bookingsQuery = isRange
       ? bookingsQuery.gte('date', rangeStart).lte('date', rangeEnd)
@@ -4012,20 +4012,20 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
       };
     });
 
-    // 5. Compute per-therapist utilization (only available therapists)
-    const therapistMinutesMap = {};
-    for (const t of availableTherapists) {
-      therapistMinutesMap[t.id] = { name: t.name, bookedMinutes: 0 };
+    // 5. Compute per-dentist utilization (only available dentists)
+    const dentistMinutesMap = {};
+    for (const t of availableDentists) {
+      dentistMinutesMap[t.id] = { name: t.name, bookedMinutes: 0 };
     }
 
     for (const b of allBookings) {
-      if (b.therapist_id && therapistMinutesMap[b.therapist_id]) {
-        therapistMinutesMap[b.therapist_id].bookedMinutes += b.service_duration_snapshot || 0;
+      if (b.dentist_id && dentistMinutesMap[b.dentist_id]) {
+        dentistMinutesMap[b.dentist_id].bookedMinutes += b.service_duration_snapshot || 0;
       }
     }
 
-    const therapistUtilization = availableTherapists.map(t => {
-      const booked = therapistMinutesMap[t.id]?.bookedMinutes || 0;
+    const dentistUtilization = availableDentists.map(t => {
+      const booked = dentistMinutesMap[t.id]?.bookedMinutes || 0;
       const total = windowFor(t.branch_id);
       return {
         id: t.id,
@@ -4049,13 +4049,13 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
     // 7. Summary stats
     const totalBookedMinutes = allBookings.reduce((sum, b) => sum + (b.service_duration_snapshot || 0), 0);
     const totalRoomCapacity = rooms.reduce((sum, r) => sum + windowFor(r.branch_id), 0);
-    const totalTherapistCapacity = availableTherapists.reduce((sum, t) => sum + windowFor(t.branch_id), 0);
+    const totalDentistCapacity = availableDentists.reduce((sum, t) => sum + windowFor(t.branch_id), 0);
 
     const avgRoomUtilization = totalRoomCapacity > 0
       ? Math.round((roomUtilization.reduce((sum, r) => sum + r.bookedMinutes, 0) / totalRoomCapacity) * 100)
       : 0;
-    const avgTherapistUtilization = totalTherapistCapacity > 0
-      ? Math.round((therapistUtilization.reduce((sum, t) => sum + t.bookedMinutes, 0) / totalTherapistCapacity) * 100)
+    const avgDentistUtilization = totalDentistCapacity > 0
+      ? Math.round((dentistUtilization.reduce((sum, t) => sum + t.bookedMinutes, 0) / totalDentistCapacity) * 100)
       : 0;
 
     // Idle = total room capacity minus booked room minutes
@@ -4073,17 +4073,17 @@ export async function getUtilizationIntelligence({ branchId, date, from, to }) {
             ? `${branch.open_time.slice(0, 5)}–${branch.close_time.slice(0, 5)}`
             : 'Not set'),
         roomUtilization,
-        therapistUtilization,
+        dentistUtilization,
         hourlyDistribution,
         summary: {
           avgRoomUtilization,
-          avgTherapistUtilization,
+          avgDentistUtilization,
           totalBookedMinutes,
           idleMinutes: Math.max(0, idleMinutes),
           peakHour,
           totalBookings: allBookings.length,
           roomCount: rooms.length,
-          therapistCount: availableTherapists.length,
+          dentistCount: availableDentists.length,
         },
       },
       error: null,
@@ -4116,15 +4116,15 @@ export async function searchBookingPublic(branchId, query) {
     }
 
     const serviceIds = [...new Set(data.map(b => b.service_id).filter(Boolean))];
-    const therapistIds = [...new Set(data.map(b => b.therapist_id).filter(Boolean))];
+    const dentistIds = [...new Set(data.map(b => b.dentist_id).filter(Boolean))];
     const roomIds = [...new Set(data.map(b => b.room_id).filter(Boolean))];
 
-    const [{ data: services }, { data: therapists }, { data: rooms }] = await Promise.all([
+    const [{ data: services }, { data: dentists }, { data: rooms }] = await Promise.all([
       serviceIds.length
         ? supabase.from('services').select('id, name, duration_minutes').in('id', serviceIds)
         : Promise.resolve({ data: [] }),
-      therapistIds.length
-        ? supabase.from('therapists').select('id, name, gender').in('id', therapistIds)
+      dentistIds.length
+        ? supabase.from('dentists').select('id, name, gender').in('id', dentistIds)
         : Promise.resolve({ data: [] }),
       roomIds.length
         ? supabase.from('rooms').select('id, name').in('id', roomIds)
@@ -4132,13 +4132,13 @@ export async function searchBookingPublic(branchId, query) {
     ]);
 
     const serviceMap = new Map((services || []).map(s => [s.id, s]));
-    const therapistMap = new Map((therapists || []).map(t => [t.id, t]));
+    const dentistMap = new Map((dentists || []).map(t => [t.id, t]));
     const roomMap = new Map((rooms || []).map(r => [r.id, r]));
 
     const enriched = data.map(b => ({
       ...b,
       service: serviceMap.get(b.service_id) || null,
-      therapist: therapistMap.get(b.therapist_id) || null,
+      dentist: dentistMap.get(b.dentist_id) || null,
       room: roomMap.get(b.room_id) || null,
     }));
 
@@ -4162,7 +4162,7 @@ export async function searchBookings(branchId, query) {
       .select(`
         *,
         service:services(id, name, duration_minutes),
-        therapist:therapists(id, name, gender),
+        dentist:dentists(id, name, gender),
         room:rooms(id, name)
       `)
       .eq('branch_id', resolvedBranchId)
@@ -4196,7 +4196,7 @@ export async function getCustomerBookingHistory(customerAccountId) {
       .select(`
         *,
         service:services(id, name, duration_minutes),
-        therapist:therapists(id, name, gender),
+        dentist:dentists(id, name, gender),
         room:rooms(id, name),
         branch:branches(id, name)
       `)
@@ -4218,10 +4218,10 @@ export async function fetchBookingById(bookingId) {
       .select(`
         *,
         service:services(id, name, duration_minutes, price_npr),
-        therapist:therapists(id, name, gender),
+        dentist:dentists(id, name, gender),
         room:rooms(id, name),
         payments(amount, payment_mode, created_at),
-        booking_therapists(therapist_id, start_time, end_time, therapist:therapists(id, name, gender))
+        booking_dentists(dentist_id, start_time, end_time, dentist:dentists(id, name, gender))
       `)
       .eq('id', bookingId)
       .single();
@@ -4256,15 +4256,15 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
 
     if (branchError) throw branchError;
 
-    // 2. Fetch therapists, rooms, and any staffers currently transferred OUT of this
+    // 2. Fetch dentists, rooms, and any staffers currently transferred OUT of this
     //    branch (they still show as a column here — booking creation is already
     //    blocked for them since their branch_id now points elsewhere — see migration-145).
     const [
-      therapistsResult, roomsResult, transferredOutResult, transferredInResult,
+      dentistsResult, roomsResult, transferredOutResult, transferredInResult,
       revertedOutResult, revertedInResult, checkedOutResult,
     ] = await Promise.all([
       supabase
-        .from('therapists')
+        .from('dentists')
         .select('id, name, gender, specialties, position, is_service_staff, display_order')
         .eq('branch_id', resolvedBranchId)
         .eq('is_active', true)
@@ -4289,7 +4289,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
       // real, still-active temporary window" signal.
       supabase
         .from('staff_transfers')
-        .select('id, revert_at, effective_date, start_time, from_display_order, therapist:therapists!staff_transfers_therapist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
+        .select('id, revert_at, effective_date, start_time, from_display_order, dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
         .eq('from_branch_id', resolvedBranchId)
         .eq('applied', true)
         .eq('reverted', false)
@@ -4298,12 +4298,12 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
         .order('effective_date', { ascending: true })
         .order('start_time', { ascending: true }),
       // Staffers currently visiting THIS branch on a temporary transfer — they already
-      // appear normally in therapistsResult above (branch_id points here); this tags them
+      // appear normally in dentistsResult above (branch_id points here); this tags them
       // with where they're from + their actual visiting window, so the calendar can block
       // everything OUTSIDE that window (they're only really here for that slice of time).
       supabase
         .from('staff_transfers')
-        .select('therapist_id, revert_at, effective_date, start_time, fromBranch:branches!staff_transfers_from_branch_id_fkey(name), therapist:therapists!staff_transfers_therapist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
+        .select('dentist_id, revert_at, effective_date, start_time, fromBranch:branches!staff_transfers_from_branch_id_fkey(name), dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
         .eq('to_branch_id', resolvedBranchId)
         .eq('applied', true)
         .eq('reverted', false)
@@ -4319,7 +4319,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
       // Bounded to [startDate, endDate] so this can't resurrect arbitrarily old transfers.
       supabase
         .from('staff_transfers')
-        .select('id, revert_at, effective_date, start_time, from_display_order, therapist:therapists!staff_transfers_therapist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
+        .select('id, revert_at, effective_date, start_time, from_display_order, dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
         .eq('from_branch_id', resolvedBranchId)
         .eq('applied', true)
         .eq('reverted', true)
@@ -4331,7 +4331,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
         .order('start_time', { ascending: true }),
       supabase
         .from('staff_transfers')
-        .select('therapist_id, revert_at, effective_date, start_time, fromBranch:branches!staff_transfers_from_branch_id_fkey(name), therapist:therapists!staff_transfers_therapist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
+        .select('dentist_id, revert_at, effective_date, start_time, fromBranch:branches!staff_transfers_from_branch_id_fkey(name), dentist:dentists!staff_transfers_dentist_id_fkey(id, name, gender, specialties, position, is_service_staff, display_order)')
         .eq('to_branch_id', resolvedBranchId)
         .eq('applied', true)
         .eq('reverted', true)
@@ -4341,20 +4341,20 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
         .lte('effective_date', endDate)
         .order('effective_date', { ascending: true })
         .order('start_time', { ascending: true }),
-      // Therapists who've already checked out (for real, not just marked absent/leave) on
+      // Dentists who've already checked out (for real, not just marked absent/leave) on
       // some date in this range — the calendar blocks the rest of that day's column for
       // them, same as a transfer-out window, so a booking can't be dropped onto someone
       // who's already gone home. Only Present/Half-day rows can have a check_out_time.
       supabase
-        .from('therapist_attendance')
-        .select('therapist_id, date, check_out_time')
+        .from('dentist_attendance')
+        .select('dentist_id, date, check_out_time')
         .eq('branch_id', resolvedBranchId)
         .gte('date', startDate)
         .lte('date', endDate)
         .not('check_out_time', 'is', null),
     ]);
 
-    if (therapistsResult.error) throw therapistsResult.error;
+    if (dentistsResult.error) throw dentistsResult.error;
     if (roomsResult.error) throw roomsResult.error;
     if (transferredOutResult.error) throw transferredOutResult.error;
     if (transferredInResult.error) throw transferredInResult.error;
@@ -4362,32 +4362,32 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
     if (revertedInResult.error) throw revertedInResult.error;
     if (checkedOutResult.error) throw checkedOutResult.error;
 
-    // Keyed "<therapistId>_<date>" -> raw check_out_time (timestamptz), so the calendar
+    // Keyed "<dentistId>_<date>" -> raw check_out_time (timestamptz), so the calendar
     // can block each affected day's column independently.
-    const checkedOutByTherapistAndDate = {};
+    const checkedOutByDentistAndDate = {};
     (checkedOutResult.data || []).forEach(row => {
-      checkedOutByTherapistAndDate[`${row.therapist_id}_${row.date}`] = row.check_out_time;
+      checkedOutByDentistAndDate[`${row.dentist_id}_${row.date}`] = row.check_out_time;
     });
 
-    const activeTherapistIds = new Set((therapistsResult.data || []).map(t => t.id));
+    const activeDentistIds = new Set((dentistsResult.data || []).map(t => t.id));
     // Each query is individually ordered ascending, but concatenating two separately-ordered
     // result sets is NOT itself globally sorted (a still-live transfer can be chronologically
-    // AFTER an already-reverted-today one for the same therapist) — sort the combined array
-    // before deduping so "last row per therapist id" reliably means their most recent transfer,
-    // collapsing a round-tripped-more-than-once therapist down to a single calendar column.
+    // AFTER an already-reverted-today one for the same dentist) — sort the combined array
+    // before deduping so "last row per dentist id" reliably means their most recent transfer,
+    // collapsing a round-tripped-more-than-once dentist down to a single calendar column.
     const dedupedOutRows = dedupeTransfersByKey(
       sortTransfersByTime([...(transferredOutResult.data || []), ...(revertedOutResult.data || [])]),
-      t => t.therapist?.id
+      t => t.dentist?.id
     );
-    const transferredOutTherapists = dedupedOutRows
-      .filter(t => t.therapist && !activeTherapistIds.has(t.therapist.id))
+    const transferredOutDentists = dedupedOutRows
+      .filter(t => t.dentist && !activeDentistIds.has(t.dentist.id))
       .map(t => ({
-        ...t.therapist,
-        // therapist.display_order now reflects their DESTINATION branch's ordering
+        ...t.dentist,
+        // dentist.display_order now reflects their DESTINATION branch's ordering
         // (overwritten the moment the transfer applied) — from_display_order is the
         // position they held HERE, captured before that overwrite (migration-149).
         // Falling back to the live value only if that capture is missing (legacy rows).
-        display_order: t.from_display_order ?? t.therapist.display_order,
+        display_order: t.from_display_order ?? t.dentist.display_order,
         transferredOut: true,
         returnsAt: t.revert_at,
         // Kathmandu wall-clock instant the transfer actually took effect — lets the
@@ -4398,31 +4398,31 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
     // Same dedup + global sort as the out-side.
     const inRows = dedupeTransfersByKey(
       sortTransfersByTime([...(transferredInResult.data || []), ...(revertedInResult.data || [])]),
-      t => t.therapist_id
+      t => t.dentist_id
     );
 
     const transferredInById = {};
     inRows.forEach(t => {
-      transferredInById[t.therapist_id] = {
+      transferredInById[t.dentist_id] = {
         fromBranch: t.fromBranch?.name || null,
         returnsAt: t.revert_at,
         transferStartAt: t.effective_date && t.start_time ? `${t.effective_date}T${t.start_time}+05:45` : null,
       };
     });
 
-    const normalTherapists = (therapistsResult.data || []).map(t =>
+    const normalDentists = (dentistsResult.data || []).map(t =>
       transferredInById[t.id] ? { ...t, transferredIn: true, ...transferredInById[t.id] } : t
     );
 
-    // A visitor who has ALREADY reverted home is no longer in therapistsResult (their
+    // A visitor who has ALREADY reverted home is no longer in dentistsResult (their
     // branch_id points home again), so transferredInById above can't tag an existing row —
-    // build a real column for them instead, the same way transferredOutTherapists already
-    // does for therapists who are away. Without this, a branch's calendar has no record at
+    // build a real column for them instead, the same way transferredOutDentists already
+    // does for dentists who are away. Without this, a branch's calendar has no record at
     // all that the visit happened once it's over, even on the same day.
-    const transferredInTherapists = inRows
-      .filter(t => t.therapist && !activeTherapistIds.has(t.therapist.id))
+    const transferredInDentists = inRows
+      .filter(t => t.dentist && !activeDentistIds.has(t.dentist.id))
       .map(t => ({
-        ...t.therapist,
+        ...t.dentist,
         transferredIn: true,
         fromBranch: t.fromBranch?.name || null,
         returnsAt: t.revert_at,
@@ -4432,7 +4432,7 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
     // Slot the transferred-out column back into its ORIGINAL position among the branch's
     // normal columns (by the preserved origin display_order, then name) instead of always
     // appending it at the end.
-    const mergedTherapists = [...normalTherapists, ...transferredOutTherapists, ...transferredInTherapists]
+    const mergedDentists = [...normalDentists, ...transferredOutDentists, ...transferredInDentists]
       .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name));
 
     // 3. Fetch bookings in date range, excluding Cancelled and No Show
@@ -4441,13 +4441,13 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
       .select(`
         id, booking_number, customer_name, customer_phone, status, payment_status,
         date, start_time, end_time, start_datetime, end_datetime, created_at,
-        therapist_id, room_id,
+        dentist_id, room_id,
         base_amount, discount_amount, final_amount, special_requests,
         service:services(name, duration_minutes),
-        therapist:therapists(id, name),
+        dentist:dentists(id, name),
         room:rooms(id, name),
         creator:users!created_by(full_name),
-        booking_therapists(therapist_id, start_time, end_time, therapist:therapists(id, name)),
+        booking_dentists(dentist_id, start_time, end_time, dentist:dentists(id, name)),
         payments(amount)
       `)
       .eq('branch_id', resolvedBranchId)
@@ -4458,30 +4458,30 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
 
     if (bookingsError) throw bookingsError;
 
-    // A PERMANENTLY transferred-out therapist gets no proactive column above (by design —
+    // A PERMANENTLY transferred-out dentist gets no proactive column above (by design —
     // see the is_permanent=false filter comment), but a booking made before/at the transfer
     // can still reference them at this branch. Without a column, CalendarGrid's
-    // isTherapistVisible() can't place it and it silently falls into "Unassigned" (or, for a
-    // shared/multi-therapist booking, silently drops that co-therapist's copy entirely — see
-    // CalendarGrid.jsx's isTherapistVisible skip in the booking_therapists loop). Scan both
-    // storage representations (flat therapist_id AND the booking_therapists junction, same
-    // "two representations of the same fact" duality resolveSingleTherapist documents) so
-    // both single- and multi-therapist bookings, and legacy rows that only ever populated the
-    // junction table, all get a column. Add one ONLY for therapists an actual booking here
+    // isDentistVisible() can't place it and it silently falls into "Unassigned" (or, for a
+    // shared/multi-dentist booking, silently drops that co-dentist's copy entirely — see
+    // CalendarGrid.jsx's isDentistVisible skip in the booking_dentists loop). Scan both
+    // storage representations (flat dentist_id AND the booking_dentists junction, same
+    // "two representations of the same fact" duality resolveSingleDentist documents) so
+    // both single- and multi-dentist bookings, and legacy rows that only ever populated the
+    // junction table, all get a column. Add one ONLY for dentists an actual booking here
     // demands, not preemptively.
-    const knownTherapistIds = new Set(mergedTherapists.map(t => t.id));
-    const orphanTherapistIds = [...new Set(
+    const knownDentistIds = new Set(mergedDentists.map(t => t.id));
+    const orphanDentistIds = [...new Set(
       (bookings || [])
         .flatMap(b => [
-          b.therapist_id,
-          ...(b.booking_therapists || []).map(bt => bt.therapist_id),
+          b.dentist_id,
+          ...(b.booking_dentists || []).map(bt => bt.dentist_id),
         ])
-        .filter(id => id && !knownTherapistIds.has(id))
+        .filter(id => id && !knownDentistIds.has(id))
     )];
 
-    let finalTherapists = mergedTherapists;
-    if (orphanTherapistIds.length > 0) {
-      // Also fetch each orphan therapist's real staff_transfers history so a booking left
+    let finalDentists = mergedDentists;
+    if (orphanDentistIds.length > 0) {
+      // Also fetch each orphan dentist's real staff_transfers history so a booking left
       // behind by a TEMPORARY transfer (already ended, or permanent-looking only because the
       // normal/temp-transfer queries above don't cover it) can shade its real window instead
       // of blocking the whole column all day — see resolveOrphanTransferWindow. Only a window
@@ -4492,29 +4492,29 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
       const rangeStart = toKathmanduDate(startDate, '00:00:00');
       const rangeEnd = toKathmanduDate(endDate, '23:59:59');
 
-      const [orphanTherapistsResult, orphanTransfersResult] = await Promise.all([
+      const [orphanDentistsResult, orphanTransfersResult] = await Promise.all([
         supabase
-          .from('therapists')
+          .from('dentists')
           .select('id, name, gender, specialties, position, is_service_staff, display_order')
-          .in('id', orphanTherapistIds),
+          .in('id', orphanDentistIds),
         supabase
           .from('staff_transfers')
-          .select('therapist_id, from_branch_id, to_branch_id, is_permanent, is_return_leg, revert_at, effective_date, start_time, transferred_at, fromBranch:branches!staff_transfers_from_branch_id_fkey(name)')
-          .in('therapist_id', orphanTherapistIds),
+          .select('dentist_id, from_branch_id, to_branch_id, is_permanent, is_return_leg, revert_at, effective_date, start_time, transferred_at, fromBranch:branches!staff_transfers_from_branch_id_fkey(name)')
+          .in('dentist_id', orphanDentistIds),
       ]);
-      if (orphanTherapistsResult.error) throw orphanTherapistsResult.error;
+      if (orphanDentistsResult.error) throw orphanDentistsResult.error;
       if (orphanTransfersResult.error) throw orphanTransfersResult.error;
 
-      const orphanTransfersByTherapist = {};
+      const orphanTransfersByDentist = {};
       (orphanTransfersResult.data || []).forEach(t => {
-        (orphanTransfersByTherapist[t.therapist_id] ??= []).push(t);
+        (orphanTransfersByDentist[t.dentist_id] ??= []).push(t);
       });
 
-      finalTherapists = [
-        ...mergedTherapists,
-        ...(orphanTherapistsResult.data || []).map(t => {
+      finalDentists = [
+        ...mergedDentists,
+        ...(orphanDentistsResult.data || []).map(t => {
           const transferWindow = resolveOrphanTransferWindow(
-            orphanTransfersByTherapist[t.id], resolvedBranchId, rangeStart, rangeEnd
+            orphanTransfersByDentist[t.id], resolvedBranchId, rangeStart, rangeEnd
           );
           return {
             ...t,
@@ -4535,10 +4535,10 @@ export async function getCalendarBookings(branchId, startDate, endDate) {
           closeTime: branch.close_time || '21:00:00',
           timezone: branch.timezone || 'Asia/Kathmandu',
         },
-        therapists: finalTherapists,
+        dentists: finalDentists,
         rooms: roomsResult.data || [],
         bookings: bookings || [],
-        checkedOutByTherapistAndDate,
+        checkedOutByDentistAndDate,
       },
       error: null,
     };
@@ -4558,8 +4558,8 @@ export async function createBooking({
   customerPhone,
   customerGender,
   specialRequests,
-  therapistId,
-  therapistIds,
+  dentistId,
+  dentistIds,
   roomId,
   bookingGroupId,
   referringCustomerId,
@@ -4764,55 +4764,55 @@ export async function createBooking({
       console.warn('[API] Customer lookup/create failed:', custErr.message);
     }
 
-    // 7a. Resolve therapist IDs (support both single and multi)
-    const allTherapistIds = therapistIds
-      ? (Array.isArray(therapistIds) ? therapistIds.filter(Boolean) : [therapistIds])
-      : (therapistId ? [therapistId] : []);
-    const primaryTherapistId = allTherapistIds[0] || null;
+    // 7a. Resolve dentist IDs (support both single and multi)
+    const allDentistIds = dentistIds
+      ? (Array.isArray(dentistIds) ? dentistIds.filter(Boolean) : [dentistIds])
+      : (dentistId ? [dentistId] : []);
+    const primaryDentistId = allDentistIds[0] || null;
 
-    let therapistNameSnapshot = null;
-    if (allTherapistIds.length > 0) {
-      const { data: therapistsData, error: therapistLookupError } = await supabase
-        .from('therapists')
+    let dentistNameSnapshot = null;
+    if (allDentistIds.length > 0) {
+      const { data: dentistsData, error: dentistLookupError } = await supabase
+        .from('dentists')
         .select('id, name, is_active')
-        .in('id', allTherapistIds)
+        .in('id', allDentistIds)
         .eq('branch_id', resolvedBranchId);
-      if (therapistLookupError) throw therapistLookupError;
+      if (dentistLookupError) throw dentistLookupError;
 
-      if (!therapistsData || therapistsData.length !== allTherapistIds.length) {
-        return { data: null, error: { code: 'INVALID_THERAPIST', message: 'One or more selected therapists are not available in this branch.' } };
+      if (!dentistsData || dentistsData.length !== allDentistIds.length) {
+        return { data: null, error: { code: 'INVALID_DENTIST', message: 'One or more selected dentists are not available in this branch.' } };
       }
-      const inactive = therapistsData.find(t => !t.is_active);
+      const inactive = dentistsData.find(t => !t.is_active);
       if (inactive) {
-        return { data: null, error: { code: 'THERAPIST_INACTIVE', message: `Therapist ${inactive.name} is not active.` } };
+        return { data: null, error: { code: 'DENTIST_INACTIVE', message: `Dentist ${inactive.name} is not active.` } };
       }
 
       if (date) {
         const { data: attendanceRecords } = await supabase
-          .from('therapist_attendance')
-          .select('therapist_id, status, check_out_time')
-          .in('therapist_id', allTherapistIds)
+          .from('dentist_attendance')
+          .select('dentist_id, status, check_out_time')
+          .in('dentist_id', allDentistIds)
           .eq('date', date);
 
         const absent = (attendanceRecords || []).find(a =>
           a.status === 'Absent' || LEAVE_LIKE_ATTENDANCE_STATUSES.includes(a.status)
         );
         if (absent) {
-          const absentTherapist = therapistsData.find(t => t.id === absent.therapist_id);
-          return { data: null, error: { code: 'THERAPIST_ABSENT', message: `${absentTherapist?.name || 'Therapist'} is marked as ${absent.status} on this date.` } };
+          const absentDentist = dentistsData.find(t => t.id === absent.dentist_id);
+          return { data: null, error: { code: 'DENTIST_ABSENT', message: `${absentDentist?.name || 'Dentist'} is marked as ${absent.status} on this date.` } };
         }
 
         const checkedOut = (attendanceRecords || []).find(a =>
           isAfterCheckout(a.check_out_time, date, startTime)
         );
         if (checkedOut) {
-          const checkedOutTherapist = therapistsData.find(t => t.id === checkedOut.therapist_id);
-          return { data: null, error: { code: 'THERAPIST_CHECKED_OUT', message: `${checkedOutTherapist?.name || 'Therapist'} already checked out for this date.` } };
+          const checkedOutDentist = dentistsData.find(t => t.id === checkedOut.dentist_id);
+          return { data: null, error: { code: 'DENTIST_CHECKED_OUT', message: `${checkedOutDentist?.name || 'Dentist'} already checked out for this date.` } };
         }
       }
 
-      const primary = therapistsData.find(t => t.id === primaryTherapistId);
-      therapistNameSnapshot = primary?.name || null;
+      const primary = dentistsData.find(t => t.id === primaryDentistId);
+      dentistNameSnapshot = primary?.name || null;
     }
 
     // 7. Insert booking — triggers compute end_time, datetimes, final_amount, booking_number
@@ -4824,7 +4824,7 @@ export async function createBooking({
         branch_id: resolvedBranchId,
         room_id: availableRoom?.id || null,
         service_id: serviceId,
-        therapist_id: primaryTherapistId,
+        dentist_id: primaryDentistId,
         customer_id: customerId,
         customer_name: customerName,
         customer_email: customerEmail || null,
@@ -4845,20 +4845,20 @@ export async function createBooking({
         service_duration_snapshot: service.duration_minutes,
         service_price_snapshot: Number(service.price_npr),
         room_name_snapshot: availableRoom?.name || null,
-        therapist_name_snapshot: therapistNameSnapshot,
+        dentist_name_snapshot: dentistNameSnapshot,
       })
       .select()
       .single();
 
     if (insertError) {
       if (insertError.code === '23P01') {
-        return { data: null, error: { code: 'THERAPIST_CONFLICT', message: 'One or more selected therapists are already booked during this time slot.' } };
+        return { data: null, error: { code: 'DENTIST_CONFLICT', message: 'One or more selected dentists are already booked during this time slot.' } };
       }
       if (insertError.code === 'P0003') {
         return { data: null, error: { code: 'ROOMS_FULL', message: 'Scheduling conflict. Please try a different time or room.' } };
       }
       if (insertError.code === 'P0005') {
-        return { data: null, error: { code: 'BRANCH_ONLINE_CAPACITY', message: 'This time is fully booked — no therapists available. Please choose another time.' } };
+        return { data: null, error: { code: 'BRANCH_ONLINE_CAPACITY', message: 'This time is fully booked — no dentists available. Please choose another time.' } };
       }
       throw insertError;
     }
@@ -4895,16 +4895,16 @@ export async function createBooking({
       }
     }
 
-    // 7b. Insert into junction table for all therapists
-    if (allTherapistIds.length > 0) {
-      const rows = allTherapistIds.map(tid => ({
+    // 7b. Insert into junction table for all dentists
+    if (allDentistIds.length > 0) {
+      const rows = allDentistIds.map(tid => ({
         booking_id: booking.id,
-        therapist_id: tid,
+        dentist_id: tid,
         start_time: booking.start_time,
         end_time: booking.end_time,
       }));
-      const { error: btError } = await supabase.from('booking_therapists').insert(rows);
-      if (btError) console.warn('[API] booking_therapists insert error:', btError.message);
+      const { error: btError } = await supabase.from('booking_dentists').insert(rows);
+      if (btError) console.warn('[API] booking_dentists insert error:', btError.message);
     }
 
     capture('staff_booking_created', {
@@ -5243,10 +5243,10 @@ export async function deleteRoom({ roomId }) {
 }
 
 // ============================================================
-// Phase 9B: Master Data Management — Therapist CRUD
+// Phase 9B: Master Data Management — Dentist CRUD
 // ============================================================
 
-export async function fetchTherapistsForManagement(branchId) {
+export async function fetchDentistsForManagement(branchId) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
@@ -5261,7 +5261,7 @@ export async function fetchTherapistsForManagement(branchId) {
     }
 
     let query = supabase
-      .from('therapists')
+      .from('dentists')
       .select('id, name, gender, specialties, position, is_service_staff, branch_id, is_active, created_at, display_order')
       .order('display_order')
       .order('name');
@@ -5272,12 +5272,12 @@ export async function fetchTherapistsForManagement(branchId) {
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('[API] fetchTherapistsForManagement error:', error.message);
+    console.error('[API] fetchDentistsForManagement error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function createTherapist({ name, gender, specialties, position, isServiceStaff = true, branchId }) {
+export async function createDentist({ name, gender, specialties, position, isServiceStaff = true, branchId }) {
   try {
     name = toTitleCase(name);
     const { profile, error: authError } = await getAuthenticatedUser();
@@ -5294,19 +5294,19 @@ export async function createTherapist({ name, gender, specialties, position, isS
 
     // Check for duplicate name within branch
     const { data: existing } = await supabase
-      .from('therapists')
+      .from('dentists')
       .select('id')
       .eq('branch_id', effectiveBranchId)
       .ilike('name', name.trim())
       .maybeSingle();
 
     if (existing) {
-      return { data: null, error: { code: 'DUPLICATE_NAME', message: 'A therapist with this name already exists in this branch.' } };
+      return { data: null, error: { code: 'DUPLICATE_NAME', message: 'A dentist with this name already exists in this branch.' } };
     }
 
-    // Get max display_order for this branch to place new therapist at end
+    // Get max display_order for this branch to place new dentist at end
     const { data: maxRow } = await supabase
-      .from('therapists')
+      .from('dentists')
       .select('display_order')
       .eq('branch_id', effectiveBranchId)
       .order('display_order', { ascending: false })
@@ -5316,7 +5316,7 @@ export async function createTherapist({ name, gender, specialties, position, isS
     const nextOrder = (maxRow?.display_order ?? 0) + 1;
 
     const { data, error } = await supabase
-      .from('therapists')
+      .from('dentists')
       .insert({
         name: name.trim(),
         gender: gender || 'Male',
@@ -5334,12 +5334,12 @@ export async function createTherapist({ name, gender, specialties, position, isS
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('[API] createTherapist error:', error.message);
+    console.error('[API] createDentist error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function updateTherapist({ therapistId, name, gender, specialties, position, isServiceStaff }) {
+export async function updateDentist({ dentistId, name, gender, specialties, position, isServiceStaff }) {
   try {
     name = toTitleCase(name);
     const { profile, error: authError } = await getAuthenticatedUser();
@@ -5349,36 +5349,36 @@ export async function updateTherapist({ therapistId, name, gender, specialties, 
       return { data: null, error: { code: 'UNAUTHORIZED', message: 'Insufficient permissions.' } };
     }
 
-    // Fetch therapist to get branch_id
-    const { data: therapist, error: fetchError } = await supabase
-      .from('therapists')
+    // Fetch dentist to get branch_id
+    const { data: dentist, error: fetchError } = await supabase
+      .from('dentists')
       .select('id, branch_id')
-      .eq('id', therapistId)
+      .eq('id', dentistId)
       .single();
 
     if (fetchError) {
       if (fetchError.code === 'PGRST116') {
-        return { data: null, error: { code: 'NOT_FOUND', message: 'Therapist not found.' } };
+        return { data: null, error: { code: 'NOT_FOUND', message: 'Dentist not found.' } };
       }
       throw fetchError;
     }
 
-    if (profile.role === 'manager' && therapist.branch_id !== profile.branch_id) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot manage therapists outside your branch.' } };
+    if (profile.role === 'manager' && dentist.branch_id !== profile.branch_id) {
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot manage dentists outside your branch.' } };
     }
 
-    // Check for duplicate name within branch (excluding this therapist)
+    // Check for duplicate name within branch (excluding this dentist)
     if (name) {
       const { data: existing } = await supabase
-        .from('therapists')
+        .from('dentists')
         .select('id')
-        .eq('branch_id', therapist.branch_id)
+        .eq('branch_id', dentist.branch_id)
         .ilike('name', name.trim())
-        .neq('id', therapistId)
+        .neq('id', dentistId)
         .maybeSingle();
 
       if (existing) {
-        return { data: null, error: { code: 'DUPLICATE_NAME', message: 'A therapist with this name already exists in this branch.' } };
+        return { data: null, error: { code: 'DUPLICATE_NAME', message: 'A dentist with this name already exists in this branch.' } };
       }
     }
 
@@ -5390,21 +5390,21 @@ export async function updateTherapist({ therapistId, name, gender, specialties, 
     if (isServiceStaff !== undefined) updatePayload.is_service_staff = isServiceStaff;
 
     const { data, error } = await supabase
-      .from('therapists')
+      .from('dentists')
       .update(updatePayload)
-      .eq('id', therapistId)
+      .eq('id', dentistId)
       .select('id, name, gender, specialties, position, is_service_staff, branch_id, is_active, created_at')
       .single();
 
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('[API] updateTherapist error:', error.message);
+    console.error('[API] updateDentist error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function toggleTherapistActive({ therapistId, isActive }) {
+export async function toggleDentistActive({ dentistId, isActive }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
@@ -5413,22 +5413,22 @@ export async function toggleTherapistActive({ therapistId, isActive }) {
       return { data: null, error: { code: 'UNAUTHORIZED', message: 'Insufficient permissions.' } };
     }
 
-    // Fetch therapist to verify branch ownership
-    const { data: therapist, error: fetchError } = await supabase
-      .from('therapists')
+    // Fetch dentist to verify branch ownership
+    const { data: dentist, error: fetchError } = await supabase
+      .from('dentists')
       .select('id, branch_id')
-      .eq('id', therapistId)
+      .eq('id', dentistId)
       .single();
 
     if (fetchError) {
       if (fetchError.code === 'PGRST116') {
-        return { data: null, error: { code: 'NOT_FOUND', message: 'Therapist not found.' } };
+        return { data: null, error: { code: 'NOT_FOUND', message: 'Dentist not found.' } };
       }
       throw fetchError;
     }
 
-    if (profile.role === 'manager' && therapist.branch_id !== profile.branch_id) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot manage therapists outside your branch.' } };
+    if (profile.role === 'manager' && dentist.branch_id !== profile.branch_id) {
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot manage dentists outside your branch.' } };
     }
 
     // If deactivating, check for future bookings
@@ -5437,7 +5437,7 @@ export async function toggleTherapistActive({ therapistId, isActive }) {
       const { data: futureBookings, error: bookingsError } = await supabase
         .from('bookings')
         .select('id')
-        .eq('therapist_id', therapistId)
+        .eq('dentist_id', dentistId)
         .gte('date', today)
         .in('status', ['Pending', 'Confirmed', 'In-Progress'])
         .limit(1);
@@ -5445,56 +5445,56 @@ export async function toggleTherapistActive({ therapistId, isActive }) {
       if (bookingsError) throw bookingsError;
 
       if (futureBookings && futureBookings.length > 0) {
-        return { data: null, error: { code: 'ACTIVE_BOOKINGS_EXIST', message: 'Cannot deactivate therapist with active future bookings. Cancel or reassign them first.' } };
+        return { data: null, error: { code: 'ACTIVE_BOOKINGS_EXIST', message: 'Cannot deactivate dentist with active future bookings. Cancel or reassign them first.' } };
       }
     }
 
     const { data, error } = await supabase
-      .from('therapists')
+      .from('dentists')
       .update({ is_active: isActive })
-      .eq('id', therapistId)
+      .eq('id', dentistId)
       .select('id, name, branch_id, is_active')
       .single();
 
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('[API] toggleTherapistActive error:', error.message);
+    console.error('[API] toggleDentistActive error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function deleteTherapist({ therapistId }) {
+export async function deleteDentist({ dentistId }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
 
-    // Only manager and admin can delete therapists
+    // Only manager and admin can delete dentists
     if (!['manager', 'admin'].includes(profile.role)) {
       return { data: null, error: { code: 'UNAUTHORIZED', message: 'Insufficient permissions.' } };
     }
 
-    // Fetch therapist to verify it exists and check branch ownership
-    const { data: therapist, error: fetchError } = await supabase
-      .from('therapists')
+    // Fetch dentist to verify it exists and check branch ownership
+    const { data: dentist, error: fetchError } = await supabase
+      .from('dentists')
       .select('id, branch_id, name')
-      .eq('id', therapistId)
+      .eq('id', dentistId)
       .single();
 
-    if (fetchError || !therapist) {
-      return { data: null, error: { code: 'NOT_FOUND', message: 'Therapist not found.' } };
+    if (fetchError || !dentist) {
+      return { data: null, error: { code: 'NOT_FOUND', message: 'Dentist not found.' } };
     }
 
-    // Manager can only delete therapists in their own branch
-    if (profile.role === 'manager' && therapist.branch_id !== profile.branch_id) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot delete therapists outside your branch.' } };
+    // Manager can only delete dentists in their own branch
+    if (profile.role === 'manager' && dentist.branch_id !== profile.branch_id) {
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'Cannot delete dentists outside your branch.' } };
     }
 
-    // Check if therapist has any bookings (past or future)
+    // Check if dentist has any bookings (past or future)
     const { data: bookings, error: bookingError } = await supabase
       .from('bookings')
       .select('id')
-      .eq('therapist_id', therapistId)
+      .eq('dentist_id', dentistId)
       .limit(1);
 
     if (bookingError) throw bookingError;
@@ -5504,22 +5504,22 @@ export async function deleteTherapist({ therapistId }) {
         data: null,
         error: {
           code: 'HAS_BOOKINGS',
-          message: 'This therapist has booking history and cannot be deleted. Deactivate instead to hide from new bookings.'
+          message: 'This dentist has booking history and cannot be deleted. Deactivate instead to hide from new bookings.'
         }
       };
     }
 
     // Safe to delete - no bookings exist
     const { error: deleteError } = await supabase
-      .from('therapists')
+      .from('dentists')
       .delete()
-      .eq('id', therapistId);
+      .eq('id', dentistId);
 
     if (deleteError) throw deleteError;
 
-    return { data: { deleted: true, therapistId, therapistName: therapist.name }, error: null };
+    return { data: { deleted: true, dentistId, dentistName: dentist.name }, error: null };
   } catch (error) {
-    console.error('[API] deleteTherapist error:', error.message);
+    console.error('[API] deleteDentist error:', error.message);
     return { data: null, error };
   }
 }
@@ -5528,12 +5528,12 @@ export async function deleteTherapist({ therapistId }) {
  * Transfer a staffer to another branch in the same org, either Temporary (required
  * duration, auto-reverts) or Permanent (no duration, stays until transferred again).
  * Authorization + the audit row are enforced server-side by the SECURITY DEFINER
- * transfer_therapist() function (migration-039, required-duration form added in
+ * transfer_dentist() function (migration-039, required-duration form added in
  * migration-145, permanent option restored in migration-150): only an admin, or the
  * manager of the staffer's CURRENT branch, may transfer.
  */
-export async function transferTherapist({
-  therapistId,
+export async function transferDentist({
+  dentistId,
   toBranchId,
   permanent = false,
   startTime = null,
@@ -5546,8 +5546,8 @@ export async function transferTherapist({
     const { error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
 
-    const { data, error } = await supabase.rpc('transfer_therapist', {
-      p_therapist_id: therapistId,
+    const { data, error } = await supabase.rpc('transfer_dentist', {
+      p_dentist_id: dentistId,
       p_to_branch_id: toBranchId,
       p_start_time: permanent ? null : startTime,
       p_duration_value: permanent ? null : durationValue,
@@ -5559,7 +5559,7 @@ export async function transferTherapist({
 
     if (error) throw error;
     capture('staff_transfer_scheduled', {
-      therapist_id: therapistId,
+      dentist_id: dentistId,
       to_branch_id: toBranchId,
       effective_date: effectiveDate,
       permanent,
@@ -5568,7 +5568,7 @@ export async function transferTherapist({
     });
     return { data: { transferId: data }, error: null };
   } catch (error) {
-    console.error('[API] transferTherapist error:', error.message);
+    console.error('[API] transferDentist error:', error.message);
     return { data: null, error };
   }
 }
@@ -5585,7 +5585,7 @@ export async function fetchStaffTransfers() {
         id, transferred_at, effective_date, applied, note,
         start_time, duration_value, duration_unit, revert_at, reverted, reverted_at, is_permanent,
         is_return_leg,
-        therapist:therapists!staff_transfers_therapist_id_fkey(name),
+        dentist:dentists!staff_transfers_dentist_id_fkey(name),
         fromBranch:branches!staff_transfers_from_branch_id_fkey(name),
         toBranch:branches!staff_transfers_to_branch_id_fkey(name),
         transferredBy:users!staff_transfers_transferred_by_fkey(full_name)
@@ -5608,7 +5608,7 @@ export async function fetchStaffTransfers() {
       reverted: t.reverted,
       revertedAt: t.reverted_at,
       isReturnLeg: t.is_return_leg,
-      therapistName: t.therapist?.name || '—',
+      dentistName: t.dentist?.name || '—',
       fromBranch: t.fromBranch?.name || '—',
       toBranch: t.toBranch?.name || '—',
       transferredBy: t.transferredBy?.full_name || 'System',
@@ -5631,9 +5631,9 @@ export async function fetchPendingTransfers(branchId = null) {
     let query = supabase
       .from('staff_transfers')
       .select(`
-        id, transferred_at, effective_date, applied, note, therapist_id,
+        id, transferred_at, effective_date, applied, note, dentist_id,
         start_time, duration_value, duration_unit, revert_at, reverted, reverted_at, is_permanent,
-        therapist:therapists!staff_transfers_therapist_id_fkey(name),
+        dentist:dentists!staff_transfers_dentist_id_fkey(name),
         fromBranch:branches!staff_transfers_from_branch_id_fkey(name),
         toBranch:branches!staff_transfers_to_branch_id_fkey(name),
         transferredBy:users!staff_transfers_transferred_by_fkey(full_name)
@@ -5650,7 +5650,7 @@ export async function fetchPendingTransfers(branchId = null) {
 
     const transfers = (data || []).map(t => ({
       id: t.id,
-      therapistId: t.therapist_id,
+      dentistId: t.dentist_id,
       transferredAt: t.transferred_at,
       effectiveDate: t.effective_date,
       applied: t.applied,
@@ -5662,7 +5662,7 @@ export async function fetchPendingTransfers(branchId = null) {
       isPermanent: t.is_permanent,
       reverted: t.reverted,
       revertedAt: t.reverted_at,
-      therapistName: t.therapist?.name || '—',
+      dentistName: t.dentist?.name || '—',
       fromBranch: t.fromBranch?.name || '—',
       toBranch: t.toBranch?.name || '—',
       transferredBy: t.transferredBy?.full_name || 'System',
@@ -5781,13 +5781,13 @@ export async function revertStaffTransferNow({ transferId, revertedAt } = {}) {
 }
 
 /**
- * For each therapist currently AT branchId, the single most recent staff_transfers
+ * For each dentist currently AT branchId, the single most recent staff_transfers
  * row (either direction), used by the Attendance panel to decide what the Transfer
  * button should open: a blank create form, the ACTIVE transfer (destination's view,
  * offering "Add Extra Time"), or a just-COMPLETED summary (origin's view, offering
- * "Transfer Therapist Again").
+ * "Transfer Dentist Again").
  */
-export async function fetchTherapistTransferStatus(branchId) {
+export async function fetchDentistTransferStatus(branchId) {
   try {
     const { error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
@@ -5795,9 +5795,9 @@ export async function fetchTherapistTransferStatus(branchId) {
     const { data, error } = await supabase
       .from('staff_transfers')
       .select(`
-        id, therapist_id, from_branch_id, to_branch_id, transferred_at, effective_date,
+        id, dentist_id, from_branch_id, to_branch_id, transferred_at, effective_date,
         start_time, duration_value, duration_unit, revert_at, applied, reverted, reverted_at, is_permanent, note,
-        therapist:therapists!staff_transfers_therapist_id_fkey(name),
+        dentist:dentists!staff_transfers_dentist_id_fkey(name),
         fromBranch:branches!staff_transfers_from_branch_id_fkey(name),
         toBranch:branches!staff_transfers_to_branch_id_fkey(name)
       `)
@@ -5806,14 +5806,14 @@ export async function fetchTherapistTransferStatus(branchId) {
 
     if (error) throw error;
 
-    // Keep only the latest row per therapist (data is already ordered newest-first).
+    // Keep only the latest row per dentist (data is already ordered newest-first).
     const map = {};
     (data || []).forEach(t => {
-      if (map[t.therapist_id]) return;
-      map[t.therapist_id] = {
+      if (map[t.dentist_id]) return;
+      map[t.dentist_id] = {
         id: t.id,
-        therapistId: t.therapist_id,
-        therapistName: t.therapist?.name || '—',
+        dentistId: t.dentist_id,
+        dentistName: t.dentist?.name || '—',
         fromBranchId: t.from_branch_id,
         toBranchId: t.to_branch_id,
         fromBranch: t.fromBranch?.name || '—',
@@ -5834,12 +5834,12 @@ export async function fetchTherapistTransferStatus(branchId) {
 
     return { data: map, error: null };
   } catch (error) {
-    console.error('[API] fetchTherapistTransferStatus error:', error.message);
+    console.error('[API] fetchDentistTransferStatus error:', error.message);
     return { data: null, error };
   }
 }
 
-export async function updateTherapistOrder({ branchId, orderedIds }) {
+export async function updateDentistOrder({ branchId, orderedIds }) {
   try {
     const { profile, error: authError } = await getAuthenticatedUser();
     if (authError) return { data: null, error: authError };
@@ -5856,7 +5856,7 @@ export async function updateTherapistOrder({ branchId, orderedIds }) {
 
     const updates = orderedIds.map((id, index) =>
       supabase
-        .from('therapists')
+        .from('dentists')
         .update({ display_order: index + 1 })
         .eq('id', id)
         .eq('branch_id', effectiveBranchId)
@@ -5868,7 +5868,7 @@ export async function updateTherapistOrder({ branchId, orderedIds }) {
 
     return { data: { success: true }, error: null };
   } catch (error) {
-    console.error('[API] updateTherapistOrder error:', error.message);
+    console.error('[API] updateDentistOrder error:', error.message);
     return { data: null, error };
   }
 }
@@ -6700,7 +6700,7 @@ export async function fetchCustomerProfile(customerId) {
       .select(`
         booking_number, date, status, payment_status,
         final_amount, discount_amount,
-        service_name_snapshot, therapist_name_snapshot,
+        service_name_snapshot, dentist_name_snapshot,
         is_locked
       `)
       .eq('customer_id', customerId)
@@ -6786,7 +6786,7 @@ export async function fetchCustomerProfile(customerId) {
       bookingNumber: b.booking_number,
       date: b.date,
       serviceName: b.service_name_snapshot || '—',
-      therapistName: b.therapist_name_snapshot || 'Unassigned',
+      dentistName: b.dentist_name_snapshot || 'Unassigned',
       finalAmount: Number(b.final_amount),
       discountAmount: Number(b.discount_amount),
       paymentStatus: b.payment_status,
@@ -7205,7 +7205,7 @@ export async function getRiskIndicators({ branchId, date }) {
 }
 
 // ============================================================
-// Phase 10F-2: Therapist Attendance API (Read + Write)
+// Phase 10F-2: Dentist Attendance API (Read + Write)
 // ============================================================
 
 const VALID_ATTENDANCE_STATUSES = ['Present', 'Absent', 'Annual Leave', 'Sick Leave', 'Day Off'];
@@ -7223,7 +7223,7 @@ export const LEAVE_LIKE_ATTENDANCE_STATUSES = ['Leave', 'Annual Leave', 'Sick Le
 const SICK_LEAVE_PAID_CAP_DAYS = 14;
 const ANNUAL_LEAVE_PAID_CAP_DAYS = 18;
 
-// therapist_attendance.check_in_time/check_out_time are timestamptz columns, but the UI only
+// dentist_attendance.check_in_time/check_out_time are timestamptz columns, but the UI only
 // ever deals with a plain "HH:MM" clock time (a native <input type="time">, no date picker of
 // its own — the date is the attendance page's date filter). These two helpers bridge that gap
 // in the Nepal business timezone, matching the `+05:45` offset pattern already used elsewhere
@@ -7242,8 +7242,8 @@ function formatTimeKathmandu(isoTimestamp) {
 }
 
 /**
- * Fetch attendance for all active therapists for a specific branch + date.
- * Therapists without a record get status = null.
+ * Fetch attendance for all active dentists for a specific branch + date.
+ * Dentists without a record get status = null.
  */
 export async function fetchAttendance({ branchId, date }) {
   try {
@@ -7253,39 +7253,39 @@ export async function fetchAttendance({ branchId, date }) {
 
     const targetDate = date || new Date().toISOString().split('T')[0];
 
-    // Parallel: active therapists + attendance records. Attendance is one record per
-    // (therapist_id, date) globally — not scoped by branch_id — so it's fetched unfiltered
-    // by branch (a status marked at a therapist's prior branch, before a same-day transfer,
-    // still shows up here) and joined in-memory against the branch-scoped therapist list below.
-    let therapistsQuery = supabase
-      .from('therapists')
+    // Parallel: active dentists + attendance records. Attendance is one record per
+    // (dentist_id, date) globally — not scoped by branch_id — so it's fetched unfiltered
+    // by branch (a status marked at a dentist's prior branch, before a same-day transfer,
+    // still shows up here) and joined in-memory against the branch-scoped dentist list below.
+    let dentistsQuery = supabase
+      .from('dentists')
       .select('id, name, is_service_staff')
       .eq('is_active', true)
       .order('name');
-    therapistsQuery = withBranch(therapistsQuery, branchId);
+    dentistsQuery = withBranch(dentistsQuery, branchId);
     const attendanceQuery = supabase
-      .from('therapist_attendance')
-      .select('therapist_id, status, check_in_time, check_out_time, notes')
+      .from('dentist_attendance')
+      .select('dentist_id, status, check_in_time, check_out_time, notes')
       .eq('date', targetDate);
-    const [therapistsResult, attendanceResult] = await Promise.all([therapistsQuery, attendanceQuery]);
-    if (therapistsResult.error) throw therapistsResult.error;
+    const [dentistsResult, attendanceResult] = await Promise.all([dentistsQuery, attendanceQuery]);
+    if (dentistsResult.error) throw dentistsResult.error;
     if (attendanceResult.error) throw attendanceResult.error;
 
-    const therapists = therapistsResult.data || [];
+    const dentists = dentistsResult.data || [];
     const attendanceRows = attendanceResult.data || [];
 
-    // Index attendance by therapist_id
+    // Index attendance by dentist_id
     const attendanceMap = {};
     for (const row of attendanceRows) {
-      attendanceMap[row.therapist_id] = row;
+      attendanceMap[row.dentist_id] = row;
     }
 
     // Merge
-    const merged = therapists.map(t => {
+    const merged = dentists.map(t => {
       const att = attendanceMap[t.id];
       return {
-        therapistId: t.id,
-        therapistName: t.name,
+        dentistId: t.id,
+        dentistName: t.name,
         isServiceStaff: t.is_service_staff !== false,
         status: att?.status || null,
         checkInTime: formatTimeKathmandu(att?.check_in_time),
@@ -7302,28 +7302,28 @@ export async function fetchAttendance({ branchId, date }) {
 }
 
 /**
- * Fetch today's attendance record for an arbitrary set of therapist IDs, regardless of their
+ * Fetch today's attendance record for an arbitrary set of dentist IDs, regardless of their
  * current branch_id — for staff who've been transferred OUT of the branch viewing them (they no
  * longer match a branch-scoped fetchAttendance() query, but they may still have checked in
  * earlier today before the transfer took effect, or at their new branch since).
  */
-export async function fetchAttendanceByTherapistIds({ therapistIds, date }) {
+export async function fetchAttendanceByDentistIds({ dentistIds, date }) {
   try {
-    if (!therapistIds || therapistIds.length === 0) return { data: {}, error: null };
+    if (!dentistIds || dentistIds.length === 0) return { data: {}, error: null };
 
     const targetDate = date || new Date().toISOString().split('T')[0];
 
     const { data, error } = await supabase
-      .from('therapist_attendance')
-      .select('therapist_id, status, check_in_time, check_out_time, notes')
+      .from('dentist_attendance')
+      .select('dentist_id, status, check_in_time, check_out_time, notes')
       .eq('date', targetDate)
-      .in('therapist_id', therapistIds);
+      .in('dentist_id', dentistIds);
 
     if (error) throw error;
 
     const map = {};
     (data || []).forEach(row => {
-      map[row.therapist_id] = {
+      map[row.dentist_id] = {
         status: row.status || null,
         checkInTime: formatTimeKathmandu(row.check_in_time),
         checkOutTime: formatTimeKathmandu(row.check_out_time),
@@ -7333,17 +7333,17 @@ export async function fetchAttendanceByTherapistIds({ therapistIds, date }) {
 
     return { data: map, error: null };
   } catch (error) {
-    console.error('[API] fetchAttendanceByTherapistIds error:', error.message);
+    console.error('[API] fetchAttendanceByDentistIds error:', error.message);
     return { data: null, error };
   }
 }
 
 /**
- * Create or update attendance for a therapist on a date.
+ * Create or update attendance for a dentist on a date.
  * Uses INSERT-first, UPDATE on UNIQUE violation.
  * Lets DB trigger enforce closed-day lock (P0004).
  */
-export async function markAttendance({ therapistId, date, status, checkInTime, checkOutTime, notes }) {
+export async function markAttendance({ dentistId, date, status, checkInTime, checkOutTime, notes }) {
   try {
     // 1. Validate status
     if (!VALID_ATTENDANCE_STATUSES.includes(status)) {
@@ -7358,30 +7358,30 @@ export async function markAttendance({ therapistId, date, status, checkInTime, c
       return { data: null, error: { code: 'UNAUTHORIZED', message: 'Staff cannot mark attendance.' } };
     }
 
-    // 3. Resolve therapist's branch for branch isolation
-    const { data: therapist, error: therapistError } = await supabase
-      .from('therapists')
+    // 3. Resolve dentist's branch for branch isolation
+    const { data: dentist, error: dentistError } = await supabase
+      .from('dentists')
       .select('id, branch_id')
-      .eq('id', therapistId)
+      .eq('id', dentistId)
       .single();
 
-    if (therapistError) {
-      if (therapistError.code === 'PGRST116') {
-        return { data: null, error: { code: 'THERAPIST_NOT_FOUND', message: 'Therapist not found.' } };
+    if (dentistError) {
+      if (dentistError.code === 'PGRST116') {
+        return { data: null, error: { code: 'DENTIST_NOT_FOUND', message: 'Dentist not found.' } };
       }
-      throw therapistError;
+      throw dentistError;
     }
 
     // 4. Branch isolation: manager can only mark in own branch
-    if (profile.role === 'manager' && therapist.branch_id !== profile.branch_id) {
-      return { data: null, error: { code: 'UNAUTHORIZED', message: 'You can only mark attendance for therapists in your branch.' } };
+    if (profile.role === 'manager' && dentist.branch_id !== profile.branch_id) {
+      return { data: null, error: { code: 'UNAUTHORIZED', message: 'You can only mark attendance for dentists in your branch.' } };
     }
 
     const targetDate = date || new Date().toISOString().split('T')[0];
 
     const row = {
-      branch_id: therapist.branch_id,
-      therapist_id: therapistId,
+      branch_id: dentist.branch_id,
+      dentist_id: dentistId,
       date: targetDate,
       status,
       check_in_time: combineDateTimeKathmandu(targetDate, checkInTime),
@@ -7392,7 +7392,7 @@ export async function markAttendance({ therapistId, date, status, checkInTime, c
 
     // 5. Try INSERT first
     const { data: inserted, error: insertError } = await supabase
-      .from('therapist_attendance')
+      .from('dentist_attendance')
       .insert(row)
       .select('id')
       .single();
@@ -7404,7 +7404,7 @@ export async function markAttendance({ therapistId, date, status, checkInTime, c
     // 6. UNIQUE violation → UPDATE existing row
     if (insertError.code === '23505') {
       const { data: updated, error: updateError } = await supabase
-        .from('therapist_attendance')
+        .from('dentist_attendance')
         .update({
           status,
           check_in_time: combineDateTimeKathmandu(targetDate, checkInTime),
@@ -7412,7 +7412,7 @@ export async function markAttendance({ therapistId, date, status, checkInTime, c
           notes: notes || null,
           marked_by: user.id,
         })
-        .eq('therapist_id', therapistId)
+        .eq('dentist_id', dentistId)
         .eq('date', targetDate)
         .select('id')
         .single();
@@ -7451,25 +7451,25 @@ export async function fetchAttendanceSummary({ branchId, date }) {
 
     const targetDate = date || new Date().toISOString().split('T')[0];
 
-    // Attendance is keyed by (therapist_id, date) globally, not branch_id, so it's fetched
-    // unfiltered by branch (in parallel with the therapist list) and joined in-memory against
-    // the resolved therapist_id set — a status marked pre-transfer still counts this way.
-    let therapistsQuery = supabase
-      .from('therapists')
+    // Attendance is keyed by (dentist_id, date) globally, not branch_id, so it's fetched
+    // unfiltered by branch (in parallel with the dentist list) and joined in-memory against
+    // the resolved dentist_id set — a status marked pre-transfer still counts this way.
+    let dentistsQuery = supabase
+      .from('dentists')
       .select('id')
       .eq('is_active', true);
-    therapistsQuery = withBranch(therapistsQuery, branchId);
+    dentistsQuery = withBranch(dentistsQuery, branchId);
     const attendanceQuery = supabase
-      .from('therapist_attendance')
-      .select('therapist_id, status')
+      .from('dentist_attendance')
+      .select('dentist_id, status')
       .eq('date', targetDate);
-    const [therapistsResult, attendanceResult] = await Promise.all([therapistsQuery, attendanceQuery]);
-    if (therapistsResult.error) throw therapistsResult.error;
+    const [dentistsResult, attendanceResult] = await Promise.all([dentistsQuery, attendanceQuery]);
+    if (dentistsResult.error) throw dentistsResult.error;
     if (attendanceResult.error) throw attendanceResult.error;
 
-    const therapistIds = new Set((therapistsResult.data || []).map(t => t.id));
-    const totalTherapists = therapistIds.size;
-    const records = (attendanceResult.data || []).filter(r => therapistIds.has(r.therapist_id));
+    const dentistIds = new Set((dentistsResult.data || []).map(t => t.id));
+    const totalDentists = dentistIds.size;
+    const records = (attendanceResult.data || []).filter(r => dentistIds.has(r.dentist_id));
 
     let presentCount = 0;
     let absentCount = 0;
@@ -7483,13 +7483,13 @@ export async function fetchAttendanceSummary({ branchId, date }) {
       else if (r.status === '1st-Half Day' || r.status === '2nd-Half Day') halfDayCount++;
     }
 
-    const attendanceRate = totalTherapists > 0
-      ? Math.round((presentCount / totalTherapists) * 100)
+    const attendanceRate = totalDentists > 0
+      ? Math.round((presentCount / totalDentists) * 100)
       : 0;
 
     return {
       data: {
-        totalTherapists,
+        totalDentists,
         presentCount,
         absentCount,
         leaveCount,
@@ -7517,27 +7517,27 @@ export async function fetchAttendanceReport({ branchId, startDate, endDate }) {
       return { data: null, error: { code: 'RANGE_REQUIRED', message: 'Start and end dates are required.' } };
     }
 
-    // Attendance is keyed by (therapist_id, date) globally, not branch_id, so it's fetched
-    // unfiltered by branch (in parallel with the therapist list) and joined in-memory against
-    // the resolved therapist_id set — a status marked pre-transfer still counts this way.
-    let therapistsQuery = supabase
-      .from('therapists')
+    // Attendance is keyed by (dentist_id, date) globally, not branch_id, so it's fetched
+    // unfiltered by branch (in parallel with the dentist list) and joined in-memory against
+    // the resolved dentist_id set — a status marked pre-transfer still counts this way.
+    let dentistsQuery = supabase
+      .from('dentists')
       .select('id, name, is_service_staff')
       .eq('is_active', true)
       .order('name');
-    therapistsQuery = withBranch(therapistsQuery, branchId);
+    dentistsQuery = withBranch(dentistsQuery, branchId);
     const attendanceQuery = supabase
-      .from('therapist_attendance')
-      .select('therapist_id, date, status')
+      .from('dentist_attendance')
+      .select('dentist_id, date, status')
       .gte('date', startDate)
       .lte('date', endDate);
-    const [therapistsResult, attendanceResult] = await Promise.all([therapistsQuery, attendanceQuery]);
-    if (therapistsResult.error) throw therapistsResult.error;
+    const [dentistsResult, attendanceResult] = await Promise.all([dentistsQuery, attendanceQuery]);
+    if (dentistsResult.error) throw dentistsResult.error;
     if (attendanceResult.error) throw attendanceResult.error;
 
-    const therapists = therapistsResult.data || [];
-    const therapistIdSet = new Set(therapists.map(t => t.id));
-    const records = (attendanceResult.data || []).filter(r => therapistIdSet.has(r.therapist_id));
+    const dentists = dentistsResult.data || [];
+    const dentistIdSet = new Set(dentists.map(t => t.id));
+    const records = (attendanceResult.data || []).filter(r => dentistIdSet.has(r.dentist_id));
 
     const emptyCounts = () => ({ present: 0, absent: 0, leave: 0, halfDay: 0, marked: 0 });
     const bump = (acc, status) => {
@@ -7552,12 +7552,12 @@ export async function fetchAttendanceReport({ branchId, startDate, endDate }) {
       }
     };
 
-    // Per-therapist aggregation
+    // Per-dentist aggregation
     const perStaffMap = {};
-    for (const t of therapists) {
+    for (const t of dentists) {
       perStaffMap[t.id] = {
-        therapistId: t.id,
-        therapistName: t.name,
+        dentistId: t.id,
+        dentistName: t.name,
         isServiceStaff: t.is_service_staff !== false,
         ...emptyCounts(),
       };
@@ -7565,7 +7565,7 @@ export async function fetchAttendanceReport({ branchId, startDate, endDate }) {
 
     const totals = emptyCounts();
     for (const r of records) {
-      const acc = perStaffMap[r.therapist_id];
+      const acc = perStaffMap[r.dentist_id];
       if (acc) bump(acc, r.status);
       bump(totals, r.status);
     }
@@ -7583,12 +7583,12 @@ export async function fetchAttendanceReport({ branchId, startDate, endDate }) {
       data: {
         startDate,
         endDate,
-        totalStaff: therapists.length,
+        totalStaff: dentists.length,
         totals: { ...totals, attendanceRate: overallRate },
         perStaff,
         // Raw per-day records for the calendar grid view.
         dayRecords: records.map((r) => ({
-          therapistId: r.therapist_id,
+          dentistId: r.dentist_id,
           date: r.date,
           status: r.status,
         })),
@@ -7602,7 +7602,7 @@ export async function fetchAttendanceReport({ branchId, startDate, endDate }) {
 }
 
 // ============================================================
-// Phase 10D-5: Therapist Performance Index (Read-Only)
+// Phase 10D-5: Dentist Performance Index (Read-Only)
 // ============================================================
 
 // Grace window before a check-in/check-out counts as "late"/"early" against the branch's
@@ -7624,23 +7624,23 @@ function bookingCustomerKey(b) {
   return `name:${(b.customer_name || '').trim().toLowerCase()}`;
 }
 
-// Shared per-therapist metric computation — used by both the bulk getTherapistPerformance table
-// and the single-therapist getTherapistOverview, so the two views can never drift apart for the
+// Shared per-dentist metric computation — used by both the bulk getDentistPerformance table
+// and the single-dentist getDentistOverview, so the two views can never drift apart for the
 // same period (see migration/plan note: "data consistency" requirement).
 //
-// `bookings` must already be filtered to this therapist + period + status IN
+// `bookings` must already be filtered to this dentist + period + status IN
 // ('Confirmed','In-Progress','Completed'). `attendanceRows` must already be filtered to this
-// therapist + period, selecting at least `status, check_in_time, check_out_time`.
+// dentist + period, selecting at least `status, check_in_time, check_out_time`.
 // `dayWindowMinutes` is the branch's operating window (close_time - open_time) in minutes.
 function daysInPeriodInclusive(startDate, endDate) {
   return Math.max(1, Math.round((new Date(endDate) - new Date(startDate)) / 86400000) + 1);
 }
 
 // periodDays: total calendar days in the requested range — used ONLY as a fallback when a
-// therapist has zero attendance rows at all for the period (branches that don't mark
+// dentist has zero attendance rows at all for the period (branches that don't mark
 // attendance rigorously would otherwise show 0% utilization for everyone, which both hides
 // real utilization and unfairly zeroes out 15% of performanceScore's weighting).
-export function computeTherapistMetrics(bookings, attendanceRows, dayWindowMinutes, periodDays) {
+export function computeDentistMetrics(bookings, attendanceRows, dayWindowMinutes, periodDays) {
   const completed = bookings.filter(b => b.status === 'Completed');
   const servicesCompleted = completed.length;
   const totalAssigned = bookings.length;
@@ -7719,7 +7719,7 @@ export function computeTherapistMetrics(bookings, attendanceRows, dayWindowMinut
   };
 }
 
-export async function getTherapistPerformance({ branchId, fromDate, toDate }) {
+export async function getDentistPerformance({ branchId, fromDate, toDate }) {
   try {
     if (!branchId) {
       return { data: null, error: { code: 'BRANCH_REQUIRED', message: 'Branch ID is required.' } };
@@ -7730,28 +7730,28 @@ export async function getTherapistPerformance({ branchId, fromDate, toDate }) {
     const endDate = toDate || today;
     const startDate = fromDate || new Date(new Date(endDate).getTime() - 30 * 86400000).toISOString().split('T')[0];
 
-    // 1. Fetch active therapists + branch hours.
+    // 1. Fetch active dentists + branch hours.
     // Overall: build a branch_id → operating-window map across the org instead of one branch row.
-    let therapistsQuery = supabase
-      .from('therapists')
+    let dentistsQuery = supabase
+      .from('dentists')
       .select(overall ? 'id, name, gender, specialties, branch_id' : 'id, name, gender, specialties')
       .eq('is_active', true)
       .order('name');
-    therapistsQuery = withBranch(therapistsQuery, branchId);
+    dentistsQuery = withBranch(dentistsQuery, branchId);
     const branchQuery = overall
       ? supabase.from('branches').select('id, open_time, close_time')
       : supabase.from('branches').select('open_time, close_time').eq('id', resolveBranchId(branchId)).single();
-    const [therapistsResult, branchResult] = await Promise.all([
-      therapistsQuery,
+    const [dentistsResult, branchResult] = await Promise.all([
+      dentistsQuery,
       branchQuery,
     ]);
 
-    if (therapistsResult.error) throw therapistsResult.error;
+    if (dentistsResult.error) throw dentistsResult.error;
     if (branchResult.error) throw branchResult.error;
 
-    const therapists = therapistsResult.data || [];
-    if (therapists.length === 0) {
-      return { data: { therapists: [], periodStart: startDate, periodEnd: endDate }, error: null };
+    const dentists = dentistsResult.data || [];
+    if (dentists.length === 0) {
+      return { data: { dentists: [], periodStart: startDate, periodEnd: endDate }, error: null };
     }
 
     let operatingMinutesPerDay = 0;
@@ -7766,29 +7766,29 @@ export async function getTherapistPerformance({ branchId, fromDate, toDate }) {
       operatingMinutesPerDay = closeMin - openMin;
     }
 
-    // Operating minutes per day for a given therapist's branch.
+    // Operating minutes per day for a given dentist's branch.
     const dayWindowFor = (bid) => overall ? (branchWindow[bid] || 0) : operatingMinutesPerDay;
 
-    const therapistIds = therapists.map(t => t.id);
+    const dentistIds = dentists.map(t => t.id);
 
     // 2. Fetch bookings + attendance in parallel
     let bookingsQuery = supabase
       .from('bookings')
-      .select('therapist_id, status, payment_status, final_amount, service_duration_snapshot, customer_id, customer_name, customer_phone, start_datetime')
+      .select('dentist_id, status, payment_status, final_amount, service_duration_snapshot, customer_id, customer_name, customer_phone, start_datetime')
       .gte('date', startDate)
       .lte('date', endDate)
-      .in('therapist_id', therapistIds)
+      .in('dentist_id', dentistIds)
       .in('status', ['Confirmed', 'In-Progress', 'Completed']);
     bookingsQuery = withBranch(bookingsQuery, branchId);
-    // Not branch-scoped: already filtered to this branch's therapistIds above,
-    // and therapist_attendance is keyed by (therapist_id, date) globally — an
+    // Not branch-scoped: already filtered to this branch's dentistIds above,
+    // and dentist_attendance is keyed by (dentist_id, date) globally — an
     // extra branch_id filter here would drop rows marked before a same-day transfer.
     const attendanceQuery = supabase
-      .from('therapist_attendance')
-      .select('therapist_id, status, check_in_time, check_out_time')
+      .from('dentist_attendance')
+      .select('dentist_id, status, check_in_time, check_out_time')
       .gte('date', startDate)
       .lte('date', endDate)
-      .in('therapist_id', therapistIds);
+      .in('dentist_id', dentistIds);
     const [bookingsResult, attendanceResult] = await Promise.all([
       bookingsQuery,
       attendanceQuery,
@@ -7799,40 +7799,40 @@ export async function getTherapistPerformance({ branchId, fromDate, toDate }) {
     const allBookings = bookingsResult.data || [];
     const allAttendance = (!attendanceResult.error && attendanceResult.data) || [];
 
-    // 3. Aggregate per therapist
-    const bookingsByTherapist = {};
-    const attendanceByTherapist = {};
+    // 3. Aggregate per dentist
+    const bookingsByDentist = {};
+    const attendanceByDentist = {};
 
-    for (const t of therapists) {
-      bookingsByTherapist[t.id] = [];
-      attendanceByTherapist[t.id] = [];
+    for (const t of dentists) {
+      bookingsByDentist[t.id] = [];
+      attendanceByDentist[t.id] = [];
     }
 
     for (const b of allBookings) {
-      if (bookingsByTherapist[b.therapist_id]) {
-        bookingsByTherapist[b.therapist_id].push(b);
+      if (bookingsByDentist[b.dentist_id]) {
+        bookingsByDentist[b.dentist_id].push(b);
       }
     }
 
     for (const a of allAttendance) {
-      if (attendanceByTherapist[a.therapist_id]) {
-        attendanceByTherapist[a.therapist_id].push(a);
+      if (attendanceByDentist[a.dentist_id]) {
+        attendanceByDentist[a.dentist_id].push(a);
       }
     }
 
-    // 4. Compute metrics per therapist via the shared helper (same code path as
-    // getTherapistOverview, so the main table and the detail view's Overview tab never drift).
-    const rawMetrics = therapists.map(t => {
-      const metrics = computeTherapistMetrics(
-        bookingsByTherapist[t.id],
-        attendanceByTherapist[t.id],
+    // 4. Compute metrics per dentist via the shared helper (same code path as
+    // getDentistOverview, so the main table and the detail view's Overview tab never drift).
+    const rawMetrics = dentists.map(t => {
+      const metrics = computeDentistMetrics(
+        bookingsByDentist[t.id],
+        attendanceByDentist[t.id],
         dayWindowFor(t.branch_id),
         daysInPeriodInclusive(startDate, endDate)
       );
 
       return {
-        therapistId: t.id,
-        therapistName: t.name,
+        dentistId: t.id,
+        dentistName: t.name,
         gender: t.gender,
         specialties: t.specialties || [],
         ...metrics,
@@ -7863,43 +7863,43 @@ export async function getTherapistPerformance({ branchId, fromDate, toDate }) {
 
     return {
       data: {
-        therapists: scored,
+        dentists: scored,
         periodStart: startDate,
         periodEnd: endDate,
       },
       error: null,
     };
   } catch (error) {
-    console.error('[API] getTherapistPerformance error:', error.message);
+    console.error('[API] getDentistPerformance error:', error.message);
     return { data: null, error };
   }
 }
 
 // ============================================================
-// Therapist Performance — single-therapist drill-down (Overview/Customers/Services/Attendance)
+// Dentist Performance — single-dentist drill-down (Overview/Customers/Services/Attendance)
 // ============================================================
 
-// One therapist's Overview-tab numbers for a period. Built on the same computeTherapistMetrics
-// helper as the bulk getTherapistPerformance table, so the two can never show different numbers
-// for the same therapist + period.
-export async function getTherapistOverview({ branchId, therapistId, fromDate, toDate }) {
+// One dentist's Overview-tab numbers for a period. Built on the same computeDentistMetrics
+// helper as the bulk getDentistPerformance table, so the two can never show different numbers
+// for the same dentist + period.
+export async function getDentistOverview({ branchId, dentistId, fromDate, toDate }) {
   try {
     if (!branchId) {
       return { data: null, error: { code: 'BRANCH_REQUIRED', message: 'Branch ID is required.' } };
     }
-    if (!therapistId) {
-      return { data: null, error: { code: 'THERAPIST_REQUIRED', message: 'Therapist ID is required.' } };
+    if (!dentistId) {
+      return { data: null, error: { code: 'DENTIST_REQUIRED', message: 'Dentist ID is required.' } };
     }
 
     const today = new Date().toISOString().split('T')[0];
     const endDate = toDate || today;
     const startDate = fromDate || new Date(new Date(endDate).getTime() - 30 * 86400000).toISOString().split('T')[0];
 
-    // Branch hours come from the branchId PARAM (resolveBranchId, same as getTherapistPerformance's
-    // non-overall path) — not from the therapist's live branch_id. The bookings/attendance
+    // Branch hours come from the branchId PARAM (resolveBranchId, same as getDentistPerformance's
+    // non-overall path) — not from the dentist's live branch_id. The bookings/attendance
     // queries below are scoped by branchId via withBranch(); deriving dayWindowMinutes from the
-    // therapist's current branch instead would silently use the wrong operating window if the
-    // therapist has since been transferred elsewhere.
+    // dentist's current branch instead would silently use the wrong operating window if the
+    // dentist has since been transferred elsewhere.
     const { data: branch, error: bErr } = await supabase
       .from('branches')
       .select('open_time, close_time')
@@ -7911,15 +7911,15 @@ export async function getTherapistOverview({ branchId, therapistId, fromDate, to
     let bookingsQuery = supabase
       .from('bookings')
       .select('status, payment_status, final_amount, service_duration_snapshot, customer_id, customer_name, customer_phone, start_datetime')
-      .eq('therapist_id', therapistId)
+      .eq('dentist_id', dentistId)
       .gte('date', startDate)
       .lte('date', endDate)
       .in('status', ['Confirmed', 'In-Progress', 'Completed']);
     bookingsQuery = withBranch(bookingsQuery, branchId);
     let attendanceQuery = supabase
-      .from('therapist_attendance')
+      .from('dentist_attendance')
       .select('status, check_in_time, check_out_time')
-      .eq('therapist_id', therapistId)
+      .eq('dentist_id', dentistId)
       .gte('date', startDate)
       .lte('date', endDate);
     attendanceQuery = withBranch(attendanceQuery, branchId);
@@ -7929,11 +7929,11 @@ export async function getTherapistOverview({ branchId, therapistId, fromDate, to
     const bookings = bookingsResult.data || [];
     const attendanceRows = (!attendanceResult.error && attendanceResult.data) || [];
 
-    const metrics = computeTherapistMetrics(bookings, attendanceRows, dayWindowMinutes, daysInPeriodInclusive(startDate, endDate));
+    const metrics = computeDentistMetrics(bookings, attendanceRows, dayWindowMinutes, daysInPeriodInclusive(startDate, endDate));
 
     return { data: { ...metrics, periodStart: startDate, periodEnd: endDate }, error: null };
   } catch (error) {
-    console.error('[API] getTherapistOverview error:', error.message);
+    console.error('[API] getDentistOverview error:', error.message);
     return { data: null, error };
   }
 }
@@ -7941,13 +7941,13 @@ export async function getTherapistOverview({ branchId, therapistId, fromDate, to
 // Customers tab: one row per attended (Completed) visit, classified New/Repeat using the same
 // "first-ever completed booking org-wide" definition getCustomerIntelligence uses for CRM
 // loyalty tiers. Pass includeMissedCancelled to also list Cancelled/No Show appointments.
-export async function getTherapistCustomerHistory({ branchId, therapistId, fromDate, toDate, includeMissedCancelled = false }) {
+export async function getDentistCustomerHistory({ branchId, dentistId, fromDate, toDate, includeMissedCancelled = false }) {
   try {
     if (!branchId) {
       return { data: null, error: { code: 'BRANCH_REQUIRED', message: 'Branch ID is required.' } };
     }
-    if (!therapistId) {
-      return { data: null, error: { code: 'THERAPIST_REQUIRED', message: 'Therapist ID is required.' } };
+    if (!dentistId) {
+      return { data: null, error: { code: 'DENTIST_REQUIRED', message: 'Dentist ID is required.' } };
     }
 
     const today = new Date().toISOString().split('T')[0];
@@ -7959,7 +7959,7 @@ export async function getTherapistCustomerHistory({ branchId, therapistId, fromD
     let query = supabase
       .from('bookings')
       .select('id, customer_id, customer_name, customer_phone, service_name_snapshot, date, start_time, service_duration_snapshot, status')
-      .eq('therapist_id', therapistId)
+      .eq('dentist_id', dentistId)
       .gte('date', startDate)
       .lte('date', endDate)
       .in('status', statuses)
@@ -8008,19 +8008,19 @@ export async function getTherapistCustomerHistory({ branchId, therapistId, fromD
 
     return { data: { customers, periodStart: startDate, periodEnd: endDate }, error: null };
   } catch (error) {
-    console.error('[API] getTherapistCustomerHistory error:', error.message);
+    console.error('[API] getDentistCustomerHistory error:', error.message);
     return { data: null, error };
   }
 }
 
 // Services tab: per-service Completed/Cancelled/Missed(No Show) counts, avg duration, revenue.
-export async function getTherapistServiceBreakdown({ branchId, therapistId, fromDate, toDate }) {
+export async function getDentistServiceBreakdown({ branchId, dentistId, fromDate, toDate }) {
   try {
     if (!branchId) {
       return { data: null, error: { code: 'BRANCH_REQUIRED', message: 'Branch ID is required.' } };
     }
-    if (!therapistId) {
-      return { data: null, error: { code: 'THERAPIST_REQUIRED', message: 'Therapist ID is required.' } };
+    if (!dentistId) {
+      return { data: null, error: { code: 'DENTIST_REQUIRED', message: 'Dentist ID is required.' } };
     }
 
     const today = new Date().toISOString().split('T')[0];
@@ -8030,7 +8030,7 @@ export async function getTherapistServiceBreakdown({ branchId, therapistId, from
     let query = supabase
       .from('bookings')
       .select('service_name_snapshot, status, payment_status, final_amount, service_duration_snapshot')
-      .eq('therapist_id', therapistId)
+      .eq('dentist_id', dentistId)
       .gte('date', startDate)
       .lte('date', endDate)
       .in('status', ['Completed', 'Cancelled', 'No Show']);
@@ -8070,7 +8070,7 @@ export async function getTherapistServiceBreakdown({ branchId, therapistId, from
 
     return { data: { services, periodStart: startDate, periodEnd: endDate }, error: null };
   } catch (error) {
-    console.error('[API] getTherapistServiceBreakdown error:', error.message);
+    console.error('[API] getDentistServiceBreakdown error:', error.message);
     return { data: null, error };
   }
 }
@@ -8079,13 +8079,13 @@ export async function getTherapistServiceBreakdown({ branchId, therapistId, from
 // per-day shift history. "Scheduled" = branch open→close window on Present/Half-day days (no
 // shift/roster table exists in this app — see migration/plan notes). Late/early are only
 // computed for full-day Present rows with recorded check-in/out, using a ±10min grace window.
-export async function getTherapistAttendanceDetail({ branchId, therapistId, fromDate, toDate }) {
+export async function getDentistAttendanceDetail({ branchId, dentistId, fromDate, toDate }) {
   try {
     if (!branchId) {
       return { data: null, error: { code: 'BRANCH_REQUIRED', message: 'Branch ID is required.' } };
     }
-    if (!therapistId) {
-      return { data: null, error: { code: 'THERAPIST_REQUIRED', message: 'Therapist ID is required.' } };
+    if (!dentistId) {
+      return { data: null, error: { code: 'DENTIST_REQUIRED', message: 'Dentist ID is required.' } };
     }
 
     const today = new Date().toISOString().split('T')[0];
@@ -8093,8 +8093,8 @@ export async function getTherapistAttendanceDetail({ branchId, therapistId, from
     const startDate = fromDate || new Date(new Date(endDate).getTime() - 30 * 86400000).toISOString().split('T')[0];
 
     // Branch hours come from the branchId PARAM (resolveBranchId), matching what the attendance
-    // query below is scoped to via withBranch() — not the therapist's live branch_id, which
-    // could point elsewhere if they've since been transferred (see getTherapistOverview).
+    // query below is scoped to via withBranch() — not the dentist's live branch_id, which
+    // could point elsewhere if they've since been transferred (see getDentistOverview).
     const { data: branch, error: bErr } = await supabase
       .from('branches')
       .select('open_time, close_time')
@@ -8107,9 +8107,9 @@ export async function getTherapistAttendanceDetail({ branchId, therapistId, from
     const dayWindowMinutes = closeMin - openMin;
 
     let query = supabase
-      .from('therapist_attendance')
+      .from('dentist_attendance')
       .select('date, status, check_in_time, check_out_time')
-      .eq('therapist_id', therapistId)
+      .eq('dentist_id', dentistId)
       .gte('date', startDate)
       .lte('date', endDate)
       .order('date', { ascending: true });
@@ -8196,7 +8196,7 @@ export async function getTherapistAttendanceDetail({ branchId, therapistId, from
       error: null,
     };
   } catch (error) {
-    console.error('[API] getTherapistAttendanceDetail error:', error.message);
+    console.error('[API] getDentistAttendanceDetail error:', error.message);
     return { data: null, error };
   }
 }
@@ -8658,13 +8658,13 @@ export async function deleteCategory({ categoryId }) {
 // PAYROLL
 // ============================================================
 
-// Returns active therapists for a branch with their current compensation config.
+// Returns active dentists for a branch with their current compensation config.
 // Unauthenticated / non-admin callers will receive an empty array (RLS on
-// staff_compensation blocks reads; therapists are returned but compensation nulled).
+// staff_compensation blocks reads; dentists are returned but compensation nulled).
 export async function fetchStaffCompensation(branchId) {
   try {
     let query = supabase
-      .from('therapists')
+      .from('dentists')
       .select('id, name, position, is_service_staff, staff_compensation(monthly_salary, commission_rate)')
       .eq('is_active', true)
       .order('name');
@@ -8673,7 +8673,7 @@ export async function fetchStaffCompensation(branchId) {
     if (error) throw error;
     return {
       data: (data || []).map((t) => ({
-        therapistId: t.id,
+        dentistId: t.id,
         name: t.name,
         position: t.position,
         isServiceStaff: t.is_service_staff,
@@ -8693,7 +8693,7 @@ export async function fetchStaffCompensation(branchId) {
 }
 
 // Upsert a staff member's compensation. Admin-only (enforced by RLS).
-export async function setStaffCompensation({ therapistId, monthlySalary, commissionRate }) {
+export async function setStaffCompensation({ dentistId, monthlySalary, commissionRate }) {
   try {
     const salary = Number(monthlySalary);
     const rate = Number(commissionRate);
@@ -8709,13 +8709,13 @@ export async function setStaffCompensation({ therapistId, monthlySalary, commiss
       .from('staff_compensation')
       .upsert(
         {
-          therapist_id: therapistId,
+          dentist_id: dentistId,
           monthly_salary: salary,
           commission_rate: rate,
           updated_by: user?.id ?? null,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'therapist_id' }
+        { onConflict: 'dentist_id' }
       );
     if (error) throw error;
     return { data: { success: true }, error: null };
@@ -8743,7 +8743,7 @@ export async function getPayrollRun({ branchId, periodMonth }) {
       .from('payroll_items')
       .select('*')
       .eq('payroll_run_id', run.id)
-      .order('therapist_name');
+      .order('dentist_name');
     if (itemErr) throw itemErr;
 
     return {
@@ -8759,8 +8759,8 @@ export async function getPayrollRun({ branchId, periodMonth }) {
         },
         items: (items || []).map((i) => ({
           id: i.id,
-          therapistId: i.therapist_id,
-          therapistName: i.therapist_name,
+          dentistId: i.dentist_id,
+          dentistName: i.dentist_name,
           monthlySalary: Number(i.monthly_salary),
           commissionRate: Number(i.commission_rate),
           daysInMonth: i.days_in_month,
@@ -8823,41 +8823,41 @@ export async function generatePayroll({ branchId, periodMonth }) {
       if (delErr) throw delErr;
     }
 
-    // Fetch active therapists with compensation.
-    let therapistQuery = supabase
-      .from('therapists')
+    // Fetch active dentists with compensation.
+    let dentistQuery = supabase
+      .from('dentists')
       .select('id, name, staff_compensation(monthly_salary, commission_rate)')
       .eq('is_active', true)
       .order('name');
-    therapistQuery = withBranch(therapistQuery, branchId);
-    const { data: therapists, error: tErr } = await therapistQuery;
+    dentistQuery = withBranch(dentistQuery, branchId);
+    const { data: dentists, error: tErr } = await dentistQuery;
     if (tErr) throw tErr;
-    if (!therapists || therapists.length === 0) {
+    if (!dentists || dentists.length === 0) {
       return { data: null, error: { code: 'NO_STAFF', message: 'No active staff found for this branch.' } };
     }
 
-    const therapistIds = therapists.map((t) => t.id);
-    const therapistByName = {};
-    for (const t of therapists) {
-      therapistByName[t.name.trim().toLowerCase()] = t.id;
+    const dentistIds = dentists.map((t) => t.id);
+    const dentistByName = {};
+    for (const t of dentists) {
+      dentistByName[t.name.trim().toLowerCase()] = t.id;
     }
 
     // Fetch attendance in the period.
     const { data: attendance, error: attErr } = await supabase
-      .from('therapist_attendance')
-      .select('therapist_id, status')
-      .in('therapist_id', therapistIds)
+      .from('dentist_attendance')
+      .select('dentist_id, status')
+      .in('dentist_id', dentistIds)
       .gte('date', firstDay)
       .lte('date', lastDay);
     if (attErr) throw attErr;
 
-    // Tally attendance per therapist.
+    // Tally attendance per dentist.
     const attMap = {};
-    for (const therapistId of therapistIds) {
-      attMap[therapistId] = { present: 0, absent: 0, halfDay: 0, leave: 0 };
+    for (const dentistId of dentistIds) {
+      attMap[dentistId] = { present: 0, absent: 0, halfDay: 0, leave: 0 };
     }
     for (const row of (attendance || [])) {
-      const t = attMap[row.therapist_id];
+      const t = attMap[row.dentist_id];
       if (!t) continue;
       if (row.status === 'Present') t.present += 1;
       else if (row.status === 'Absent') t.absent += 1;
@@ -8866,35 +8866,35 @@ export async function generatePayroll({ branchId, periodMonth }) {
     }
 
     // Sick/Annual Leave paid-day caps run per calendar year, not per pay period — so a
-    // therapist's 15th sick day in June is unpaid even though June itself has plenty of paid
+    // dentist's 15th sick day in June is unpaid even though June itself has plenty of paid
     // days left. Fetch the whole year up to this period's last day, split each type into
     // "before this period" vs. "in this period", and only the days that push the YTD count
     // past the cap WITHIN this period are deducted (days already over the cap before this
     // period were — or will be — deducted in the period they actually landed in).
     const yearStart = `${year}-01-01`;
     const { data: ytdLeaveRows, error: ytdErr } = await supabase
-      .from('therapist_attendance')
-      .select('therapist_id, status, date')
-      .in('therapist_id', therapistIds)
+      .from('dentist_attendance')
+      .select('dentist_id, status, date')
+      .in('dentist_id', dentistIds)
       .in('status', ['Sick Leave', 'Annual Leave'])
       .gte('date', yearStart)
       .lte('date', lastDay);
     if (ytdErr) throw ytdErr;
 
     const ytdMap = {};
-    for (const therapistId of therapistIds) {
-      ytdMap[therapistId] = { sickBefore: 0, sickIn: 0, annualBefore: 0, annualIn: 0 };
+    for (const dentistId of dentistIds) {
+      ytdMap[dentistId] = { sickBefore: 0, sickIn: 0, annualBefore: 0, annualIn: 0 };
     }
     for (const row of (ytdLeaveRows || [])) {
-      const t = ytdMap[row.therapist_id];
+      const t = ytdMap[row.dentist_id];
       if (!t) continue;
       const inPeriod = row.date >= firstDay;
       if (row.status === 'Sick Leave') { if (inPeriod) t.sickIn += 1; else t.sickBefore += 1; }
       else if (row.status === 'Annual Leave') { if (inPeriod) t.annualIn += 1; else t.annualBefore += 1; }
     }
 
-    const unpaidLeaveDaysFor = (therapistId) => {
-      const t = ytdMap[therapistId];
+    const unpaidLeaveDaysFor = (dentistId) => {
+      const t = ytdMap[dentistId];
       const overCap = (before, inPeriod, cap) =>
         Math.max(0, before + inPeriod - cap) - Math.max(0, before - cap);
       return overCap(t.sickBefore, t.sickIn, SICK_LEAVE_PAID_CAP_DAYS)
@@ -8904,7 +8904,7 @@ export async function generatePayroll({ branchId, periodMonth }) {
     // Fetch completed+paid bookings in the period to compute service revenue.
     let bookingQuery = supabase
       .from('bookings')
-      .select('therapist_id, final_amount, referred_by, referral_commission_type, referral_commission_value')
+      .select('dentist_id, final_amount, referred_by, referral_commission_type, referral_commission_value')
       .eq('status', 'Completed')
       .eq('payment_status', 'paid')
       .gte('date', firstDay)
@@ -8913,23 +8913,23 @@ export async function generatePayroll({ branchId, periodMonth }) {
     const { data: bookings, error: bErr } = await bookingQuery;
     if (bErr) throw bErr;
 
-    // Sum service revenue per therapist, and referral commission per therapist name.
+    // Sum service revenue per dentist, and referral commission per dentist name.
     const serviceRevenueMap = {};
     const referralCommissionMap = {};
-    for (const therapistId of therapistIds) {
-      serviceRevenueMap[therapistId] = 0;
-      referralCommissionMap[therapistId] = 0;
+    for (const dentistId of dentistIds) {
+      serviceRevenueMap[dentistId] = 0;
+      referralCommissionMap[dentistId] = 0;
     }
     for (const b of (bookings || [])) {
-      if (b.therapist_id && serviceRevenueMap[b.therapist_id] !== undefined) {
-        serviceRevenueMap[b.therapist_id] = Math.round(
-          (serviceRevenueMap[b.therapist_id] + Number(b.final_amount)) * 100
+      if (b.dentist_id && serviceRevenueMap[b.dentist_id] !== undefined) {
+        serviceRevenueMap[b.dentist_id] = Math.round(
+          (serviceRevenueMap[b.dentist_id] + Number(b.final_amount)) * 100
         ) / 100;
       }
       // Attribute referral commission by name match.
       if (b.referred_by) {
         const refKey = b.referred_by.trim().toLowerCase();
-        const matchedId = therapistByName[refKey];
+        const matchedId = dentistByName[refKey];
         if (matchedId !== undefined) {
           const earned = computeReferralCommission(
             b.final_amount,
@@ -8948,7 +8948,7 @@ export async function generatePayroll({ branchId, periodMonth }) {
     const itemsPayload = [];
     let totalNet = 0;
 
-    for (const t of therapists) {
+    for (const t of dentists) {
       const comp = t.staff_compensation;
       const salary = comp?.monthly_salary != null ? Number(comp.monthly_salary) : 0;
       const rate = comp?.commission_rate != null ? Number(comp.commission_rate) : 0;
@@ -8965,8 +8965,8 @@ export async function generatePayroll({ branchId, periodMonth }) {
       totalNet = Math.round((totalNet + netPay) * 100) / 100;
 
       itemsPayload.push({
-        therapist_id: t.id,
-        therapist_name: t.name,
+        dentist_id: t.id,
+        dentist_name: t.name,
         monthly_salary: salary,
         commission_rate: rate,
         days_in_month: daysInMonth,

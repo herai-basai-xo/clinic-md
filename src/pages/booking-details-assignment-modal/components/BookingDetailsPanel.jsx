@@ -426,7 +426,7 @@ const BookingDetailsPanel = ({ booking, onStatusUpdate, onRecordPayment, isLoadi
       )}
 
       {/* Customer Preferences */}
-      {(booking.therapistGenderPreference || booking.pressureLevel || booking.roomTemperature) && (
+      {(booking.dentistGenderPreference || booking.pressureLevel || booking.roomTemperature) && (
         <div className="space-y-4">
           <h4 className="font-heading font-heading-medium text-base text-text-primary flex items-center space-x-2">
             <Icon name="Settings" size={18} className="text-primary" />
@@ -434,13 +434,13 @@ const BookingDetailsPanel = ({ booking, onStatusUpdate, onRecordPayment, isLoadi
           </h4>
 
           <div className="bg-background rounded-spa p-4 space-y-3">
-            {booking.therapistGenderPreference && (
+            {booking.dentistGenderPreference && (
               <div className="flex items-center justify-between">
                 <span className="font-body font-body-medium text-sm text-text-secondary">
-                  Therapist Gender Preference
+                  Dentist Gender Preference
                 </span>
                 <span className="font-body font-body-normal text-sm text-text-primary capitalize">
-                  {booking.therapistGenderPreference}
+                  {booking.dentistGenderPreference}
                 </span>
               </div>
             )}
@@ -485,7 +485,7 @@ const BookingDetailsPanel = ({ booking, onStatusUpdate, onRecordPayment, isLoadi
                     {visit.service}
                   </p>
                   <p className="font-caption font-caption-normal text-xs text-text-secondary">
-                    {visit.date} {visit.therapist ? `\u00B7 ${visit.therapist}` : ''}
+                    {visit.date} {visit.dentist ? `\u00B7 ${visit.dentist}` : ''}
                   </p>
                 </div>
                 {visit.rating && (

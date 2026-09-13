@@ -108,8 +108,8 @@ const BookingHistory = ({ bookings }) => {
                           <span className="font-body font-body-normal text-text-primary">{booking.duration}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="font-body font-body-normal text-text-secondary">Therapist:</span>
-                          <span className="font-body font-body-normal text-text-primary">{booking.therapist?.name || 'To be assigned'}</span>
+                          <span className="font-body font-body-normal text-text-secondary">Dentist:</span>
+                          <span className="font-body font-body-normal text-text-primary">{booking.dentist?.name || 'To be assigned'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-body font-body-normal text-text-secondary">Time:</span>

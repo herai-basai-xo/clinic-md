@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Icon from '../../../../components/AppIcon';
-import { getTherapistPerformance } from '../../../../services/api';
+import { getDentistPerformance } from '../../../../services/api';
 import { useAuth } from '../../../../contexts/AuthContext';
 
 function getTier(score) {
@@ -17,7 +17,7 @@ const TopPerformersCard = ({ branchId, period }) => {
   const navigate = useNavigate();
   const { orgSlug: urlOrgSlug } = useParams();
   const { profile } = useAuth();
-  const [therapists, setTherapists] = useState([]);
+  const [dentists, setDentists] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Get org slug from URL or profile
@@ -28,10 +28,10 @@ const TopPerformersCard = ({ branchId, period }) => {
     if (!branchId) return;
     setLoading(true);
 
-    const result = await getTherapistPerformance({ branchId, fromDate: period?.from, toDate: period?.to });
+    const result = await getDentistPerformance({ branchId, fromDate: period?.from, toDate: period?.to });
 
     if (!result.error && result.data) {
-      setTherapists(result.data.therapists.slice(0, 3));
+      setDentists(result.data.dentists.slice(0, 3));
     }
     setLoading(false);
   }, [branchId, period?.from, period?.to]);
@@ -84,17 +84,17 @@ const TopPerformersCard = ({ branchId, period }) => {
       </div>
 
       {/* Top 3 list */}
-      {therapists.length === 0 ? (
+      {dentists.length === 0 ? (
         <div className="py-6 text-center">
           <Icon name="Users" size={28} className="text-gray-400 mx-auto mb-2" />
           <p className="text-xs text-gray-400">No performance data yet.</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {therapists.map((t, idx) => {
+          {dentists.map((t, idx) => {
             const tier = getTier(t.performanceScore);
             return (
-              <div key={t.therapistId} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+              <div key={t.dentistId} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                 {/* Rank */}
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
                   idx === 0 ? 'bg-purple-50' : 'bg-white border border-gray-200'
@@ -106,7 +106,7 @@ const TopPerformersCard = ({ branchId, period }) => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-medium text-gray-900 truncate">
-                      {t.therapistName}
+                      {t.dentistName}
                     </span>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${tier.color}`}>
                       {t.performanceScore}
@@ -135,24 +135,24 @@ const TopPerformersCard = ({ branchId, period }) => {
       )}
 
       {/* Footer summary */}
-      {therapists.length > 0 && (
+      {dentists.length > 0 && (
         <div className="mt-4 pt-3 border-t border-gray-100">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <div className="text-lg font-semibold text-gray-900">
-                {therapists[0]?.performanceScore || 0}
+                {dentists[0]?.performanceScore || 0}
               </div>
               <div className="text-xs text-gray-500">Top Score</div>
             </div>
             <div>
               <div className="text-lg font-semibold text-gray-900">
-                {Math.round(therapists.reduce((s, t) => s + t.performanceScore, 0) / therapists.length)}
+                {Math.round(dentists.reduce((s, t) => s + t.performanceScore, 0) / dentists.length)}
               </div>
               <div className="text-xs text-gray-500">Avg Score</div>
             </div>
             <div>
               <div className="text-lg font-semibold text-gray-900">
-                NPR {therapists.reduce((s, t) => s + t.paidRevenue, 0).toLocaleString('en-IN')}
+                NPR {dentists.reduce((s, t) => s + t.paidRevenue, 0).toLocaleString('en-IN')}
               </div>
               <div className="text-xs text-gray-500">Total Revenue</div>
             </div>

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import QuickFilters from '../../branch-staff-dashboard/components/QuickFilters';
 import BookingsList from '../../branch-staff-dashboard/components/BookingsList';
-import TherapistAvailability from '../../branch-staff-dashboard/components/TherapistAvailability';
-import { fetchBookings, fetchTherapists, updateBookingStatus, assignTherapist, recordPayment, applyDiscount } from '../../../services/api';
+import DentistAvailability from '../../branch-staff-dashboard/components/DentistAvailability';
+import { fetchBookings, fetchDentists, updateBookingStatus, assignDentist, recordPayment, applyDiscount } from '../../../services/api';
 import { transformBookings, toDbStatus } from '../../../services/bookingTransformers';
 
 const BookingsViewPanel = ({ branchId }) => {
@@ -17,7 +17,7 @@ const BookingsViewPanel = ({ branchId }) => {
 
   const [bookings, setBookings] = useState([]);
   const [filteredBookings, setFilteredBookings] = useState([]);
-  const [therapists, setTherapists] = useState([]);
+  const [dentists, setDentists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionToast, setActionToast] = useState(null);
   const [bookingCounts, setBookingCounts] = useState({
@@ -47,9 +47,9 @@ const BookingsViewPanel = ({ branchId }) => {
     setLoading(true);
 
     const dateFilter = getDateFilter(dateRange || filters.dateRange);
-    const [bookingsResult, therapistsResult] = await Promise.all([
+    const [bookingsResult, dentistsResult] = await Promise.all([
       fetchBookings(branchId, dateFilter),
-      fetchTherapists(branchId, { date: dateFilter.date }),
+      fetchDentists(branchId, { date: dateFilter.date }),
     ]);
 
     if (bookingsResult.data) {
@@ -58,8 +58,8 @@ const BookingsViewPanel = ({ branchId }) => {
       calculateCounts(transformed);
     }
 
-    if (therapistsResult.data) {
-      setTherapists(therapistsResult.data.map(t => ({
+    if (dentistsResult.data) {
+      setDentists(dentistsResult.data.map(t => ({
         id: t.id,
         name: t.name,
         gender: t.gender,
@@ -135,10 +135,10 @@ const BookingsViewPanel = ({ branchId }) => {
     await loadData();
   };
 
-  const handleAssignTherapist = async (bookingId, therapistId) => {
-    const result = await assignTherapist({ bookingId, therapistId });
-    if (result.error) { showToast(result.error.message || 'Failed to assign therapist.', 'error'); return; }
-    showToast('Therapist assigned successfully');
+  const handleAssignDentist = async (bookingId, dentistId) => {
+    const result = await assignDentist({ bookingId, dentistId });
+    if (result.error) { showToast(result.error.message || 'Failed to assign dentist.', 'error'); return; }
+    showToast('Dentist assigned successfully');
     await loadData();
   };
 
@@ -217,9 +217,9 @@ const BookingsViewPanel = ({ branchId }) => {
             ) : (
               <BookingsList
                 bookings={filteredBookings}
-                therapists={therapists}
+                dentists={dentists}
                 onStatusUpdate={handleStatusUpdate}
-                onAssignTherapist={handleAssignTherapist}
+                onAssignDentist={handleAssignDentist}
                 onRecordPayment={handleRecordPayment}
                 onApplyDiscount={handleApplyDiscount}
                 onRefresh={loadData}
@@ -230,10 +230,10 @@ const BookingsViewPanel = ({ branchId }) => {
           </div>
 
           <div className="lg:col-span-3">
-            <TherapistAvailability
-              therapists={therapists}
-              pendingBookings={bookings.filter(b => b.status === 'pending' && !b.therapist)}
-              onAssignTherapist={handleAssignTherapist}
+            <DentistAvailability
+              dentists={dentists}
+              pendingBookings={bookings.filter(b => b.status === 'pending' && !b.dentist)}
+              onAssignDentist={handleAssignDentist}
             />
           </div>
         </div>

@@ -47,8 +47,8 @@ export const TenantProvider = ({ children }) => {
   }, [orgSlug]);
 
   // Industry-based terminology
-  const staffLabel = industry?.staff_label || 'Therapist';
-  const staffLabelPlural = industry?.staff_label_plural || 'Therapists';
+  const staffLabel = industry?.staff_label || 'Dentist';
+  const staffLabelPlural = industry?.staff_label_plural || 'Dentists';
   const locationLabel = industry?.location_label || 'Room';
   const locationLabelPlural = industry?.location_label_plural || 'Rooms';
   const enableRooms = industry?.enable_rooms !== false;

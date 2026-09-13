@@ -87,18 +87,18 @@ const DailyOperationalReportPanel = ({ branchId }) => {
 
     let csv = exportDailyReportCSV(report);
 
-    if (report.therapistRevenueSummary?.length) {
-      const top = report.therapistRevenueSummary.reduce((t, x) => (x.totalRevenue > t.totalRevenue ? x : t));
+    if (report.dentistRevenueSummary?.length) {
+      const top = report.dentistRevenueSummary.reduce((t, x) => (x.totalRevenue > t.totalRevenue ? x : t));
       csv += '\n\nTop Performer\n';
-      csv += `Staff,${top.therapistName}\n`;
+      csv += `Staff,${top.dentistName}\n`;
       csv += `Completed Bookings,${top.completedBookings}\n`;
       csv += `Revenue,${top.totalRevenue}\n`;
     }
 
-    if (attendanceSummary && attendanceSummary.totalTherapists > 0) {
+    if (attendanceSummary && attendanceSummary.totalDentists > 0) {
       const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       csv += '\n\nStaff Attendance\n';
-      csv += `Total Staff,${attendanceSummary.totalTherapists}\n`;
+      csv += `Total Staff,${attendanceSummary.totalDentists}\n`;
       csv += `Present,${attendanceSummary.presentCount}\n`;
       csv += `Absent,${attendanceSummary.absentCount}\n`;
       csv += `Leave,${attendanceSummary.leaveCount}\n`;
@@ -108,7 +108,7 @@ const DailyOperationalReportPanel = ({ branchId }) => {
         csv += '\nStaff,Status,Check In,Check Out,Notes\n';
         for (const a of attendance) {
           csv += [
-            esc(a.therapistName),
+            esc(a.dentistName),
             esc(a.status || 'Not Marked'),
             esc(a.checkInTime || ''),
             esc(a.checkOutTime || ''),
@@ -135,8 +135,8 @@ const DailyOperationalReportPanel = ({ branchId }) => {
     );
   }
 
-  const topPerformer = report?.therapistRevenueSummary?.length
-    ? report.therapistRevenueSummary.reduce((top, t) => (t.totalRevenue > top.totalRevenue ? t : top))
+  const topPerformer = report?.dentistRevenueSummary?.length
+    ? report.dentistRevenueSummary.reduce((top, t) => (t.totalRevenue > top.totalRevenue ? t : top))
     : null;
 
   return (
@@ -368,7 +368,7 @@ const DailyOperationalReportPanel = ({ branchId }) => {
                       <th className="text-left px-4 py-3 font-medium text-text-secondary">Booking #</th>
                       <th className="text-left px-4 py-3 font-medium text-text-secondary">Customer</th>
                       <th className="text-left px-4 py-3 font-medium text-text-secondary">Service</th>
-                      <th className="text-left px-4 py-3 font-medium text-text-secondary">Therapist</th>
+                      <th className="text-left px-4 py-3 font-medium text-text-secondary">Dentist</th>
                       <th className="text-left px-4 py-3 font-medium text-text-secondary">Room</th>
                       <th className="text-right px-4 py-3 font-medium text-text-secondary">Amount</th>
                       <th className="text-center px-4 py-3 font-medium text-text-secondary">Payment</th>
@@ -388,7 +388,7 @@ const DailyOperationalReportPanel = ({ branchId }) => {
                           {b.serviceName}
                         </td>
                         <td className="px-4 py-3 text-text-secondary">
-                          {b.therapistName}
+                          {b.dentistName}
                         </td>
                         <td className="px-4 py-3 text-text-secondary">
                           {b.roomName}
@@ -433,7 +433,7 @@ const DailyOperationalReportPanel = ({ branchId }) => {
                   </div>
                   <div>
                     <p className="text-xs font-medium text-text-secondary uppercase tracking-wider">Top Performer</p>
-                    <p className="font-heading font-heading-semibold text-lg text-text-primary">{topPerformer.therapistName}</p>
+                    <p className="font-heading font-heading-semibold text-lg text-text-primary">{topPerformer.dentistName}</p>
                     <p className="text-xs text-text-secondary">
                       {topPerformer.completedBookings} completed booking{topPerformer.completedBookings !== 1 ? 's' : ''}
                     </p>
@@ -447,28 +447,28 @@ const DailyOperationalReportPanel = ({ branchId }) => {
             </div>
           )}
 
-          {/* Therapist Revenue Summary */}
-          {report.therapistRevenueSummary.length > 0 && (
+          {/* Dentist Revenue Summary */}
+          {report.dentistRevenueSummary.length > 0 && (
             <div className="bg-surface rounded-spa border border-border overflow-hidden">
               <div className="p-4 border-b border-border">
                 <h3 className="font-heading font-heading-medium text-base text-text-primary flex items-center gap-2">
                   <Icon name="User" size={18} className="text-primary" />
-                  <span>Therapist Revenue Summary</span>
+                  <span>Dentist Revenue Summary</span>
                 </h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-background">
-                      <th className="text-left px-4 py-3 font-medium text-text-secondary">Therapist</th>
+                      <th className="text-left px-4 py-3 font-medium text-text-secondary">Dentist</th>
                       <th className="text-center px-4 py-3 font-medium text-text-secondary">Completed Bookings</th>
                       <th className="text-right px-4 py-3 font-medium text-text-secondary">Total Revenue</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {report.therapistRevenueSummary.map((t, i) => (
+                    {report.dentistRevenueSummary.map((t, i) => (
                       <tr key={i} className="hover:bg-background/50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-text-primary">{t.therapistName}</td>
+                        <td className="px-4 py-3 font-medium text-text-primary">{t.dentistName}</td>
                         <td className="px-4 py-3 text-center text-text-primary">{t.completedBookings}</td>
                         <td className="px-4 py-3 text-right font-semibold text-success">{formatNPR(t.totalRevenue)}</td>
                       </tr>
@@ -480,7 +480,7 @@ const DailyOperationalReportPanel = ({ branchId }) => {
           )}
 
           {/* Attendance Report */}
-          {attendanceSummary && attendanceSummary.totalTherapists > 0 && (
+          {attendanceSummary && attendanceSummary.totalDentists > 0 && (
             <div className="bg-surface rounded-spa border border-border overflow-hidden">
               <div className="p-4 border-b border-border">
                 <h3 className="font-heading font-heading-medium text-base text-text-primary flex items-center gap-2">
@@ -496,7 +496,7 @@ const DailyOperationalReportPanel = ({ branchId }) => {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-4 border-b border-border">
                 <div className="rounded-spa border border-border p-3">
                   <p className="text-xs font-medium text-text-secondary uppercase tracking-wider">Total Staff</p>
-                  <p className="font-heading font-heading-semibold text-lg text-text-primary">{attendanceSummary.totalTherapists}</p>
+                  <p className="font-heading font-heading-semibold text-lg text-text-primary">{attendanceSummary.totalDentists}</p>
                 </div>
                 <div className="rounded-spa border border-border p-3">
                   <p className="text-xs font-medium text-text-secondary uppercase tracking-wider">Present</p>
@@ -531,8 +531,8 @@ const DailyOperationalReportPanel = ({ branchId }) => {
                     </thead>
                     <tbody className="divide-y divide-border">
                       {attendance.map((a) => (
-                        <tr key={a.therapistId} className="hover:bg-background/50 transition-colors">
-                          <td className="px-4 py-3 font-medium text-text-primary">{a.therapistName}</td>
+                        <tr key={a.dentistId} className="hover:bg-background/50 transition-colors">
+                          <td className="px-4 py-3 font-medium text-text-primary">{a.dentistName}</td>
                           <td className="px-4 py-3 text-center">
                             <AttendanceBadge status={a.status} />
                           </td>

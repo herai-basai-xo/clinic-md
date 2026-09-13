@@ -8,21 +8,21 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useBranch } from '../../contexts/BranchContext';
 import BranchSwitcher from '../../components/ui/BranchSwitcher';
 import NotificationBell from '../../components/ui/NotificationBell';
-import { fetchBookings, fetchTherapists, updateBookingStatus, fetchPendingDiscounts } from '../../services/api';
+import { fetchBookings, fetchDentists, updateBookingStatus, fetchPendingDiscounts } from '../../services/api';
 import { transformBookings, toDbStatus } from '../../services/bookingTransformers';
 import { supabase } from '../../lib/supabase';
 import { usePersistentNotifications } from '../../hooks/usePersistentNotifications';
 
 // Import all components
 import MetricsCard from './components/MetricsCard';
-import TherapistUtilizationChart from './components/TherapistUtilizationChart';
+import DentistUtilizationChart from './components/DentistUtilizationChart';
 import BookingPipelineChart from './components/BookingPipelineChart';
 import RealtimeBookingFeed from './components/RealtimeBookingFeed';
 import RevenueAnalyticsChart from './components/RevenueAnalyticsChart';
 import DailyOperationalReportPanel from './components/DailyOperationalReportPanel';
 import OperationalCalendar from './components/calendar';
 import RoomManagementPanel from './components/MasterData/RoomManagementPanel';
-import TherapistManagementPanel from './components/MasterData/TherapistManagementPanel';
+import DentistManagementPanel from './components/MasterData/DentistManagementPanel';
 import ServiceManagementPanel from './components/MasterData/ServiceManagementPanel';
 import CategoryManagementPanel from './components/MasterData/CategoryManagementPanel';
 import PaymentMethodsPanel from './components/MasterData/PaymentMethodsPanel';
@@ -36,7 +36,7 @@ import { getTodayISO } from '../../utils/periodPresets';
 import UtilizationPanel from './components/UtilizationPanel';
 import RiskIndicatorsPanel from './components/RiskIndicatorsPanel';
 import AttendancePanel from './components/Operations/AttendancePanel';
-import TherapistPerformancePanel from './components/Performance/TherapistPerformancePanel';
+import DentistPerformancePanel from './components/Performance/DentistPerformancePanel';
 import TopPerformersCard from './components/Performance/TopPerformersCard';
 import StatusLegend from '../../components/ui/StatusLegend';
 import PendingDiscountsPanel from './components/PendingDiscountsPanel';
@@ -373,7 +373,7 @@ const BranchManagerDashboard = () => {
 
       {/* Main Dashboard Grid - Responsive: 1 col mobile, 2 cols tablet+ */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
-        <TherapistUtilizationChart branchId={branchId} period={period} />
+        <DentistUtilizationChart branchId={branchId} period={period} />
         <BookingPipelineChart branchId={branchId} period={period} />
         <TopPerformersCard branchId={branchId} period={period} />
         <RealtimeBookingFeed
@@ -399,7 +399,7 @@ const BranchManagerDashboard = () => {
   const renderInfrastructureView = () => (
     <div className="space-y-8">
       <RoomManagementPanel branchId={branchId} />
-      <TherapistManagementPanel branchId={branchId} />
+      <DentistManagementPanel branchId={branchId} />
       {profile?.role === 'admin' && <ServiceManagementPanel />}
     </div>
   );
@@ -630,7 +630,7 @@ const BranchManagerDashboard = () => {
               {viewMode === 'reports' && renderReportsView()}
               {viewMode === 'customers' && <CustomersPanel branchId={branchId} readOnly={isOverall} />}
               {viewMode === 'attendance' && !isOverall && <AttendancePanel branchId={branchId} />}
-              {viewMode === 'performance' && <TherapistPerformancePanel branchId={branchId} />}
+              {viewMode === 'performance' && <DentistPerformancePanel branchId={branchId} />}
               {viewMode === 'discounts' && <DiscountsPanel branchId={branchId} />}
               {viewMode === 'attendance-report' && <AttendanceReportPanel branchId={branchId} />}
               {viewMode === 'transfer-report' && <TransferReportPanel />}
@@ -654,7 +654,7 @@ const BranchManagerDashboard = () => {
               {viewMode === 'services' && !isOverall && <ServiceManagementPanel />}
               {viewMode === 'categories' && !isOverall && <CategoryManagementPanel />}
               {viewMode === 'payment-methods' && profile?.role === 'admin' && <PaymentMethodsPanel />}
-              {viewMode === 'therapists' && <TherapistManagementPanel branchId={branchId} readOnly={isOverall} />}
+              {viewMode === 'dentists' && <DentistManagementPanel branchId={branchId} readOnly={isOverall} />}
               {viewMode === 'audit' && <AuditPanel branchId={branchId} initialRecordId={searchParams.get('recordId') || ''} />}
               {viewMode === 'new-booking' && !isOverall && <StaffBookingForm onBookingCreated={loadData} />}
               {viewMode === 'check-booking' && !isOverall && <CheckBookingPanel branchId={branchId} />}

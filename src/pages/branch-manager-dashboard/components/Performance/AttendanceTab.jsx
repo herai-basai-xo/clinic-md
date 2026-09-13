@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Icon from '../../../../components/AppIcon';
-import { getTherapistAttendanceDetail } from '../../../../services/api';
+import { getDentistAttendanceDetail } from '../../../../services/api';
 
 const STATUS_COLORS = {
   'On time': 'bg-success/10 text-success',
@@ -35,17 +35,17 @@ function formatPrettyDate(d) {
   return new Date(y, m - 1, day).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-const AttendanceTab = ({ therapistId, branchId, range }) => {
+const AttendanceTab = ({ dentistId, branchId, range }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const loadData = useCallback(async () => {
-    if (!branchId || !therapistId) return;
+    if (!branchId || !dentistId) return;
     setLoading(true);
     setError(null);
 
-    const result = await getTherapistAttendanceDetail({ branchId, therapistId, ...range });
+    const result = await getDentistAttendanceDetail({ branchId, dentistId, ...range });
 
     if (result.error) {
       setError(result.error.message || 'Failed to load attendance detail.');
@@ -55,7 +55,7 @@ const AttendanceTab = ({ therapistId, branchId, range }) => {
 
     setData(result.data);
     setLoading(false);
-  }, [branchId, therapistId, range]);
+  }, [branchId, dentistId, range]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

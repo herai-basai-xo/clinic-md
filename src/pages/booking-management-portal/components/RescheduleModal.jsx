@@ -106,7 +106,7 @@ const RescheduleModal = ({ isOpen, onClose, booking, onConfirm }) => {
                 {booking?.date} at {booking?.time}
               </span>
               <span className="font-body font-body-normal text-text-secondary">
-                {booking?.therapist?.name || 'Therapist TBA'}
+                {booking?.dentist?.name || 'Dentist TBA'}
               </span>
             </div>
           </div>
@@ -188,7 +188,7 @@ const RescheduleModal = ({ isOpen, onClose, booking, onConfirm }) => {
               • Room availability will be checked automatically
             </p>
             <p className="font-caption font-caption-normal">
-              • Same therapist will be assigned if available
+              • Same dentist will be assigned if available
             </p>
           </div>
           <div className="flex items-center space-x-3">

@@ -65,7 +65,7 @@ export function canDragBooking(booking) {
   return true;
 }
 
-const CalendarBookingCard = ({ booking, style, onClick, columnMode = 'therapist', onResize, isSelected = false, onSelect }) => {
+const CalendarBookingCard = ({ booking, style, onClick, columnMode = 'dentist', onResize, isSelected = false, onSelect }) => {
   const colors = STATUS_COLORS[booking.status] || STATUS_COLORS['Pending'];
   const isUnpaid = booking.paymentStatus === 'unpaid';
   const isPaid = booking.paymentStatus === 'paid';
@@ -122,8 +122,8 @@ const CalendarBookingCard = ({ booking, style, onClick, columnMode = 'therapist'
     transform,
     isDragging,
   } = useDraggable({
-    id: booking._colTherapistId
-      ? `${booking.bookingId || booking.id}__${booking._colTherapistId}`
+    id: booking._colDentistId
+      ? `${booking.bookingId || booking.id}__${booking._colDentistId}`
       : (booking.bookingId || booking.id),
     data: {
       booking,
@@ -243,12 +243,12 @@ const CalendarBookingCard = ({ booking, style, onClick, columnMode = 'therapist'
         <div className="font-body text-[11px] text-text-secondary leading-tight truncate flex-shrink-0">
           {booking.serviceName}
         </div>
-        {columnMode === 'room' && booking.therapistName && (
+        {columnMode === 'room' && booking.dentistName && (
           <div className="font-caption text-[10px] text-primary/70 leading-tight truncate flex-shrink-0">
-            {booking.therapistName}
+            {booking.dentistName}
           </div>
         )}
-        {columnMode === 'therapist' && booking.roomName && (
+        {columnMode === 'dentist' && booking.roomName && (
           <div className="font-caption text-[10px] text-secondary/70 leading-tight truncate flex-shrink-0">
             {booking.roomName}
           </div>
@@ -303,7 +303,7 @@ const CalendarBookingCard = ({ booking, style, onClick, columnMode = 'therapist'
   );
 };
 
-// Rich hover-preview card (status, service, date/duration, therapist/room,
+// Rich hover-preview card (status, service, date/duration, dentist/room,
 // amount, notes) shown via portal on hover — shared by CalendarBookingCard
 // itself and by OverflowPopoverRow (the "+N" hidden-bookings list) so both
 // give the same detail preview instead of just a native title tooltip.
@@ -372,7 +372,7 @@ export const BookingHoverPreview = ({ booking, position, draggable }) => {
             label="Duration"
             value={durationMins ? `${durationMins} mins` : (booking.serviceDuration ? `${booking.serviceDuration} mins` : null)}
           />
-          <DetailRow label="Therapist" value={booking.therapistName || '—'} />
+          <DetailRow label="Dentist" value={booking.dentistName || '—'} />
           <DetailRow label="Room" value={booking.roomName || '—'} />
           <DetailRow label="Created by" value={booking.createdByName || 'Online booking'} />
         </div>

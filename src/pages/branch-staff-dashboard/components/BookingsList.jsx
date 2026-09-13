@@ -29,7 +29,7 @@ const STATUS_STYLES = {
   'no show': 'bg-gray-100 text-gray-500',
 };
 
-const BookingsList = ({ bookings, therapists = [], onStatusUpdate, onAssignTherapist, onRecordPayment, onApplyDiscount, userRole = 'staff', onRefresh, dateRange = 'today' }) => {
+const BookingsList = ({ bookings, dentists = [], onStatusUpdate, onAssignDentist, onRecordPayment, onApplyDiscount, userRole = 'staff', onRefresh, dateRange = 'today' }) => {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showActionModal, setShowActionModal] = useState(false);
 
@@ -222,7 +222,7 @@ const BookingsList = ({ bookings, therapists = [], onStatusUpdate, onAssignThera
                     )}
                   </div>
 
-                  {/* Service & Therapist Row */}
+                  {/* Service & Dentist Row */}
                   <div className="flex flex-col gap-1.5 text-xs text-gray-600 mb-3">
                     <div className="flex items-center gap-1.5">
                       <Icon name="Scissors" size={14} className="text-gray-400" />
@@ -232,10 +232,10 @@ const BookingsList = ({ bookings, therapists = [], onStatusUpdate, onAssignThera
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Icon name="User" size={14} className="text-gray-400" />
-                      {(booking.therapists?.length > 0 || booking.therapist) ? (
+                      {(booking.dentists?.length > 0 || booking.dentist) ? (
                         <span>
-                          {(booking.therapists?.length > 0 ? booking.therapists : [booking.therapist]).filter(Boolean).map(t => t.name).join(', ')}
-                          {booking.therapist?.room && <span className="text-gray-400"> · Room {booking.therapist.room}</span>}
+                          {(booking.dentists?.length > 0 ? booking.dentists : [booking.dentist]).filter(Boolean).map(t => t.name).join(', ')}
+                          {booking.dentist?.room && <span className="text-gray-400"> · Room {booking.dentist.room}</span>}
                         </span>
                       ) : (
                         <span className="text-amber-600 font-medium">Unassigned</span>
@@ -325,15 +325,15 @@ const BookingsList = ({ bookings, therapists = [], onStatusUpdate, onAssignThera
                         </div>
                       </div>
 
-                      {/* Therapist Assignment */}
+                      {/* Dentist Assignment */}
                       <div className="text-right min-w-[120px] flex-shrink-0">
-                        {(booking.therapists?.length > 0 || booking.therapist) ? (
+                        {(booking.dentists?.length > 0 || booking.dentist) ? (
                           <div>
                             <div className="text-sm font-medium text-gray-900">
-                              {(booking.therapists?.length > 0 ? booking.therapists : [booking.therapist]).filter(Boolean).map(t => t.name).join(', ')}
+                              {(booking.dentists?.length > 0 ? booking.dentists : [booking.dentist]).filter(Boolean).map(t => t.name).join(', ')}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {booking.therapist?.room ? `Room ${booking.therapist.room}` : ''}
+                              {booking.dentist?.room ? `Room ${booking.dentist.room}` : ''}
                             </div>
                           </div>
                         ) : (
@@ -342,7 +342,7 @@ const BookingsList = ({ bookings, therapists = [], onStatusUpdate, onAssignThera
                               Unassigned
                             </div>
                             <div className="text-xs text-gray-500">
-                              Needs therapist
+                              Needs dentist
                             </div>
                           </div>
                         )}
@@ -384,8 +384,8 @@ const BookingsList = ({ bookings, therapists = [], onStatusUpdate, onAssignThera
         isOpen={showActionModal}
         onClose={() => setShowActionModal(false)}
         booking={selectedBooking}
-        therapists={therapists}
-        onAssignTherapist={onAssignTherapist}
+        dentists={dentists}
+        onAssignDentist={onAssignDentist}
         onUpdateStatus={onStatusUpdate}
         onRecordPayment={handleRecordPaymentWrapper}
         onApplyDiscount={onApplyDiscount}

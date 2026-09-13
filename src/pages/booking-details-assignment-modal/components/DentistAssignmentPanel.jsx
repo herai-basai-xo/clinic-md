@@ -4,57 +4,57 @@ import Image from '../../../components/AppImage';
 import Button from '../../../components/ui/Button';
 import { to12h } from '../../../services/bookingTransformers';
 
-const TherapistAssignmentPanel = ({ 
+const DentistAssignmentPanel = ({ 
   booking, 
-  availableTherapists, 
-  onAssignTherapist, 
+  availableDentists, 
+  onAssignDentist, 
   isLoading,
   currentAssignment 
 }) => {
-  const [selectedTherapist, setSelectedTherapist] = useState(currentAssignment?.therapistId || '');
+  const [selectedDentist, setSelectedDentist] = useState(currentAssignment?.dentistId || '');
   const [assignmentNotes, setAssignmentNotes] = useState(currentAssignment?.notes || '');
   const [showAvailabilityMatrix, setShowAvailabilityMatrix] = useState(false);
 
   const handleAssignment = () => {
-    if (selectedTherapist) {
-      onAssignTherapist(selectedTherapist, assignmentNotes);
+    if (selectedDentist) {
+      onAssignDentist(selectedDentist, assignmentNotes);
     }
   };
 
-  const getTherapistAvailability = (therapist) => {
-    const conflicts = therapist.schedule.filter(slot => 
+  const getDentistAvailability = (dentist) => {
+    const conflicts = dentist.schedule.filter(slot => 
       slot.date === booking.date && 
       slot.time === booking.time
     );
     return conflicts.length === 0;
   };
 
-  const getMatchScore = (therapist) => {
+  const getMatchScore = (dentist) => {
     let score = 0;
     
     // Gender preference match
-    if (booking.therapistGenderPreference === 'any' || 
-        therapist.gender === booking.therapistGenderPreference) {
+    if (booking.dentistGenderPreference === 'any' || 
+        dentist.gender === booking.dentistGenderPreference) {
       score += 30;
     }
     
     // Service specialty match
-    if (therapist.specialties.includes(booking.service)) {
+    if (dentist.specialties.includes(booking.service)) {
       score += 40;
     }
     
     // Experience level
-    score += Math.min(therapist.experienceYears * 2, 20);
+    score += Math.min(dentist.experienceYears * 2, 20);
     
     // Customer rating
-    score += Math.min(therapist.rating * 2, 10);
+    score += Math.min(dentist.rating * 2, 10);
     
     return Math.min(score, 100);
   };
 
-  const sortedTherapists = [...availableTherapists].sort((a, b) => {
-    const aAvailable = getTherapistAvailability(a);
-    const bAvailable = getTherapistAvailability(b);
+  const sortedDentists = [...availableDentists].sort((a, b) => {
+    const aAvailable = getDentistAvailability(a);
+    const bAvailable = getDentistAvailability(b);
     
     if (aAvailable && !bAvailable) return -1;
     if (!aAvailable && bAvailable) return 1;
@@ -68,7 +68,7 @@ const TherapistAssignmentPanel = ({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-heading font-heading-semibold text-lg text-text-primary">
-            Therapist Assignment
+            Dentist Assignment
           </h3>
           <p className="font-caption font-caption-normal text-sm text-text-secondary">
             {booking.date} • {to12h(booking.time)} • {booking.duration}
@@ -92,7 +92,7 @@ const TherapistAssignmentPanel = ({
             <Icon name="UserCheck" size={20} className="text-success" />
             <div>
               <p className="font-body font-body-medium text-sm text-text-primary">
-                Currently assigned to {currentAssignment.therapistName}
+                Currently assigned to {currentAssignment.dentistName}
               </p>
               <p className="font-caption font-caption-normal text-xs text-text-secondary">
                 Assigned {currentAssignment.assignedAt}
@@ -109,13 +109,13 @@ const TherapistAssignmentPanel = ({
             Availability Matrix
           </h4>
           <div className="grid grid-cols-1 gap-2">
-            {sortedTherapists.map((therapist) => {
-              const isAvailable = getTherapistAvailability(therapist);
-              const matchScore = getMatchScore(therapist);
+            {sortedDentists.map((dentist) => {
+              const isAvailable = getDentistAvailability(dentist);
+              const matchScore = getMatchScore(dentist);
               
               return (
                 <div 
-                  key={therapist.id}
+                  key={dentist.id}
                   className={`flex items-center space-x-3 p-2 rounded border ${
                     isAvailable ? 'border-success/20 bg-success/5' : 'border-error/20 bg-error/5'
                   }`}
@@ -124,7 +124,7 @@ const TherapistAssignmentPanel = ({
                     isAvailable ? 'bg-success' : 'bg-error'
                   }`}></div>
                   <span className="font-body font-body-medium text-sm text-text-primary flex-1">
-                    {therapist.name}
+                    {dentist.name}
                   </span>
                   <span className="font-caption font-caption-normal text-xs text-text-secondary">
                     {matchScore}% match
@@ -136,21 +136,21 @@ const TherapistAssignmentPanel = ({
         </div>
       )}
 
-      {/* Therapist Selection */}
+      {/* Dentist Selection */}
       <div className="space-y-4">
         <h4 className="font-heading font-heading-medium text-base text-text-primary">
-          Available Therapists
+          Available Dentists
         </h4>
         
         <div className="space-y-3 max-h-96 overflow-y-auto">
-          {sortedTherapists.map((therapist) => {
-            const isAvailable = getTherapistAvailability(therapist);
-            const matchScore = getMatchScore(therapist);
-            const isSelected = selectedTherapist === therapist.id;
+          {sortedDentists.map((dentist) => {
+            const isAvailable = getDentistAvailability(dentist);
+            const matchScore = getMatchScore(dentist);
+            const isSelected = selectedDentist === dentist.id;
             
             return (
               <label
-                key={therapist.id}
+                key={dentist.id}
                 className={`flex items-start space-x-4 p-4 rounded-spa border-2 cursor-pointer spa-transition-fast ${
                   !isAvailable 
                     ? 'opacity-50 cursor-not-allowed border-border bg-background/50'
@@ -160,17 +160,17 @@ const TherapistAssignmentPanel = ({
               >
                 <input
                   type="radio"
-                  name="therapist"
-                  value={therapist.id}
+                  name="dentist"
+                  value={dentist.id}
                   checked={isSelected}
-                  onChange={(e) => setSelectedTherapist(e.target.value)}
+                  onChange={(e) => setSelectedDentist(e.target.value)}
                   disabled={!isAvailable}
                   className="mt-1 text-primary focus:ring-primary"
                 />
                 
                 <Image 
-                  src={therapist.avatar}
-                  alt={therapist.name}
+                  src={dentist.avatar}
+                  alt={dentist.name}
                   className="w-12 h-12 rounded-full object-cover"
                 />
                 
@@ -178,17 +178,17 @@ const TherapistAssignmentPanel = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h5 className="font-body font-body-semibold text-base text-text-primary">
-                        {therapist.name}
+                        {dentist.name}
                       </h5>
                       <p className="font-caption font-caption-normal text-sm text-text-secondary">
-                        {therapist.experienceYears} years experience • {therapist.gender}
+                        {dentist.experienceYears} years experience • {dentist.gender}
                       </p>
                     </div>
                     <div className="text-right">
                       <div className="flex items-center space-x-1">
                         <Icon name="Star" size={14} className="text-accent fill-current" />
                         <span className="font-caption font-caption-normal text-sm text-text-primary">
-                          {therapist.rating}
+                          {dentist.rating}
                         </span>
                       </div>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-caption font-caption-normal ${
@@ -201,7 +201,7 @@ const TherapistAssignmentPanel = ({
                   </div>
                   
                   <div className="flex flex-wrap gap-1">
-                    {therapist.specialties.map((specialty) => (
+                    {dentist.specialties.map((specialty) => (
                       <span 
                         key={specialty}
                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-caption font-caption-normal ${
@@ -218,13 +218,13 @@ const TherapistAssignmentPanel = ({
                     <span className="flex items-center space-x-1">
                       <Icon name="Calendar" size={12} />
                       <span className="font-caption font-caption-normal">
-                        {therapist.todayBookings} bookings today
+                        {dentist.todayBookings} bookings today
                       </span>
                     </span>
                     <span className="flex items-center space-x-1">
                       <Icon name="Clock" size={12} />
                       <span className="font-caption font-caption-normal">
-                        Next available: {therapist.nextAvailable}
+                        Next available: {dentist.nextAvailable}
                       </span>
                     </span>
                   </div>
@@ -233,7 +233,7 @@ const TherapistAssignmentPanel = ({
                     <div className="flex items-center space-x-2 text-error">
                       <Icon name="AlertCircle" size={14} />
                       <span className="font-caption font-caption-normal text-xs">
-                        Conflict: {therapist.conflictReason}
+                        Conflict: {dentist.conflictReason}
                       </span>
                     </div>
                   )}
@@ -252,7 +252,7 @@ const TherapistAssignmentPanel = ({
         <textarea
           value={assignmentNotes}
           onChange={(e) => setAssignmentNotes(e.target.value)}
-          placeholder="Add any special instructions or notes for the therapist..."
+          placeholder="Add any special instructions or notes for the dentist..."
           rows={3}
           className="w-full px-3 py-2 border border-border rounded-spa bg-surface text-text-primary focus:ring-2 focus:ring-primary focus:border-primary spa-transition-fast resize-none"
         />
@@ -272,7 +272,7 @@ const TherapistAssignmentPanel = ({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onAssignTherapist(null, '')}
+              onClick={() => onAssignDentist(null, '')}
               loading={isLoading}
               iconName="UserX"
               iconPosition="left"
@@ -285,11 +285,11 @@ const TherapistAssignmentPanel = ({
             variant="primary"
             onClick={handleAssignment}
             loading={isLoading}
-            disabled={!selectedTherapist}
+            disabled={!selectedDentist}
             iconName="UserCheck"
             iconPosition="left"
           >
-            {currentAssignment ? 'Reassign' : 'Assign'} Therapist
+            {currentAssignment ? 'Reassign' : 'Assign'} Dentist
           </Button>
         </div>
       </div>
@@ -297,4 +297,4 @@ const TherapistAssignmentPanel = ({
   );
 };
 
-export default TherapistAssignmentPanel;
+export default DentistAssignmentPanel;

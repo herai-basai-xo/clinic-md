@@ -44,7 +44,7 @@ export function buildOccupancy(bookings) {
     const startMin = timeToMinutes(b.start_time?.slice(0, 5) || '00:00');
     const duration = b.duration_minutes || 60;
     const endMin = startMin + duration;
-    const gender = b.therapist_gender?.toLowerCase();
+    const gender = b.dentist_gender?.toLowerCase();
 
     // Bookings don't always start on a 30-min boundary (e.g. 16:05) — align down to the grid so
     // every 30-min slot the booking actually overlaps gets counted, not just the raw start time.

@@ -40,29 +40,29 @@ describe('dedupeTransfersByKey', () => {
     expect(rows).toEqual(rowsCopy);
   });
 
-  it('supports a key function that reaches into a nested object (therapist.id shape)', () => {
+  it('supports a key function that reaches into a nested object (dentist.id shape)', () => {
     const rows = [
-      { therapist: { id: 't1' }, start: '09:00' },
-      { therapist: { id: 't1' }, start: '14:00' },
-      { therapist: { id: 't2' }, start: '10:00' },
+      { dentist: { id: 't1' }, start: '09:00' },
+      { dentist: { id: 't1' }, start: '14:00' },
+      { dentist: { id: 't2' }, start: '10:00' },
     ];
-    const result = dedupeTransfersByKey(rows, r => r.therapist?.id);
+    const result = dedupeTransfersByKey(rows, r => r.dentist?.id);
     expect(result).toEqual([
-      { therapist: { id: 't1' }, start: '14:00' },
-      { therapist: { id: 't2' }, start: '10:00' },
+      { dentist: { id: 't1' }, start: '14:00' },
+      { dentist: { id: 't2' }, start: '10:00' },
     ]);
   });
 
   it('picks the chronologically LATEST row, not just the last one in a two-block concatenation', () => {
     // Reproduces the real getCalendarBookings shape: a still-LIVE transfer (from the live
     // query, listed FIRST in the concatenation) can be chronologically AFTER an
-    // already-reverted transfer for the same therapist earlier today (from the
+    // already-reverted transfer for the same dentist earlier today (from the
     // reverted-today query, listed SECOND) — per-query .order() alone can't fix this,
     // rows must be globally sorted before dedupe or the stale row wins.
-    const liveRow = { therapist_id: 't1', effective_date: '2026-09-09', start_time: '15:00:00', label: 'live-3pm' };
-    const revertedTodayRow = { therapist_id: 't1', effective_date: '2026-09-09', start_time: '09:00:00', label: 'reverted-9am' };
+    const liveRow = { dentist_id: 't1', effective_date: '2026-09-09', start_time: '15:00:00', label: 'live-3pm' };
+    const revertedTodayRow = { dentist_id: 't1', effective_date: '2026-09-09', start_time: '09:00:00', label: 'reverted-9am' };
     const rows = sortTransfersByTime([liveRow, revertedTodayRow]);
-    const result = dedupeTransfersByKey(rows, r => r.therapist_id);
+    const result = dedupeTransfersByKey(rows, r => r.dentist_id);
     expect(result).toEqual([liveRow]);
   });
 });

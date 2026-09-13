@@ -9,13 +9,13 @@ import BookingLookupPanel from './components/BookingLookupPanel';
 import StaffBookingForm from './components/StaffBookingForm';
 import CheckBookingPanel from './components/CheckBookingPanel';
 import CollectPaymentPanel from './components/CollectPaymentPanel';
-import TherapistAvailability from './components/TherapistAvailability';
+import DentistAvailability from './components/DentistAvailability';
 import OperationalCalendar from '../branch-manager-dashboard/components/calendar';
 import EnrollMemberModal from '../branch-manager-dashboard/components/Memberships/EnrollMemberModal';
 import NewVoucherModal from '../branch-manager-dashboard/components/Vouchers/NewVoucherModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBranch } from '../../contexts/BranchContext';
-import { fetchBookings, fetchTherapists, updateBookingStatus, assignTherapist, recordPayment, applyDiscount } from '../../services/api';
+import { fetchBookings, fetchDentists, updateBookingStatus, assignDentist, recordPayment, applyDiscount } from '../../services/api';
 import { transformBookings, toDbStatus } from '../../services/bookingTransformers';
 import { supabase } from '../../lib/supabase';
 import { usePersistentNotifications } from '../../hooks/usePersistentNotifications';
@@ -51,7 +51,7 @@ const BranchStaffDashboard = () => {
 
   const [bookings, setBookings] = useState([]);
   const [filteredBookings, setFilteredBookings] = useState([]);
-  const [therapists, setTherapists] = useState([]);
+  const [dentists, setDentists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
@@ -133,9 +133,9 @@ const BranchStaffDashboard = () => {
     setLoading(true);
 
     const dateFilter = getDateFilter(dateRange || filters.dateRange);
-    const [bookingsResult, therapistsResult] = await Promise.all([
+    const [bookingsResult, dentistsResult] = await Promise.all([
       fetchBookings(branchId, dateFilter),
-      fetchTherapists(branchId, { date: dateFilter.date }),
+      fetchDentists(branchId, { date: dateFilter.date }),
     ]);
 
     const transformed = bookingsResult.data ? transformBookings(bookingsResult.data) : [];
@@ -144,15 +144,15 @@ const BranchStaffDashboard = () => {
       calculateBookingCounts(transformed);
     }
 
-    if (therapistsResult.data) {
-      const mapped = therapistsResult.data.map(t => {
-        // Check if therapist has an in-progress booking right now
+    if (dentistsResult.data) {
+      const mapped = dentistsResult.data.map(t => {
+        // Check if dentist has an in-progress booking right now
         const activeBooking = transformed.find(b =>
-          b.therapistId === t.id &&
+          b.dentistId === t.id &&
           b.status === 'in-progress'
         );
         const upcomingBooking = transformed.find(b =>
-          b.therapistId === t.id &&
+          b.dentistId === t.id &&
           ['confirmed', 'pending'].includes(b.status)
         );
         return {
@@ -165,7 +165,7 @@ const BranchStaffDashboard = () => {
           currentBooking: activeBooking ? activeBooking.service : null,
         };
       });
-      setTherapists(mapped);
+      setDentists(mapped);
     }
 
     setLoading(false);
@@ -361,18 +361,18 @@ const BranchStaffDashboard = () => {
     await loadData();
   };
 
-  // Wire to real API: assignTherapist
-  const handleAssignTherapist = async (bookingId, therapistIds, notes) => {
+  // Wire to real API: assignDentist
+  const handleAssignDentist = async (bookingId, dentistIds, notes) => {
     setActionError(null);
-    const ids = Array.isArray(therapistIds) ? therapistIds : (therapistIds ? [therapistIds] : []);
-    const result = await assignTherapist({ bookingId, therapistIds: ids });
+    const ids = Array.isArray(dentistIds) ? dentistIds : (dentistIds ? [dentistIds] : []);
+    const result = await assignDentist({ bookingId, dentistIds: ids });
 
     if (result.error) {
-      showError(result.error.message || 'Failed to assign therapist.');
+      showError(result.error.message || 'Failed to assign dentist.');
       return;
     }
 
-    showSuccess('Therapist assigned successfully');
+    showSuccess('Dentist assigned successfully');
     await loadData();
   };
 
@@ -614,9 +614,9 @@ const BranchStaffDashboard = () => {
                   ) : (
                     <BookingsList
                       bookings={filteredBookings}
-                      therapists={therapists}
+                      dentists={dentists}
                       onStatusUpdate={handleStatusUpdate}
-                      onAssignTherapist={handleAssignTherapist}
+                      onAssignDentist={handleAssignDentist}
                       onRecordPayment={handleRecordPayment}
                       onApplyDiscount={handleApplyDiscount}
                       userRole={profile?.role || 'staff'}
@@ -626,21 +626,21 @@ const BranchStaffDashboard = () => {
                   )}
                 </div>
 
-                {/* Therapist Panel - Below bookings on mobile, sidebar on desktop */}
+                {/* Dentist Panel - Below bookings on mobile, sidebar on desktop */}
                 <div className="lg:col-span-3 order-2">
-                  <TherapistAvailability
-                    therapists={therapists}
-                    pendingBookings={bookings.filter(b => b.status === 'pending' && !b.therapist)}
-                    onAssignTherapist={handleAssignTherapist}
+                  <DentistAvailability
+                    dentists={dentists}
+                    pendingBookings={bookings.filter(b => b.status === 'pending' && !b.dentist)}
+                    onAssignDentist={handleAssignDentist}
                   />
                 </div>
               </div>
             </div>
           ) : viewMode === 'bookings' ? (
             <BookingLookupPanel
-              therapists={therapists}
+              dentists={dentists}
               onStatusUpdate={handleStatusUpdate}
-              onAssignTherapist={handleAssignTherapist}
+              onAssignDentist={handleAssignDentist}
               onRecordPayment={handleRecordPayment}
               onApplyDiscount={handleApplyDiscount}
               userRole={profile?.role || 'staff'}

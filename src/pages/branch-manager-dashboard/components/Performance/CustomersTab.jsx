@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Icon from '../../../../components/AppIcon';
-import { getTherapistCustomerHistory } from '../../../../services/api';
+import { getDentistCustomerHistory } from '../../../../services/api';
 
 const STATUS_COLORS = {
   Completed: 'bg-success/10 text-success',
@@ -15,18 +15,18 @@ function formatDateTime(dateStr, timeStr) {
   return timeStr ? `${datePart}, ${timeStr.slice(0, 5)}` : datePart;
 }
 
-const CustomersTab = ({ therapistId, branchId, range }) => {
+const CustomersTab = ({ dentistId, branchId, range }) => {
   const [showAll, setShowAll] = useState(false); // include Cancelled/No Show
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const loadData = useCallback(async () => {
-    if (!branchId || !therapistId) return;
+    if (!branchId || !dentistId) return;
     setLoading(true);
     setError(null);
 
-    const result = await getTherapistCustomerHistory({ branchId, therapistId, ...range, includeMissedCancelled: showAll });
+    const result = await getDentistCustomerHistory({ branchId, dentistId, ...range, includeMissedCancelled: showAll });
 
     if (result.error) {
       setError(result.error.message || 'Failed to load customer history.');
@@ -36,14 +36,14 @@ const CustomersTab = ({ therapistId, branchId, range }) => {
 
     setData(result.data);
     setLoading(false);
-  }, [branchId, therapistId, range, showAll]);
+  }, [branchId, dentistId, range, showAll]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
   const customers = data?.customers || [];
 
   // Distinct people, not visit count — a repeat customer's 2nd/3rd completed booking should not
-  // inflate this number (mirrors computeTherapistMetrics' customersAttended dedup on the main
+  // inflate this number (mirrors computeDentistMetrics' customersAttended dedup on the main
   // table / Overview tab, so this banner never disagrees with those).
   //
   // Hooks must run unconditionally on every render (Rules of Hooks) — this useMemo has to sit

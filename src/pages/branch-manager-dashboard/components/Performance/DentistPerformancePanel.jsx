@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Icon from '../../../../components/AppIcon';
 import FilterBar from '../../../../components/ui/FilterBar';
 import { PERIOD_PRESETS, getPeriodRange, getTodayISO } from '../../../../utils/periodPresets';
-import { getTherapistPerformance } from '../../../../services/api';
-import TherapistDetailView from './TherapistDetailView';
+import { getDentistPerformance } from '../../../../services/api';
+import DentistDetailView from './DentistDetailView';
 
 function getTier(score) {
   if (score >= 85) return { label: 'Top Performer', color: 'bg-success/10 text-success' };
@@ -28,7 +28,7 @@ function formatHours(h) {
   return `${Number(h || 0).toLocaleString('en-IN', { maximumFractionDigits: 1 })}h`;
 }
 
-const TherapistPerformancePanel = ({ branchId }) => {
+const DentistPerformancePanel = ({ branchId }) => {
   const today = getTodayISO();
 
   const [activePreset, setActivePreset] = useState('monthly');
@@ -41,7 +41,7 @@ const TherapistPerformancePanel = ({ branchId }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedTherapist, setSelectedTherapist] = useState(null); // { id, name } | null
+  const [selectedDentist, setSelectedDentist] = useState(null); // { id, name } | null
 
   // Range is driven by APPLIED dates so editing the pickers doesn't re-fetch
   // until the user clicks Apply.
@@ -61,7 +61,7 @@ const TherapistPerformancePanel = ({ branchId }) => {
     setLoading(true);
     setError(null);
 
-    const result = await getTherapistPerformance({ branchId, ...range });
+    const result = await getDentistPerformance({ branchId, ...range });
 
     if (result.error) {
       setError(result.error.message || 'Failed to load performance data.');
@@ -87,23 +87,23 @@ const TherapistPerformancePanel = ({ branchId }) => {
     setMode('custom');
   };
 
-  const visibleTherapists = useMemo(() => {
-    const all = data?.therapists || [];
+  const visibleDentists = useMemo(() => {
+    const all = data?.dentists || [];
     const q = searchQuery.trim().toLowerCase();
     if (!q) return all;
-    return all.filter((t) => (t.therapistName || '').toLowerCase().includes(q));
+    return all.filter((t) => (t.dentistName || '').toLowerCase().includes(q));
   }, [data, searchQuery]);
 
   const handleExportCSV = () => {
-    const rows = visibleTherapists;
+    const rows = visibleDentists;
     if (!rows.length) return;
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const header = ['Rank', 'Therapist', 'Score', 'Tier', 'Services', 'Customers', 'Worked (h)', 'Occupied (h)', 'Utilization %'];
+    const header = ['Rank', 'Dentist', 'Score', 'Tier', 'Services', 'Customers', 'Worked (h)', 'Occupied (h)', 'Utilization %'];
     let csv = header.join(',') + '\n';
     rows.forEach((t, idx) => {
       csv += [
         idx + 1,
-        esc(t.therapistName),
+        esc(t.dentistName),
         t.performanceScore,
         esc(getTier(t.performanceScore).label),
         t.servicesCompleted,
@@ -122,14 +122,14 @@ const TherapistPerformancePanel = ({ branchId }) => {
     URL.revokeObjectURL(url);
   };
 
-  // ── Drill-down: therapist detail view replaces this whole panel ──────────
-  if (selectedTherapist) {
+  // ── Drill-down: dentist detail view replaces this whole panel ──────────
+  if (selectedDentist) {
     return (
-      <TherapistDetailView
-        therapistId={selectedTherapist.id}
-        therapistName={selectedTherapist.name}
+      <DentistDetailView
+        dentistId={selectedDentist.id}
+        dentistName={selectedDentist.name}
         branchId={branchId}
-        onBack={() => setSelectedTherapist(null)}
+        onBack={() => setSelectedDentist(null)}
       />
     );
   }
@@ -163,20 +163,20 @@ const TherapistPerformancePanel = ({ branchId }) => {
     );
   }
 
-  const therapists = visibleTherapists;
+  const dentists = visibleDentists;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-heading font-heading-semibold text-xl text-text-primary">Therapist Performance Index</h2>
+          <h2 className="font-heading font-heading-semibold text-xl text-text-primary">Dentist Performance Index</h2>
           <p className="font-body text-sm text-text-secondary">
-            Ranked by weighted performance score. Click a therapist for the full breakdown.
+            Ranked by weighted performance score. Click a dentist for the full breakdown.
             {data && ` Period: ${data.periodStart} to ${data.periodEnd}`}
           </p>
         </div>
-        {therapists.length > 0 && (
+        {dentists.length > 0 && (
           <button
             onClick={handleExportCSV}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-spa border border-border bg-surface font-body font-body-medium text-sm text-text-secondary hover:bg-background spa-transition-fast flex-shrink-0"
@@ -189,8 +189,8 @@ const TherapistPerformancePanel = ({ branchId }) => {
 
       {/* Filters */}
       <FilterBar
-        count={{ value: therapists.length, label: therapists.length === 1 ? 'Therapist' : 'Therapists' }}
-        search={{ value: searchQuery, onChange: setSearchQuery, placeholder: 'Search therapist by name…' }}
+        count={{ value: dentists.length, label: dentists.length === 1 ? 'Dentist' : 'Dentists' }}
+        search={{ value: searchQuery, onChange: setSearchQuery, placeholder: 'Search dentist by name…' }}
         presets={PERIOD_PRESETS.map((p) => ({
           label: p.label,
           active: mode === 'preset' && activePreset === p.id,
@@ -225,11 +225,11 @@ const TherapistPerformancePanel = ({ branchId }) => {
 
       {/* Table */}
       <div className="bg-surface rounded-spa-lg border border-border overflow-hidden">
-        {therapists.length === 0 ? (
+        {dentists.length === 0 ? (
           <div className="p-12 text-center">
             <Icon name="Users" size={40} className="text-text-tertiary mx-auto mb-3" />
             <h3 className="font-body font-body-medium text-sm text-text-primary mb-1">No Performance Data</h3>
-            <p className="font-body text-xs text-text-tertiary">No active therapists or bookings found for this period.</p>
+            <p className="font-body text-xs text-text-tertiary">No active dentists or bookings found for this period.</p>
           </div>
         ) : (
           <>
@@ -238,7 +238,7 @@ const TherapistPerformancePanel = ({ branchId }) => {
               <thead>
                 <tr className="bg-background/50 border-b border-border">
                   <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide w-12">#</th>
-                  <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Therapist</th>
+                  <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Dentist</th>
                   <th className="px-4 py-3 text-left font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Score</th>
                   <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Services</th>
                   <th className="px-4 py-3 text-center font-body font-body-medium text-xs text-text-secondary uppercase tracking-wide">Customers</th>
@@ -248,13 +248,13 @@ const TherapistPerformancePanel = ({ branchId }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {therapists.map((t, idx) => {
+                {dentists.map((t, idx) => {
                   const rank = idx + 1;
                   return (
                     <tr
-                      key={t.therapistId}
-                      onClick={() => setSelectedTherapist({ id: t.therapistId, name: t.therapistName })}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedTherapist({ id: t.therapistId, name: t.therapistName }); } }}
+                      key={t.dentistId}
+                      onClick={() => setSelectedDentist({ id: t.dentistId, name: t.dentistName })}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDentist({ id: t.dentistId, name: t.dentistName }); } }}
                       role="button"
                       tabIndex={0}
                       className="hover:bg-background/30 spa-transition-fast cursor-pointer"
@@ -268,13 +268,13 @@ const TherapistPerformancePanel = ({ branchId }) => {
                         </span>
                       </td>
 
-                      {/* Therapist */}
+                      {/* Dentist */}
                       <td className="px-4 py-3">
                         <div className="flex items-center space-x-2 min-w-0">
                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                             <Icon name="User" size={14} className="text-primary" />
                           </div>
-                          <span className="font-body font-body-medium text-sm text-text-primary truncate">{t.therapistName}</span>
+                          <span className="font-body font-body-medium text-sm text-text-primary truncate">{t.dentistName}</span>
                           <Icon name="ChevronRight" size={14} className="text-text-tertiary ml-auto flex-shrink-0" />
                         </div>
                       </td>
@@ -321,12 +321,12 @@ const TherapistPerformancePanel = ({ branchId }) => {
 
           {/* Mobile card stack */}
           <div className="md:hidden divide-y divide-border">
-            {therapists.map((t, idx) => {
+            {dentists.map((t, idx) => {
               const rank = idx + 1;
               return (
                 <div
-                  key={t.therapistId}
-                  onClick={() => setSelectedTherapist({ id: t.therapistId, name: t.therapistName })}
+                  key={t.dentistId}
+                  onClick={() => setSelectedDentist({ id: t.dentistId, name: t.dentistName })}
                   role="button"
                   tabIndex={0}
                   className="p-4 space-y-3 cursor-pointer active:bg-background/40"
@@ -341,7 +341,7 @@ const TherapistPerformancePanel = ({ branchId }) => {
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <Icon name="User" size={14} className="text-primary" />
                       </div>
-                      <span className="font-body font-body-medium text-sm text-text-primary truncate">{t.therapistName}</span>
+                      <span className="font-body font-body-medium text-sm text-text-primary truncate">{t.dentistName}</span>
                       <Icon name="ChevronRight" size={14} className="text-text-tertiary flex-shrink-0" />
                     </div>
                     <ScoreBadge score={t.performanceScore} />
@@ -382,4 +382,4 @@ const TherapistPerformancePanel = ({ branchId }) => {
   );
 };
 
-export default TherapistPerformancePanel;
+export default DentistPerformancePanel;

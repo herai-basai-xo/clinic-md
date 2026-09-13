@@ -267,47 +267,47 @@ function getOverlapLayout(clusterSize, columnWidth) {
 }
 
 // Single source of truth for resolving a non-shared booking's assigned
-// therapist for display and column-bucketing. Two storage representations
-// exist for the same fact — the flat bookings.therapist_id column (primary)
-// and the booking_therapists junction table (secondary/legacy source, also
-// used for shared/multi-therapist bookings via a separate path) — plus a
-// third, independent axis: whether that therapist is visible under the
+// dentist for display and column-bucketing. Two storage representations
+// exist for the same fact — the flat bookings.dentist_id column (primary)
+// and the booking_dentists junction table (secondary/legacy source, also
+// used for shared/multi-dentist bookings via a separate path) — plus a
+// third, independent axis: whether that dentist is visible under the
 // CURRENT view filter (All Positions / attendance-absent / service-only).
-// Every call site that needs "which therapist does this booking belong to"
+// Every call site that needs "which dentist does this booking belong to"
 // must go through this function. Do not re-derive this inline at a new call
 // site — extend the truth table this function encodes instead.
-function resolveSingleTherapist(booking, therapistMap) {
-  const junctionRow = booking.booking_therapists?.length === 1 ? booking.booking_therapists[0] : null;
+function resolveSingleDentist(booking, dentistMap) {
+  const junctionRow = booking.booking_dentists?.length === 1 ? booking.booking_dentists[0] : null;
 
   // Priority order: flat column first (primary), junction row second.
   const candidates = [
-    booking.therapist_id ? { id: booking.therapist_id, name: booking.therapist?.name || null } : null,
-    junctionRow ? { id: junctionRow.therapist_id, name: junctionRow.therapist?.name || null } : null,
+    booking.dentist_id ? { id: booking.dentist_id, name: booking.dentist?.name || null } : null,
+    junctionRow ? { id: junctionRow.dentist_id, name: junctionRow.dentist?.name || null } : null,
   ].filter(Boolean);
 
   // First candidate that's actually visible in the current filtered view wins.
-  const visible = candidates.find(c => isTherapistVisible(c.id, therapistMap));
+  const visible = candidates.find(c => isDentistVisible(c.id, dentistMap));
 
   // Display name is always populated if ANY candidate exists — prefer the
   // resolved-visible candidate's live name (reflects renames), else fall
   // back to the highest-priority (flat) candidate's embedded snapshot name
-  // so the card never goes blank just because the therapist is currently
+  // so the card never goes blank just because the dentist is currently
   // absent/filtered.
   const displayName = visible
-    ? (therapistMap[visible.id] || visible.name)
+    ? (dentistMap[visible.id] || visible.name)
     : (candidates[0]?.name || null);
 
   return {
-    id: visible ? visible.id : null,   // colId / baseEntry.therapistId — null means treat as unassigned
-    name: displayName,                  // baseEntry.therapistName — always populated if any assignment exists
+    id: visible ? visible.id : null,   // colId / baseEntry.dentistId — null means treat as unassigned
+    name: displayName,                  // baseEntry.dentistName — always populated if any assignment exists
   };
 }
 
-// Shared visibility check, used by resolveSingleTherapist above AND by the
-// isShared (multi-therapist) per-entry loop below — do not duplicate this
+// Shared visibility check, used by resolveSingleDentist above AND by the
+// isShared (multi-dentist) per-entry loop below — do not duplicate this
 // check inline at either site.
-function isTherapistVisible(therapistId, therapistMap) {
-  return therapistMap[therapistId] !== undefined;
+function isDentistVisible(dentistId, dentistMap) {
+  return dentistMap[dentistId] !== undefined;
 }
 
 // Single droppable column component (replaces 144 tiny zones per column)
@@ -335,14 +335,14 @@ const DroppableColumn = ({ id, data, height, isActive }) => {
 
 // One row in the overflow popover's hidden-bookings list. Draggable exactly
 // like CalendarBookingCard (same activation constraint tells clicks from
-// drags apart) so staff can reassign a hidden booking to another therapist
+// drags apart) so staff can reassign a hidden booking to another dentist
 // without first opening it. Reports its dragging state up so the popover can
 // fade out (not unmount — unmounting mid-drag would tear down dnd-kit's
 // active drag) while it's in flight, then close once the drag ends.
 const OverflowPopoverRow = ({ booking, onClick, onDragChange }) => {
   const isDraggable = canDragBooking(booking);
-  const dragId = booking._colTherapistId
-    ? `${booking.bookingId || booking.id}__${booking._colTherapistId}`
+  const dragId = booking._colDentistId
+    ? `${booking.bookingId || booking.id}__${booking._colDentistId}`
     : (booking.bookingId || booking.id);
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -433,7 +433,7 @@ const OverflowPopoverRow = ({ booking, onClick, onDragChange }) => {
 // into the badge's own narrow sliver, which is too thin to show a readable
 // list. Instead it takes over the FULL cluster area (`expandedStyle`, same
 // top/height/left/width the two cards + badge together already occupy) —
-// still the same time slot, same therapist column, nothing floats outside
+// still the same time slot, same dentist column, nothing floats outside
 // it — and lists the hidden bookings (`bookings`) with a scroll. Deliberately
 // NOT the 2 already-visible ones too: they're already rendered as their own
 // draggable CalendarBookingCard, and dnd-kit doesn't allow two draggable
@@ -560,24 +560,24 @@ const SortableColumnHeader = ({ id, children, minWidth }) => {
 };
 
 const CalendarGrid = ({
-  therapists,
+  dentists,
   rooms = [],
   bookings,
   branchHours,
   attendanceMap,
-  checkedOutByTherapistAndDate,
+  checkedOutByDentistAndDate,
   onBookingClick,
   onBookingResize,
   onMultiDrag,
   onEmptySlotClick,
   currentDate,
   viewMode = 'day',
-  columnMode = 'therapist',
+  columnMode = 'dentist',
   activeDragId = null,
   gridRef, // Ref to get grid position for time calculation
   freezeUnassigned = true,
   onToggleFreezeUnassigned,
-  onTherapistReorder,
+  onDentistReorder,
   onRoomReorder,
 }) => {
   const scrollRef = useRef(null);
@@ -676,7 +676,7 @@ const CalendarGrid = ({
 
   const handleCardSelect = useCallback((booking, e) => {
     if (!booking.isShared) return false; // only shared cards are multi-selectable
-    const cardKey = `${booking.id}__${booking._colTherapistId}`;
+    const cardKey = `${booking.id}__${booking._colDentistId}`;
     if (e.metaKey || e.ctrlKey) {
       // Toggle selection
       setSelectedCardIds(prev => {
@@ -745,11 +745,11 @@ const CalendarGrid = ({
       cols.push({ id: 'unassigned', name: 'No Room', type: 'unassigned', icon: 'AlertCircle', subtitle: null, attendance: null });
       return cols;
     }
-    // therapist mode
-    const cols = therapists.map(t => ({
+    // dentist mode
+    const cols = dentists.map(t => ({
       id: t.id,
       name: t.name,
-      type: 'therapist',
+      type: 'dentist',
       icon: 'User',
       subtitle: t.gender,
       attendance: attendanceMap[t.id],
@@ -761,7 +761,7 @@ const CalendarGrid = ({
     }));
     cols.push({ id: 'unassigned', name: 'Unassigned', type: 'unassigned', icon: 'AlertCircle', subtitle: null, attendance: null });
     return cols;
-  }, [therapists, rooms, attendanceMap, columnMode]);
+  }, [dentists, rooms, attendanceMap, columnMode]);
 
   // ── Group bookings by day and column ─────────────────────
   const bookingsByDayAndCol = useMemo(() => {
@@ -772,8 +772,8 @@ const CalendarGrid = ({
     });
 
     // Build lookup maps for complementary info
-    const therapistMap = {};
-    therapists.forEach(t => { therapistMap[t.id] = t.name; });
+    const dentistMap = {};
+    dentists.forEach(t => { dentistMap[t.id] = t.name; });
     const roomMap = {};
     rooms.forEach(r => { roomMap[r.id] = r.name; });
 
@@ -783,10 +783,10 @@ const CalendarGrid = ({
 
       const startTime = b.start_time || (b.start_datetime ? b.start_datetime.split('T')[1]?.slice(0, 8) : null);
       const endTime = b.end_time || (b.end_datetime ? b.end_datetime.split('T')[1]?.slice(0, 8) : null);
-      const isShared = columnMode === 'therapist' && b.booking_therapists?.length > 1;
-      const { id: visibleTherapistId, name: therapistName } = isShared
-        ? { id: null, name: b.booking_therapists.map(bt => therapistMap[bt.therapist_id] || bt.therapist?.name).filter(Boolean).join(', ') }
-        : resolveSingleTherapist(b, therapistMap);
+      const isShared = columnMode === 'dentist' && b.booking_dentists?.length > 1;
+      const { id: visibleDentistId, name: dentistName } = isShared
+        ? { id: null, name: b.booking_dentists.map(bt => dentistMap[bt.dentist_id] || bt.dentist?.name).filter(Boolean).join(', ') }
+        : resolveSingleDentist(b, dentistMap);
 
       const baseEntry = {
         id: b.id,
@@ -803,9 +803,9 @@ const CalendarGrid = ({
         endTime,
         createdAt: b.created_at || null,
         date: bookingDate,
-        therapistId: visibleTherapistId,
+        dentistId: visibleDentistId,
         roomId: b.room_id,
-        therapistName,
+        dentistName,
         roomName: b.room?.name || roomMap[b.room_id] || null,
         baseAmount: b.base_amount,
         discountAmount: b.discount_amount,
@@ -813,26 +813,26 @@ const CalendarGrid = ({
         specialRequests: b.special_requests || null,
         createdByName: b.creator?.full_name || null,
         isShared,
-        sharedCount: isShared ? b.booking_therapists.length : 0,
+        sharedCount: isShared ? b.booking_dentists.length : 0,
       };
 
       if (isShared) {
-        // Place booking in each assigned therapist's column with per-therapist times
+        // Place booking in each assigned dentist's column with per-dentist times
         // Leftmost column in current visual order = primary (unfaded), rest = faded
         const columnOrder = columns.map(c => c.id);
-        const assignedIds = b.booking_therapists.map(bt => bt.therapist_id);
+        const assignedIds = b.booking_dentists.map(bt => bt.dentist_id);
         const leftmostId = columnOrder.find(cid => assignedIds.includes(cid));
 
-        b.booking_therapists.forEach(bt => {
-          const colId = bt.therapist_id;
-          // Skip co-therapists currently filtered out of view — same reasoning as
-          // resolveSingleTherapist: an id with no rendered column must not create
+        b.booking_dentists.forEach(bt => {
+          const colId = bt.dentist_id;
+          // Skip co-dentists currently filtered out of view — same reasoning as
+          // resolveSingleDentist: an id with no rendered column must not create
           // a silent orphan bucket.
-          if (!isTherapistVisible(colId, therapistMap)) return;
+          if (!isDentistVisible(colId, dentistMap)) return;
           if (!map[bookingDate][colId]) map[bookingDate][colId] = [];
           map[bookingDate][colId].push({
             ...baseEntry,
-            _colTherapistId: colId,
+            _colDentistId: colId,
             _isFaded: colId !== leftmostId,
             startTime: bt.start_time || startTime,
             endTime: bt.end_time || endTime,
@@ -843,14 +843,14 @@ const CalendarGrid = ({
       } else {
         const colId = columnMode === 'room'
           ? (b.room_id || 'unassigned')
-          : (visibleTherapistId || 'unassigned');
+          : (visibleDentistId || 'unassigned');
         if (!map[bookingDate][colId]) map[bookingDate][colId] = [];
         map[bookingDate][colId].push(baseEntry);
       }
     });
 
     return map;
-  }, [bookings, columns, days, columnMode, therapists, rooms]);
+  }, [bookings, columns, days, columnMode, dentists, rooms]);
 
   // Expose selected bookings to parent for multi-drag
   const getSelectedBookings = useCallback(() => {
@@ -859,7 +859,7 @@ const CalendarGrid = ({
     Object.values(bookingsByDayAndCol).forEach(cols => {
       Object.values(cols).forEach(bks => {
         bks.forEach(b => {
-          const key = b._colTherapistId ? `${b.id}__${b._colTherapistId}` : b.id;
+          const key = b._colDentistId ? `${b.id}__${b._colDentistId}` : b.id;
           if (selectedCardIds.has(key)) allBookings.push(b);
         });
       });
@@ -907,10 +907,10 @@ const CalendarGrid = ({
     };
   };
 
-  // A therapist who's already checked out is blocked from their check-out time through
+  // A dentist who's already checked out is blocked from their check-out time through
   // the rest of THAT specific day only — other days on the same column stay bookable.
   const getCheckoutBlockRange = (col, day) => {
-    const checkOutTime = checkedOutByTherapistAndDate?.[`${col.id}_${day}`];
+    const checkOutTime = checkedOutByDentistAndDate?.[`${col.id}_${day}`];
     if (!checkOutTime) return null;
     const parts = toKathmanduParts(checkOutTime);
     if (!parts || parts.date !== day) return null;
@@ -1157,7 +1157,7 @@ const CalendarGrid = ({
           isActive={!!activeDragId}
         />
 
-        {/* Filled/blocked overlay while this therapist is unavailable HERE due to a
+        {/* Filled/blocked overlay while this dentist is unavailable HERE due to a
             transfer (migration-145): transferredOut shows the window they're AWAY;
             transferredIn shows everything EXCEPT their visiting window (they're only
             actually here for that slice, even though branch_id points here for the
@@ -1213,7 +1213,7 @@ const CalendarGrid = ({
           });
         })()}
 
-        {/* Checked-out overlay: therapist has already clocked out for this specific day,
+        {/* Checked-out overlay: dentist has already clocked out for this specific day,
             so the rest of that day's column is blocked. Distinct color from the transfer
             overlay above so staff can tell the two reasons apart at a glance. */}
         {(() => {
@@ -1254,7 +1254,7 @@ const CalendarGrid = ({
                 style={{ top: clusterTop, height: clusterHeight }}
               >
                 {cluster.slice(0, MAX_VISIBLE_OVERLAP).map((booking, idx) => {
-                  const cardKey = booking._colTherapistId ? `${booking.id}__${booking._colTherapistId}` : booking.id;
+                  const cardKey = booking._colDentistId ? `${booking.id}__${booking._colDentistId}` : booking.id;
                   const pos = layout.cards[idx];
                   return (
                     <CalendarBookingCard
@@ -1344,7 +1344,7 @@ const CalendarGrid = ({
   const unassignedCol = columns.find(c => c.type === 'unassigned');
   const regularColumns = columns.filter(c => c.type !== 'unassigned');
   const regularMinWidth = regularColumns.length * minColWidth;
-  const canSortHeaders = (columnMode === 'therapist' && !!onTherapistReorder)
+  const canSortHeaders = (columnMode === 'dentist' && !!onDentistReorder)
     || (columnMode === 'room' && !!onRoomReorder);
   const regularColumnIds = useMemo(() => regularColumns.map(c => c.id), [regularColumns]);
 
@@ -1356,14 +1356,14 @@ const CalendarGrid = ({
   const handleHeaderDragEnd = useCallback((event) => {
     setIsHeaderDragging(false);
     const { active, over } = event;
-    const reorderFn = columnMode === 'room' ? onRoomReorder : onTherapistReorder;
+    const reorderFn = columnMode === 'room' ? onRoomReorder : onDentistReorder;
     if (!over || active.id === over.id || !reorderFn) return;
     const oldIndex = regularColumns.findIndex(c => c.id === active.id);
     const newIndex = regularColumns.findIndex(c => c.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
     const reordered = arrayMove(regularColumns, oldIndex, newIndex);
     reorderFn(reordered.map(c => c.id));
-  }, [regularColumns, columnMode, onTherapistReorder, onRoomReorder]);
+  }, [regularColumns, columnMode, onDentistReorder, onRoomReorder]);
 
   const renderDayView = () => (
     <div className="flex flex-col h-full overflow-hidden">

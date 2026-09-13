@@ -29,7 +29,7 @@ function formatPrettyDate(d) {
   return new Date(y, m - 1, day).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-const TherapistDetailView = ({ therapistId, therapistName, branchId, onBack }) => {
+const DentistDetailView = ({ dentistId, dentistName, branchId, onBack }) => {
   const today = getTodayISO();
 
   const [activePreset, setActivePreset] = useState('weekly');
@@ -80,7 +80,7 @@ const TherapistDetailView = ({ therapistId, therapistName, branchId, onBack }) =
             <Icon name="ChevronLeft" size={16} />
             <span>Back to Performance</span>
           </button>
-          <h2 className="font-heading font-heading-semibold text-xl text-text-primary truncate">{therapistName}</h2>
+          <h2 className="font-heading font-heading-semibold text-xl text-text-primary truncate">{dentistName}</h2>
           <p className="font-body text-sm text-text-secondary">
             {periodLabel} · {formatPrettyDate(range.fromDate)}–{formatPrettyDate(range.toDate)}
           </p>
@@ -124,16 +124,16 @@ const TherapistDetailView = ({ therapistId, therapistName, branchId, onBack }) =
         ))}
       </div>
 
-      {/* Tab content — each tab fetches its own data for {therapistId, branchId, ...range} and
+      {/* Tab content — each tab fetches its own data for {dentistId, branchId, ...range} and
           refetches whenever the period above changes. */}
       <div>
-        {activeTab === 'overview' && <OverviewTab therapistId={therapistId} branchId={branchId} range={range} />}
-        {activeTab === 'customers' && <CustomersTab therapistId={therapistId} branchId={branchId} range={range} />}
-        {activeTab === 'services' && <ServicesTab therapistId={therapistId} branchId={branchId} range={range} />}
-        {activeTab === 'attendance' && <AttendanceTab therapistId={therapistId} branchId={branchId} range={range} />}
+        {activeTab === 'overview' && <OverviewTab dentistId={dentistId} branchId={branchId} range={range} />}
+        {activeTab === 'customers' && <CustomersTab dentistId={dentistId} branchId={branchId} range={range} />}
+        {activeTab === 'services' && <ServicesTab dentistId={dentistId} branchId={branchId} range={range} />}
+        {activeTab === 'attendance' && <AttendanceTab dentistId={dentistId} branchId={branchId} range={range} />}
       </div>
     </div>
   );
 };
 
-export default TherapistDetailView;
+export default DentistDetailView;

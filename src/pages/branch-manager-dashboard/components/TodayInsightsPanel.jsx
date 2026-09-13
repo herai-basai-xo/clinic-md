@@ -130,7 +130,7 @@ const TodayInsightsPanel = ({ branchId, period }) => {
   }
 
   const utilizationPercent = Math.max(0, Math.min(100, Number(data.staffUtilization.avgPercent) || 0));
-  const therapistCount = data.staffUtilization.therapists.length;
+  const dentistCount = data.staffUtilization.dentists.length;
 
   return (
     <div className="bg-surface border border-border rounded-spa-lg shadow-spa-resting divide-y divide-border">
@@ -237,14 +237,14 @@ const TodayInsightsPanel = ({ branchId, period }) => {
         </div>
       </div>
 
-      {/* Section 3 — Therapist utilization */}
+      {/* Section 3 — Dentist utilization */}
       <div className="p-4 sm:p-5 space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
-            Therapist Utilization · {utilizationPercent}%
+            Dentist Utilization · {utilizationPercent}%
           </span>
           <span className="text-xs text-gray-500">
-            {therapistCount} {therapistCount === 1 ? 'therapist' : 'therapists'}
+            {dentistCount} {dentistCount === 1 ? 'dentist' : 'dentists'}
           </span>
         </div>
         <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">

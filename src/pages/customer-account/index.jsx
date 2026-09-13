@@ -366,10 +366,10 @@ const BookingDetailFields = ({ booking }) => (
         <span className="font-body text-text-primary text-right">{booking.branchName}</span>
       </div>
     )}
-    {booking.therapist?.name && (
+    {booking.dentist?.name && (
       <div className="flex items-baseline justify-between gap-4 text-sm">
         <span className="font-caption text-xs text-text-secondary uppercase tracking-wide">Staff</span>
-        <span className="font-body text-text-primary text-right">{booking.therapist.name}</span>
+        <span className="font-body text-text-primary text-right">{booking.dentist.name}</span>
       </div>
     )}
     <div className="flex items-baseline justify-between gap-4 text-sm">

@@ -11,7 +11,7 @@ function formatNPR(amount) {
   return `NPR ${Number(amount).toLocaleString('en-IN')}`;
 }
 
-// Normalize a person's name to Title Case (customers, therapists, due-holders).
+// Normalize a person's name to Title Case (customers, dentists, due-holders).
 // Lowercases each word then capitalizes its first letter, preserving hyphens/
 // apostrophes within a word (e.g. "mary-jane o'brien" -> "Mary-Jane O'Brien").
 export function toTitleCase(str) {
@@ -61,27 +61,27 @@ export function excludeRelatedFromPreviousDue(previousDue, related) {
 }
 
 export function transformBooking(dbBooking) {
-  const therapist = dbBooking.therapist
+  const dentist = dbBooking.dentist
     ? {
-        id: dbBooking.therapist.id,
-        name: dbBooking.therapist.name,
-        gender: dbBooking.therapist.gender,
+        id: dbBooking.dentist.id,
+        name: dbBooking.dentist.name,
+        gender: dbBooking.dentist.gender,
         room: dbBooking.room?.name || null,
       }
     : null;
 
-  // Build therapists array from junction table (if available), fallback to single therapist
-  let therapists = [];
-  if (dbBooking.booking_therapists && dbBooking.booking_therapists.length > 0) {
-    therapists = dbBooking.booking_therapists
-      .filter(bt => bt.therapist)
+  // Build dentists array from junction table (if available), fallback to single dentist
+  let dentists = [];
+  if (dbBooking.booking_dentists && dbBooking.booking_dentists.length > 0) {
+    dentists = dbBooking.booking_dentists
+      .filter(bt => bt.dentist)
       .map(bt => ({
-        id: bt.therapist.id,
-        name: bt.therapist.name,
-        gender: bt.therapist.gender || null,
+        id: bt.dentist.id,
+        name: bt.dentist.name,
+        gender: bt.dentist.gender || null,
       }));
-  } else if (therapist) {
-    therapists = [therapist];
+  } else if (dentist) {
+    dentists = [dentist];
   }
 
   const finalAmount = Number(dbBooking.final_amount ?? dbBooking.base_amount ?? 0);
@@ -118,8 +118,8 @@ export function transformBooking(dbBooking) {
     amountPaid,
     amountDue,
     dueHolderName: dbBooking.due_holder_name || null,
-    therapist,
-    therapists,
+    dentist,
+    dentists,
     serviceId: dbBooking.service_id || null,
     roomId: dbBooking.room_id || null,
     roomName: dbBooking.room?.name || null,

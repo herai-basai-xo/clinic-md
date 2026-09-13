@@ -11,7 +11,7 @@ const STATUS_STYLES = {
   'off-duty': { bg: 'bg-gray-100', text: 'text-gray-700', icon: 'Moon' },
 };
 
-const TherapistAvailability = ({ therapists, pendingBookings = [], onAssignTherapist }) => {
+const DentistAvailability = ({ dentists, pendingBookings = [], onAssignDentist }) => {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('current');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -111,11 +111,11 @@ const TherapistAvailability = ({ therapists, pendingBookings = [], onAssignThera
         </div>
       </div>
 
-      {/* Therapist Availability */}
+      {/* Dentist Availability */}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="flex items-center justify-between p-3 border-b border-gray-200">
           <h2 className="text-sm font-semibold text-gray-900">
-            Therapist Availability
+            Dentist Availability
           </h2>
           <div className="relative" ref={dropdownRef}>
             <button
@@ -149,12 +149,12 @@ const TherapistAvailability = ({ therapists, pendingBookings = [], onAssignThera
         </div>
 
         <div className="divide-y divide-gray-100">
-          {therapists.map((therapist) => {
-            const statusStyle = STATUS_STYLES[therapist.status] || STATUS_STYLES['off-duty'];
+          {dentists.map((dentist) => {
+            const statusStyle = STATUS_STYLES[dentist.status] || STATUS_STYLES['off-duty'];
 
             return (
               <div
-                key={therapist.id}
+                key={dentist.id}
                 className="p-3 hover:bg-gray-50 transition-colors"
               >
                 {/* Row 1: Avatar + Name + Status */}
@@ -162,31 +162,31 @@ const TherapistAvailability = ({ therapists, pendingBookings = [], onAssignThera
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-8 h-8 shrink-0 bg-gray-100 rounded-full flex items-center justify-center">
                       <Icon
-                        name={therapist.gender === 'Female' ? 'User' : 'UserCheck'}
+                        name={dentist.gender === 'Female' ? 'User' : 'UserCheck'}
                         size={16}
                         className="text-gray-500"
                       />
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-gray-900 truncate">
-                        {therapist.name}
+                        {dentist.name}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {therapist.gender}
-                        {therapist.room && ` · Room ${therapist.room}`}
+                        {dentist.gender}
+                        {dentist.room && ` · Room ${dentist.room}`}
                       </div>
                     </div>
                   </div>
                   <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle.bg} ${statusStyle.text}`}>
                     <Icon name={statusStyle.icon} size={10} />
-                    {therapist.status.replace('-', ' ')}
+                    {dentist.status.replace('-', ' ')}
                   </span>
                 </div>
 
                 {/* Row 2: Specialties */}
-                {therapist.specialties && therapist.specialties.length > 0 && (
+                {dentist.specialties && dentist.specialties.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2 pl-10">
-                    {therapist.specialties.slice(0, 3).map((specialty) => (
+                    {dentist.specialties.slice(0, 3).map((specialty) => (
                       <span
                         key={specialty}
                         className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs"
@@ -205,4 +205,4 @@ const TherapistAvailability = ({ therapists, pendingBookings = [], onAssignThera
   );
 };
 
-export default TherapistAvailability;
+export default DentistAvailability;

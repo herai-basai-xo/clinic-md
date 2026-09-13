@@ -97,7 +97,7 @@ const UtilizationPanel = ({ branchId, period }) => {
 
   if (!data) return null;
 
-  const { roomUtilization, therapistUtilization, hourlyDistribution, summary } = data;
+  const { roomUtilization, dentistUtilization, hourlyDistribution, summary } = data;
 
   // Compute hourly chart data — only operating hours
   const openHour = Math.floor(data.operatingMinutes > 0 ? parseInt(data.operatingHours.split('–')[0]) : 9);
@@ -148,7 +148,7 @@ const UtilizationPanel = ({ branchId, period }) => {
         </div>
       </div>
 
-      {/* Therapist Utilization */}
+      {/* Dentist Utilization */}
       <div className="bg-white rounded-lg border border-gray-200 p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
@@ -156,21 +156,21 @@ const UtilizationPanel = ({ branchId, period }) => {
               <Icon name="Users" size={16} className="text-purple-600" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-gray-900">Therapist Utilization</h3>
+              <h3 className="text-sm font-medium text-gray-900">Dentist Utilization</h3>
               <p className="text-[11px] text-gray-400">
-                {summary.therapistCount} active therapists
+                {summary.dentistCount} active dentists
               </p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-lg font-semibold text-gray-900">{summary.avgTherapistUtilization}%</p>
+            <p className="text-lg font-semibold text-gray-900">{summary.avgDentistUtilization}%</p>
             <p className="text-[11px] text-gray-400">avg</p>
           </div>
         </div>
 
         <div className="space-y-3 max-h-[400px] overflow-y-auto">
-          {therapistUtilization.length > 0 ? (
-            therapistUtilization.map(t => (
+          {dentistUtilization.length > 0 ? (
+            dentistUtilization.map(t => (
               <BarRow
                 key={t.id}
                 label={t.name}
@@ -181,7 +181,7 @@ const UtilizationPanel = ({ branchId, period }) => {
               />
             ))
           ) : (
-            <p className="text-xs text-gray-400 text-center py-4">No active therapists</p>
+            <p className="text-xs text-gray-400 text-center py-4">No active dentists</p>
           )}
         </div>
       </div>

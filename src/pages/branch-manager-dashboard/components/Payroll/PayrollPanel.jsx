@@ -46,7 +46,7 @@ const CompensationPanel = ({ branchId }) => {
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(null); // therapistId
+  const [editing, setEditing] = useState(null); // dentistId
   const [editSalary, setEditSalary] = useState('');
   const [editRate, setEditRate] = useState('');
   const [saving, setSaving] = useState(false);
@@ -66,21 +66,21 @@ const CompensationPanel = ({ branchId }) => {
   useEffect(() => { load(); }, [load]);
 
   const startEdit = (s) => {
-    setEditing(s.therapistId);
+    setEditing(s.dentistId);
     setEditSalary(String(s.monthlySalary));
     setEditRate(String(s.commissionRate));
   };
 
   const cancelEdit = () => { setEditing(null); };
 
-  const saveEdit = async (therapistId) => {
+  const saveEdit = async (dentistId) => {
     const salary = Number(editSalary);
     const rate = Number(editRate);
     if (!(salary >= 0)) { setError('Salary must be zero or more.'); return; }
     if (!(rate >= 0) || rate > 100) { setError('Commission rate must be 0–100.'); return; }
     setSaving(true);
     setError(null);
-    const { error: err } = await setStaffCompensation({ therapistId, monthlySalary: salary, commissionRate: rate });
+    const { error: err } = await setStaffCompensation({ dentistId, monthlySalary: salary, commissionRate: rate });
     setSaving(false);
     if (err) { setError(err.message || 'Failed to save.'); return; }
     setEditing(null);
@@ -126,7 +126,7 @@ const CompensationPanel = ({ branchId }) => {
               </thead>
               <tbody>
                 {staff.map((s) => (
-                  <tr key={s.therapistId} className="border-b border-border last:border-b-0 hover:bg-background/50">
+                  <tr key={s.dentistId} className="border-b border-border last:border-b-0 hover:bg-background/50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -140,7 +140,7 @@ const CompensationPanel = ({ branchId }) => {
                         {s.position || '—'}
                       </span>
                     </td>
-                    {editing === s.therapistId ? (
+                    {editing === s.dentistId ? (
                       <>
                         <td className="px-4 py-2 text-right">
                           <input
@@ -150,7 +150,7 @@ const CompensationPanel = ({ branchId }) => {
                             autoFocus
                             value={editSalary}
                             onChange={(e) => setEditSalary(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(s.therapistId); if (e.key === 'Escape') cancelEdit(); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(s.dentistId); if (e.key === 'Escape') cancelEdit(); }}
                             placeholder="0"
                             className="w-32 rounded-spa border border-primary bg-surface px-2 py-1.5 font-data text-sm text-text-primary text-right focus:outline-none focus:ring-2 focus:ring-primary/50"
                           />
@@ -163,7 +163,7 @@ const CompensationPanel = ({ branchId }) => {
                             step="0.1"
                             value={editRate}
                             onChange={(e) => setEditRate(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(s.therapistId); if (e.key === 'Escape') cancelEdit(); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(s.dentistId); if (e.key === 'Escape') cancelEdit(); }}
                             placeholder="0"
                             className="w-24 rounded-spa border border-primary bg-surface px-2 py-1.5 font-data text-sm text-text-primary text-right focus:outline-none focus:ring-2 focus:ring-primary/50"
                           />
@@ -171,7 +171,7 @@ const CompensationPanel = ({ branchId }) => {
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-1.5 justify-end">
                             <button
-                              onClick={() => saveEdit(s.therapistId)}
+                              onClick={() => saveEdit(s.dentistId)}
                               disabled={saving}
                               className="px-2.5 py-1 rounded-spa bg-primary text-white text-xs font-body-medium disabled:opacity-50"
                             >
@@ -281,7 +281,7 @@ const RunPayrollPanel = ({ branchId }) => {
     const month = formatMonth(runData.run.periodMonth);
     runData.items.forEach((i) => {
       csv += [
-        esc(i.therapistName), esc(month),
+        esc(i.dentistName), esc(month),
         esc(i.monthlySalary), esc(i.daysInMonth),
         esc(i.presentDays), esc(i.absentDays), esc(i.halfDays), esc(i.leaveDays), esc(i.unpaidLeaveDays),
         esc(i.attendanceDeduction), esc(i.serviceRevenue), esc(i.serviceCommission),
@@ -429,13 +429,13 @@ const RunPayrollPanel = ({ branchId }) => {
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.therapistId} className="border-b border-border last:border-b-0 hover:bg-background/50">
+                  <tr key={item.dentistId} className="border-b border-border last:border-b-0 hover:bg-background/50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                           <Icon name="User" size={12} className="text-primary" />
                         </div>
-                        <span className="font-body font-body-medium text-text-primary">{item.therapistName}</span>
+                        <span className="font-body font-body-medium text-text-primary">{item.dentistName}</span>
                       </div>
                     </td>
                     <td className="px-3 py-3 text-right font-data text-text-primary whitespace-nowrap">

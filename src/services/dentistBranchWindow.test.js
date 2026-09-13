@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeTherapistBranchAt, toKathmanduDate, isAfterCheckout, resolveOrphanTransferWindow } from './therapistBranchWindow';
+import { computeDentistBranchAt, toKathmanduDate, isAfterCheckout, resolveOrphanTransferWindow } from './dentistBranchWindow';
 
 const BRANCH_A = 'branch-a';
 const BRANCH_B = 'branch-b';
@@ -29,58 +29,58 @@ function permanent({ from, to, effective_date, start_time }) {
   };
 }
 
-describe('computeTherapistBranchAt', () => {
+describe('computeDentistBranchAt', () => {
   it('returns the fallback (current) branch when there is no transfer history', () => {
     const at = toKathmanduDate('2026-09-10', '10:00:00');
-    expect(computeTherapistBranchAt([], BRANCH_A, at)).toBe(BRANCH_A);
+    expect(computeDentistBranchAt([], BRANCH_A, at)).toBe(BRANCH_A);
   });
 
-  it('keeps the therapist at the origin branch before a temporary transfer starts', () => {
+  it('keeps the dentist at the origin branch before a temporary transfer starts', () => {
     const transfers = [
       temp({ from: BRANCH_A, to: BRANCH_B, effective_date: '2026-09-10', start_time: '09:00:00', revert_at: '2026-09-10T12:00:00+05:45' }),
     ];
     const before = toKathmanduDate('2026-09-10', '08:00:00');
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, before)).toBe(BRANCH_A);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, before)).toBe(BRANCH_A);
   });
 
-  it('places the therapist at the destination branch DURING the temporary window', () => {
+  it('places the dentist at the destination branch DURING the temporary window', () => {
     const transfers = [
       temp({ from: BRANCH_A, to: BRANCH_B, effective_date: '2026-09-10', start_time: '09:00:00', revert_at: '2026-09-10T12:00:00+05:45' }),
     ];
     const during = toKathmanduDate('2026-09-10', '10:00:00');
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, during)).toBe(BRANCH_B);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, during)).toBe(BRANCH_B);
   });
 
-  it('returns the therapist to the origin branch AFTER the temporary window closes', () => {
+  it('returns the dentist to the origin branch AFTER the temporary window closes', () => {
     const transfers = [
       temp({ from: BRANCH_A, to: BRANCH_B, effective_date: '2026-09-10', start_time: '09:00:00', revert_at: '2026-09-10T12:00:00+05:45' }),
     ];
     const after = toKathmanduDate('2026-09-10', '14:00:00');
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, after)).toBe(BRANCH_A);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, after)).toBe(BRANCH_A);
   });
 
-  it('keeps the therapist at the current branch until a SCHEDULED future temporary transfer starts, even though branch_id has not flipped yet', () => {
+  it('keeps the dentist at the current branch until a SCHEDULED future temporary transfer starts, even though branch_id has not flipped yet', () => {
     const transfers = [
       temp({ from: BRANCH_A, to: BRANCH_B, effective_date: '2026-09-20', start_time: '09:00:00', revert_at: '2026-09-20T17:00:00+05:45' }),
     ];
     // Booking is dated between "now" and the transfer's start — still at origin.
     const beforeFutureWindow = toKathmanduDate('2026-09-15', '10:00:00');
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, beforeFutureWindow)).toBe(BRANCH_A);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, beforeFutureWindow)).toBe(BRANCH_A);
 
     // Booking dated inside the future window should resolve to the destination branch
     // even though branch_id is still BRANCH_A right now (cron hasn't applied it yet).
     const insideFutureWindow = toKathmanduDate('2026-09-20', '12:00:00');
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, insideFutureWindow)).toBe(BRANCH_B);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, insideFutureWindow)).toBe(BRANCH_B);
   });
 
-  it('moves the therapist permanently after a permanent transfer takes effect, and keeps them there', () => {
+  it('moves the dentist permanently after a permanent transfer takes effect, and keeps them there', () => {
     const transfers = [
       permanent({ from: BRANCH_A, to: BRANCH_B, effective_date: '2026-09-10', start_time: '09:00:00' }),
     ];
     const before = toKathmanduDate('2026-09-09', '10:00:00');
     const after = toKathmanduDate('2026-09-11', '10:00:00');
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, before)).toBe(BRANCH_A);
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, after)).toBe(BRANCH_B);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, before)).toBe(BRANCH_A);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, after)).toBe(BRANCH_B);
   });
 
   it('allows legitimate SEQUENTIAL transfers: A -> B (completed) -> C (later), each window resolves independently', () => {
@@ -92,13 +92,13 @@ describe('computeTherapistBranchAt', () => {
     ];
 
     // Inside the first (already-completed) window.
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-01', '10:00:00'))).toBe(BRANCH_B);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-01', '10:00:00'))).toBe(BRANCH_B);
     // Between the two transfers: back home.
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-05', '10:00:00'))).toBe(BRANCH_A);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-05', '10:00:00'))).toBe(BRANCH_A);
     // Inside the second window.
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-15', '10:00:00'))).toBe(BRANCH_C);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-15', '10:00:00'))).toBe(BRANCH_C);
     // After the second window closes: back home again.
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-16', '10:00:00'))).toBe(BRANCH_A);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-16', '10:00:00'))).toBe(BRANCH_A);
   });
 
   it('treats a returned-history row (temporary, no revert_at) as open-ended toward its toBranchId — covers apply_due_staff_reverts()/revert_staff_transfer_now() writing a completion row with revert_at left null', () => {
@@ -112,22 +112,22 @@ describe('computeTherapistBranchAt', () => {
 
     // Right after the early return, still before the ORIGINAL scheduled revert_at (12:00) —
     // must already be back home, not stuck at the destination until 12:00.
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-10', '11:00:00'))).toBe(BRANCH_A);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-10', '11:00:00'))).toBe(BRANCH_A);
     // Well after, on a later date — still home.
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-15', '09:00:00'))).toBe(BRANCH_A);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-15', '09:00:00'))).toBe(BRANCH_A);
   });
 
   it('treats a non-permanent transfer with no revert_at as indefinite, not already-closed (legacy pre-migration-145 rows)', () => {
     // Every transfer made before migration-145 added start_time/duration/revert_at
     // has is_permanent=false (the column's default) but no revert mechanism at all —
-    // it's permanent in effect, matching the therapist's live therapists.branch_id.
+    // it's permanent in effect, matching the dentist's live dentists.branch_id.
     const transfers = [
       temp({ from: BRANCH_A, to: BRANCH_B, effective_date: '2026-09-02', start_time: null, revert_at: null }),
     ];
     const before = toKathmanduDate('2026-09-01', '10:00:00');
     const after = toKathmanduDate('2026-09-04', '13:30:00');
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, before)).toBe(BRANCH_A);
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, after)).toBe(BRANCH_B);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, before)).toBe(BRANCH_A);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, after)).toBe(BRANCH_B);
   });
 
   it('resolves a legacy indefinite transfer followed by a genuine later temporary transfer', () => {
@@ -135,9 +135,9 @@ describe('computeTherapistBranchAt', () => {
       temp({ from: BRANCH_A, to: BRANCH_B, effective_date: '2026-09-02', start_time: null, revert_at: null }),
       temp({ from: BRANCH_B, to: BRANCH_C, effective_date: '2026-09-10', start_time: '09:00:00', revert_at: '2026-09-10T17:00:00+05:45' }),
     ];
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-05', '10:00:00'))).toBe(BRANCH_B);
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-10', '12:00:00'))).toBe(BRANCH_C);
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-11', '10:00:00'))).toBe(BRANCH_B);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-05', '10:00:00'))).toBe(BRANCH_B);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-10', '12:00:00'))).toBe(BRANCH_C);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-11', '10:00:00'))).toBe(BRANCH_B);
   });
 
   it('handles a permanent transfer followed later by a temporary one from the new home branch', () => {
@@ -146,14 +146,14 @@ describe('computeTherapistBranchAt', () => {
       temp({ from: BRANCH_B, to: BRANCH_C, effective_date: '2026-09-10', start_time: '09:00:00', revert_at: '2026-09-10T17:00:00+05:45' }),
     ];
 
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-05', '10:00:00'))).toBe(BRANCH_B);
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-10', '12:00:00'))).toBe(BRANCH_C);
-    expect(computeTherapistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-11', '10:00:00'))).toBe(BRANCH_B);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-05', '10:00:00'))).toBe(BRANCH_B);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-10', '12:00:00'))).toBe(BRANCH_C);
+    expect(computeDentistBranchAt(transfers, BRANCH_A, toKathmanduDate('2026-09-11', '10:00:00'))).toBe(BRANCH_B);
   });
 });
 
 describe('isAfterCheckout', () => {
-  it('is false when the therapist has not checked out at all', () => {
+  it('is false when the dentist has not checked out at all', () => {
     expect(isAfterCheckout(null, '2026-09-10', '17:30')).toBe(false);
     expect(isAfterCheckout(undefined, '2026-09-10', '17:30')).toBe(false);
   });

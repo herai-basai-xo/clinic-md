@@ -1,22 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Icon from '../../../../components/AppIcon';
-import { getTherapistServiceBreakdown } from '../../../../services/api';
+import { getDentistServiceBreakdown } from '../../../../services/api';
 
 function formatNPR(amount) {
   return `NPR ${Number(amount || 0).toLocaleString('en-IN')}`;
 }
 
-const ServicesTab = ({ therapistId, branchId, range }) => {
+const ServicesTab = ({ dentistId, branchId, range }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const loadData = useCallback(async () => {
-    if (!branchId || !therapistId) return;
+    if (!branchId || !dentistId) return;
     setLoading(true);
     setError(null);
 
-    const result = await getTherapistServiceBreakdown({ branchId, therapistId, ...range });
+    const result = await getDentistServiceBreakdown({ branchId, dentistId, ...range });
 
     if (result.error) {
       setError(result.error.message || 'Failed to load service breakdown.');
@@ -26,7 +26,7 @@ const ServicesTab = ({ therapistId, branchId, range }) => {
 
     setData(result.data);
     setLoading(false);
-  }, [branchId, therapistId, range]);
+  }, [branchId, dentistId, range]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

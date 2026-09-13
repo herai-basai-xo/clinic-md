@@ -210,7 +210,7 @@ const CustomerProfileModal = ({ customerId, onClose }) => {
                           <div className="flex items-center space-x-2 text-xs text-text-secondary">
                             <span>{new Date(b.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                             <span className="text-text-tertiary">{'·'}</span>
-                            <span>{b.therapistName}</span>
+                            <span>{b.dentistName}</span>
                             <span className="text-text-tertiary">{'·'}</span>
                             <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-caption font-caption-medium ${STATUS_COLORS[b.status] || 'bg-background text-text-secondary'}`}>
                               {b.status}
