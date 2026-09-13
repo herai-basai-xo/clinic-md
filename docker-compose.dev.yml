@@ -1,0 +1,30 @@
+services:
+  nuad-thai-dev:
+    image: ghcr.io/zunkireelabs/book-spa:stage
+    container_name: nuad-thai-dev
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=hosting"
+      - "traefik.http.routers.nuad-thai-dev.rule=Host(`dev-app.zennly.io`) || Host(`dev-zenly.zunkireelabs.com`)"
+      - "traefik.http.routers.nuad-thai-dev.entrypoints=websecure"
+      - "traefik.http.routers.nuad-thai-dev.tls=true"
+      - "traefik.http.routers.nuad-thai-dev.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.nuad-thai-dev-http.rule=Host(`dev-app.zennly.io`) || Host(`dev-zenly.zunkireelabs.com`)"
+      - "traefik.http.routers.nuad-thai-dev-http.entrypoints=web"
+      - "traefik.http.routers.nuad-thai-dev-http.middlewares=nuad-thai-dev-redirect"
+      - "traefik.http.middlewares.nuad-thai-dev-redirect.redirectscheme.scheme=https"
+      - "traefik.http.services.nuad-thai-dev.loadbalancer.server.port=80"
+    networks:
+      - hosting
+
+networks:
+  hosting:
+    external: true

@@ -1,0 +1,17 @@
+.DS_Store
+node_modules
+.idea
+/build
+.vscode/
+.env
+.env.*
+!.env.example
+!.env.local
+.mcp.json
+.claude/settings.local.json
+temp_ss/
+temp-ss/
+supabase/.temp/
+.agents/
+.claude/skills/higgsfield-*
+skills-lock.json
