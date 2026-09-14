@@ -4,6 +4,7 @@ import Icon from '../../../components/AppIcon';
 import NotificationBell from '../../../components/ui/NotificationBell';
 import { useAuth } from '../../../contexts/AuthContext';
 import { usePersistentNotifications } from '../../../hooks/usePersistentNotifications';
+import logo from 'assets/logo.png';
 
 const StaffHeader = ({ userName: propName, branchName: propBranch, viewMode = 'dashboard', onViewChange }) => {
   const { orgSlug: urlOrgSlug } = useParams();
@@ -62,26 +63,9 @@ const StaffHeader = ({ userName: propName, branchName: propBranch, viewMode = 'd
           {/* Logo & Branch Info */}
           <div className="flex items-center space-x-4">
             <Link to={basePath} className="flex items-center space-x-2">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <svg 
-                  width="24" 
-                  height="24" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  className="text-primary-foreground"
-                >
-                  <path 
-                    d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z" 
-                    fill="currentColor"
-                  />
-                  <circle cx="12" cy="19" r="2" fill="currentColor" opacity="0.7"/>
-                </svg>
-              </div>
+              <img src={logo} alt="ClinicMD" className="h-10 w-auto" />
               <div className="flex flex-col">
-                <span className="font-heading font-heading-semibold text-lg text-text-primary">
-                  Superdental
-                </span>
-                <span className="font-caption font-caption-normal text-xs text-text-secondary -mt-1">
+                <span className="font-caption font-caption-normal text-xs text-text-secondary">
                   Staff Dashboard
                 </span>
               </div>

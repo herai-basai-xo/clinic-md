@@ -3,9 +3,9 @@
     "name": "Superdental - AI Booking Engine",
     "icons": [
       {
-        "src": "favicon.svg",
-        "sizes": "any",
-        "type": "image/svg+xml"
+        "src": "favicon.png",
+        "sizes": "154x154",
+        "type": "image/png"
       },
       {
         "src": "favicon.ico",

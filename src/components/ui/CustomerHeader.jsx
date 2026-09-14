@@ -4,6 +4,7 @@ import Icon from '../AppIcon';
 import { useTenant } from 'contexts/TenantContext';
 import { useCustomerAuth } from 'contexts/CustomerAuthContext';
 import useMeasuredHeightVar from 'hooks/useMeasuredHeightVar';
+import logo from 'assets/logo.png';
 
 const CustomerHeader = () => {
   const location = useLocation();
@@ -51,21 +52,7 @@ const CustomerHeader = () => {
         <div className="flex items-center justify-between gap-3 h-auto min-h-16 py-3 sm:h-16 sm:py-0">
           {/* Logo */}
           <Link to={bookingPath} className="flex items-center space-x-2 group min-w-0 flex-1">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary rounded-lg flex items-center justify-center spa-transition-fast group-hover:bg-primary/90 flex-shrink-0">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                className="text-primary-foreground sm:w-6 sm:h-6"
-              >
-                <path
-                  d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z"
-                  fill="currentColor"
-                />
-                <circle cx="12" cy="19" r="2" fill="currentColor" opacity="0.7"/>
-              </svg>
-            </div>
+            <img src={logo} alt="ClinicMD" className="h-8 sm:h-10 w-auto flex-shrink-0" />
             <div className="flex flex-col min-w-0">
               <span className="font-heading font-heading-semibold text-base sm:text-lg text-text-primary truncate">
                 {orgName || 'Superdental'}
