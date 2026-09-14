@@ -95,7 +95,10 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             git clean -fd
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            install -m 600 /dev/null /tmp/ghcr-token
+            printf '%s' "$GHCR_TOKEN" > /tmp/ghcr-token
+            docker login ghcr.io -u "$GHCR_USER" --password-stdin < /tmp/ghcr-token
+            rm -f /tmp/ghcr-token
             docker compose pull
             docker compose up -d
             docker image prune -f
