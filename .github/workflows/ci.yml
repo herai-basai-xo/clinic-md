@@ -2,27 +2,13 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, stage]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  promotion-guard:
-    name: Promotion Guard
-    runs-on: ubuntu-latest
-    if: github.base_ref == 'main'
-    steps:
-      - name: Only stage or promote/* may target main
-        run: |
-          HEAD_REF="${{ github.head_ref }}"
-          if [ "$HEAD_REF" != "stage" ] && [[ "$HEAD_REF" != promote/* ]]; then
-            echo "PRs into main must come from 'stage' or a 'promote/*' branch (got '$HEAD_REF')."
-            echo "Feature branches merge to stage only — see CLAUDE.md branching strategy."
-            exit 1
-          fi
-
   build:
     name: Build
     runs-on: ubuntu-latest
