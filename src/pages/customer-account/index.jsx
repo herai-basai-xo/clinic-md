@@ -194,7 +194,7 @@ const CustomerAccount = () => {
     <div className="min-h-screen bg-background">
       <header className="px-6 md:px-8 py-5 flex items-center justify-between border-b border-border bg-surface">
         <span className="font-heading font-heading-semibold text-lg text-text-primary tracking-tight">
-          {orgName || 'Superdental'}
+          {orgName || 'ClinicMD'}
         </span>
         <button
           type="button"

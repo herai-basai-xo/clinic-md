@@ -1,6 +1,6 @@
-# Superdental — Dental Booking Web App
+# ClinicMD — Dental Booking Web App
 
-Superdental is a dental clinic booking management SPA. Staff, managers, and admins manage
+ClinicMD is a dental clinic booking management SPA. Staff, managers, and admins manage
 bookings, dentists, chairs, treatments, payments, and discounts across multiple branches;
 patients book through an org-scoped public flow.
 

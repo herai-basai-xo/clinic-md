@@ -10,7 +10,7 @@ const PlatformNav = () => {
   return (
     <header className="z-header bg-surface border-b border-border px-6 py-3 flex items-center justify-between">
       <Link to="/platform/dashboard" className="font-heading font-heading-semibold text-primary">
-        Superdental · Platform
+        ClinicMD · Platform
       </Link>
       <div className="flex items-center gap-4">
         <span className="font-body text-sm text-text-secondary">{user?.email}</span>

@@ -32,7 +32,7 @@ const StaffLoginAuthentication = () => {
   }, []);
 
   // Get org name for display
-  const orgName = organization?.name || 'Superdental';
+  const orgName = organization?.name || 'ClinicMD';
 
   return (
     <div className="login-page min-h-screen bg-background flex flex-col">
@@ -102,7 +102,7 @@ const StaffLoginAuthentication = () => {
           <a href="#" className="hover:text-text-primary transition-colors">
             Privacy policy
           </a>
-          <span>&copy; {new Date().getFullYear()} Superdental</span>
+          <span>&copy; {new Date().getFullYear()} ClinicMD</span>
         </div>
       </footer>
     </div>

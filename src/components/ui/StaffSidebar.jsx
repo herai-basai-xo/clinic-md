@@ -495,7 +495,7 @@ const StaffSidebar = ({ userRole: propRole, userName: propName, branchName: prop
                 </div>
               </div>
               <div>
-                <h1 className="text-sm font-semibold text-gray-900">Superdental</h1>
+                <h1 className="text-sm font-semibold text-gray-900">ClinicMD</h1>
                 <p className="text-xs text-gray-500">Staff Portal</p>
               </div>
             </Link>

@@ -164,9 +164,9 @@
   }
 }
 
-/* ── FullCalendar Superdental Theme ─────────────────────────────── */
+/* ── FullCalendar ClinicMD Theme ─────────────────────────────── */
 .bookspa-calendar {
-  /* Reset FullCalendar chrome to match Superdental surface tokens */
+  /* Reset FullCalendar chrome to match ClinicMD surface tokens */
   --fc-border-color: var(--color-border);
   --fc-button-bg-color: var(--color-background);
   --fc-button-border-color: var(--color-border);

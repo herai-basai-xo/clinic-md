@@ -112,7 +112,7 @@ const OrgFinder = () => {
 
           {/* Title & Subtitle */}
           <h1 className="text-[28px] font-semibold text-text-primary mb-2 text-center tracking-tight">
-            Welcome to Superdental
+            Welcome to ClinicMD
           </h1>
           <p className="text-[15px] text-text-secondary mb-8 text-center">
             Enter your organization name to continue
@@ -184,7 +184,7 @@ const OrgFinder = () => {
           <a href="#" className="hover:text-text-primary transition-colors">
             Privacy policy
           </a>
-          <span>&copy; {new Date().getFullYear()} Superdental</span>
+          <span>&copy; {new Date().getFullYear()} ClinicMD</span>
         </div>
       </footer>
     </div>

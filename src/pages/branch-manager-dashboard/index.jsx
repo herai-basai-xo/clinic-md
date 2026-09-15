@@ -406,8 +406,8 @@ const BranchManagerDashboard = () => {
   return (
     <>
       <Helmet>
-        <title>Branch Manager Dashboard - Superdental</title>
-        <meta name="description" content="Comprehensive branch management dashboard for Superdental managers with analytics, staff oversight, and operational controls." />
+        <title>Branch Manager Dashboard - ClinicMD</title>
+        <meta name="description" content="Comprehensive branch management dashboard for ClinicMD managers with analytics, staff oversight, and operational controls." />
       </Helmet>
 
       <div className="min-h-screen bg-surface-sidebar">

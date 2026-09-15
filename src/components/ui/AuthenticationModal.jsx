@@ -124,7 +124,7 @@ const AuthenticationModal = ({ isOpen = true, onClose }) => {
                   Staff Login
                 </h2>
                 <p className="font-caption font-caption-normal text-sm text-text-secondary">
-                  Access your Superdental dashboard
+                  Access your ClinicMD dashboard
                 </p>
               </div>
             </div>

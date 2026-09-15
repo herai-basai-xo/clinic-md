@@ -28,7 +28,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // logging in on /:orgSlug/book doesn't clobber a staff session in the same
 // browser, and vice versa.
 export const supabaseCustomer = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { storageKey: 'superdental-customer-auth' },
+  auth: { storageKey: 'clinicmd-customer-auth' },
 });
 
 // Isolated client for the platform super-admin area (own storage key) so a
@@ -37,5 +37,5 @@ export const supabaseCustomer = createClient(supabaseUrl, supabaseAnonKey, {
 // supabaseCustomer's isolation. Never used for email-link flows, so it's
 // excluded from the URL-token race for the same reason as `supabase` above.
 export const supabasePlatform = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { storageKey: 'superdental-platform-auth', detectSessionInUrl: false },
+  auth: { storageKey: 'clinicmd-platform-auth', detectSessionInUrl: false },
 });

@@ -18,7 +18,7 @@ const CustomerHeader = () => {
   useMeasuredHeightVar(headerRef, '--customer-header-h');
 
   // Try to get tenant context, but don't fail if not available
-  let tenantData = { orgName: 'Superdental' };
+  let tenantData = { orgName: 'ClinicMD' };
   try {
     tenantData = useTenant();
   } catch {
@@ -55,7 +55,7 @@ const CustomerHeader = () => {
             <img src={logo} alt="ClinicMD" className="h-8 sm:h-10 w-auto flex-shrink-0" />
             <div className="flex flex-col min-w-0">
               <span className="font-heading font-heading-semibold text-base sm:text-lg text-text-primary truncate">
-                {orgName || 'Superdental'}
+                {orgName || 'ClinicMD'}
               </span>
               <span className="block font-caption font-caption-normal text-[10px] sm:text-xs text-text-secondary -mt-0.5 sm:-mt-1 truncate">
                 {getTagline()}
