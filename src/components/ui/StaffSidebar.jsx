@@ -6,6 +6,7 @@ import { useBranch } from 'contexts/BranchContext';
 import { useIndustry } from 'hooks/useIndustry';
 import { fetchPendingApprovalCount } from 'services/api';
 import { MEMBERSHIP_ENABLED, CUSTOMER_REFERRALS_ENABLED, VOUCHER_ENABLED, OUTREACH_ENABLED } from 'lib/featureFlags';
+import logo from 'assets/logo.png';
 
 const StaffSidebar = ({ userRole: propRole, userName: propName, branchName: propBranch, onCollapseChange }) => {
   const location = useLocation();
@@ -477,25 +478,8 @@ const StaffSidebar = ({ userRole: propRole, userName: propName, branchName: prop
         <div className="px-5 py-3 h-[52px] flex items-center justify-between">
           {!isCollapsed && (
             <Link to={basePath} className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="text-white"
-                  >
-                    <path
-                      d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z"
-                      fill="currentColor"
-                    />
-                    <circle cx="12" cy="19" r="2" fill="currentColor" opacity="0.7"/>
-                  </svg>
-                </div>
-              </div>
+              <img src={logo} alt="ClinicMD" className="h-8 w-auto" />
               <div>
-                <h1 className="text-sm font-semibold text-gray-900">ClinicMD</h1>
                 <p className="text-xs text-gray-500">Staff Portal</p>
               </div>
             </Link>
